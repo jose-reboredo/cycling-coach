@@ -60,7 +60,11 @@ export default {
           }),
         });
         const data = await tokenRes.json();
-        if (data.access_token) return htmlResponse(callbackPage(data, url.origin, fromPwa));
+        if (data.access_token) {
+          // Strangler Fig: dual-write phase. Persist to D1, frontend still uses localStorage.
+          await persistUserAndTokens(env.cycling_coach_db, data);
+          return htmlResponse(callbackPage(data, url.origin, fromPwa));
+        }
         return htmlResponse(errorPage(data.message || 'Token exchange failed'));
       } catch (e) { return htmlResponse(errorPage(e.message)); }
     }
@@ -385,6 +389,60 @@ Respond ONLY with valid JSON, no markdown:
   },
 };
  
+// Persist user and Strava tokens to D1.
+// Failures are logged but do not block the auth flow (graceful degradation).
+async function persistUserAndTokens(db, tokenData) {
+  if (!db) {
+    console.warn('[D1] cycling_coach_db binding missing, skipping persist');
+    return;
+  }
+  if (!tokenData?.athlete?.id) {
+    console.warn('[D1] No athlete data in token response, skipping persist');
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const a = tokenData.athlete;
+
+  try {
+    await db.prepare(`
+      INSERT INTO users (athlete_id, firstname, lastname, profile_url, raw_athlete_json, created_at, last_seen_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(athlete_id) DO UPDATE SET
+        firstname = excluded.firstname,
+        lastname = excluded.lastname,
+        profile_url = excluded.profile_url,
+        raw_athlete_json = excluded.raw_athlete_json,
+        last_seen_at = excluded.last_seen_at
+    `).bind(
+      a.id,
+      a.firstname || null,
+      a.lastname || null,
+      a.profile_medium || a.profile || null,
+      JSON.stringify(a),
+      now,
+      now
+    ).run();
+
+    const credentials = JSON.stringify({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_at: tokenData.expires_at,
+    });
+    await db.prepare(`
+      INSERT INTO user_connections (athlete_id, source, credentials_json, connected_at, last_sync_at, is_active)
+      VALUES (?, 'strava', ?, ?, NULL, 1)
+      ON CONFLICT(athlete_id, source) DO UPDATE SET
+        credentials_json = excluded.credentials_json,
+        is_active = 1
+    `).bind(a.id, credentials, now).run();
+
+    console.log(`[D1] Persisted user ${a.id} (${a.firstname || ''}) and Strava tokens`);
+  } catch (e) {
+    console.error('[D1] persistUserAndTokens failed:', e.message);
+  }
+}
+
 function htmlResponse(body) {
   return new Response(body, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
