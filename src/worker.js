@@ -13,7 +13,7 @@
  
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v7.0.2';
+const WORKER_VERSION = 'v7.0.3';
 const BUILD_DATE = '2026-04-26';
  
 export default {
