@@ -2351,6 +2351,9 @@ function renderRoutesPanelHTML(target) {
  
 // ============= CHANGELOG =============
 const CHANGELOG = [
+  { version: 'v7.0.3', date: 'Apr 2026', notes: [
+    'Internal: first auto-deploy via GitHub to Cloudflare CI/CD',
+  ]},
   { version: 'v7.0.2', date: 'Apr 2026', notes: [
     'Restored prominent "Your next ride" section above the weekly plan',
     'Routes panel now visible by default for the next non-rest day',
