@@ -82,6 +82,10 @@ export default {
           }),
         });
         const data = await refreshRes.json();
+        // Strangler Fig: persist refreshed tokens to D1 if athlete present in response
+        if (data.access_token && data.athlete?.id) {
+          await updateConnectionTokens(env.cycling_coach_db, data.athlete.id, data);
+        }
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -99,9 +103,20 @@ export default {
       if (!auth) return new Response(JSON.stringify({ error: 'Missing Authorization' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
-      try {
+try {
         const proxied = await fetch(stravaUrl, { method: request.method, headers: { 'Authorization': auth } });
         const body = await proxied.text();
+        // Strangler Fig: persist activities to D1 when proxying athlete/activities responses
+        if (proxied.ok && stravaPath === 'athlete/activities') {
+          try {
+            const parsed = JSON.parse(body);
+            if (Array.isArray(parsed)) {
+              await persistActivities(env.cycling_coach_db, parsed);
+            }
+          } catch (parseErr) {
+            console.warn('[D1] Could not parse activities response for persist:', parseErr.message);
+          }
+        }
         return new Response(body, {
           status: proxied.status,
           headers: { ...corsHeaders, 'Content-Type': proxied.headers.get('Content-Type') || 'application/json' },
@@ -443,7 +458,100 @@ async function persistUserAndTokens(db, tokenData) {
   }
 }
 
-function htmlResponse(body) {
+// Persist activities to D1.
+// Failures are logged but do not block the proxy response (graceful degradation).
+async function persistActivities(db, activities) {
+  if (!db) {
+    console.warn('[D1] cycling_coach_db binding missing, skipping activity persist');
+    return;
+  }
+  if (!Array.isArray(activities) || activities.length === 0) {
+    return;
+  }
+
+  const athleteId = activities[0]?.athlete?.id;
+  if (!athleteId) {
+    console.warn('[D1] No athlete.id in first activity, skipping persist');
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  let persisted = 0;
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO activities (
+        athlete_id, start_date_local, sport_type, distance, moving_time,
+        total_elevation_gain, average_speed, average_heartrate, max_heartrate,
+        pr_count, achievement_count, strava_id, primary_source,
+        strava_raw_json, synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'strava', ?, ?)
+      ON CONFLICT(strava_id) DO UPDATE SET
+        start_date_local = excluded.start_date_local,
+        sport_type = excluded.sport_type,
+        distance = excluded.distance,
+        moving_time = excluded.moving_time,
+        total_elevation_gain = excluded.total_elevation_gain,
+        average_speed = excluded.average_speed,
+        average_heartrate = excluded.average_heartrate,
+        max_heartrate = excluded.max_heartrate,
+        pr_count = excluded.pr_count,
+        achievement_count = excluded.achievement_count,
+        strava_raw_json = excluded.strava_raw_json,
+        synced_at = excluded.synced_at
+    `);
+
+    for (const a of activities) {
+      if (!a.id) continue;
+      await stmt.bind(
+        athleteId,
+        a.start_date_local || a.start_date || null,
+        a.sport_type || a.type || 'Unknown',
+        a.distance || 0,
+        a.moving_time || 0,
+        a.total_elevation_gain || null,
+        a.average_speed || null,
+        a.average_heartrate || null,
+        a.max_heartrate || null,
+        a.pr_count || 0,
+        a.achievement_count || 0,
+        a.id,
+        JSON.stringify(a),
+        now
+      ).run();
+      persisted++;
+    }
+
+    console.log(`[D1] Persisted ${persisted} activities for athlete ${athleteId}`);
+  } catch (e) {
+    console.error('[D1] persistActivities failed:', e.message);
+  }
+}
+
+// Update Strava connection tokens after a refresh.
+// Failures are logged but do not block the refresh response.
+async function updateConnectionTokens(db, athleteId, tokenData) {
+  if (!db || !athleteId) return;
+
+  const now = Math.floor(Date.now() / 1000);
+  const credentials = JSON.stringify({
+    access_token: tokenData.access_token,
+    refresh_token: tokenData.refresh_token,
+    expires_at: tokenData.expires_at,
+  });
+
+  try {
+    await db.prepare(`
+      UPDATE user_connections
+      SET credentials_json = ?, last_sync_at = ?
+      WHERE athlete_id = ? AND source = 'strava'
+    `).bind(credentials, now, athleteId).run();
+    console.log(`[D1] Refreshed Strava tokens for athlete ${athleteId}`);
+  } catch (e) {
+    console.error('[D1] updateConnectionTokens failed:', e.message);
+  }
+
+}function htmlResponse(body) {
   return new Response(body, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
  
