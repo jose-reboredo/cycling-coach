@@ -476,6 +476,32 @@ Respond ONLY with valid JSON, no markdown:
       }
     }
 
+    // ============= ADMIN: FILE AUDIT ISSUES =============
+    // One-shot — files the 4 deferrals from the 2026-04-28 dashboard audit
+    // against the v8.5.0 milestone. Idempotent — skips titles that already
+    // exist. Remove this route handler after running (per the same convention
+    // as fileBacklogIssues / fileSecurityIssues — keep the helper for reference).
+    if (url.pathname === '/admin/file-audit-issues' && request.method === 'POST') {
+      const adminCheck = requireAdmin(request, env);
+      if (adminCheck) return adminCheck;
+      if (!env.GITHUB_TOKEN) {
+        return new Response(
+          JSON.stringify({ error: 'GITHUB_TOKEN secret missing' }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      try {
+        const result = await fileAuditIssues(env);
+        return new Response(JSON.stringify(result, null, 2), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // ============= ROADMAP =============
     // GitHub Issues are the source of truth for the public roadmap. The
     // /whats-next page in the React SPA fetches this endpoint, which proxies
@@ -1164,6 +1190,93 @@ async function fileBacklogIssues(env) {
       milestone: 'v8.5.0',
       body:
         '## Feature\nThe legacy v7 dashboard had a changelog modal accessible from a small badge in the top bar. Port it: when a new release ships, users see a discreet badge in the TopBar (`cc_lastSeenVersion < currentVersion`). Click → modal renders the latest 3 entries from `CHANGELOG.md`.\n\n## Implementation\n- Build a tiny CHANGELOG → JSON parser at compile time (Vite import or a build script that emits `apps/web/src/data/changelog.json`).\n- `<WhatsNewBadge>` in the TopBar trailing slot — only renders when there\'s an unseen newer version.\n- Modal: latest 3 release entries with rendered Markdown, dismiss button.\n- "Don\'t show again for vX.Y.Z" stores `cc_lastSeenVersion` in localStorage.\n\n## Acceptance\n- [ ] Badge appears on first dashboard load after a release\n- [ ] Click opens modal with latest 3 entries\n- [ ] Dismiss persists `cc_lastSeenVersion`\n- [ ] No badge on subsequent visits at the same version\n- [ ] Works in both authed + demo modes',
+    },
+  ];
+
+  for (const issue of ISSUES) {
+    if (existingIsTitles.has(issue.title)) {
+      out.issues.push({ title: issue.title, status: 'exists' });
+      continue;
+    }
+    const milestoneNum = msByTitle.get(issue.milestone);
+    const payload = { title: issue.title, body: issue.body, labels: issue.labels };
+    if (milestoneNum) payload.milestone = milestoneNum;
+    const r = await fetch(`https://api.github.com/repos/${REPO}/issues`, {
+      method: 'POST', headers: ghHeaders, body: JSON.stringify(payload),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      out.issues.push({ title: issue.title, status: 'created', number: created.number, url: created.html_url });
+    } else {
+      const err = await r.text().catch(() => '');
+      out.issues.push({ title: issue.title, status: r.status, error: err.slice(0, 200) });
+    }
+  }
+  return out;
+}
+
+// Files the 4 audit deferrals from the 2026-04-28 dashboard design audit
+// against the v8.5.0 milestone. Idempotent — skips titles that already exist.
+// Same wire format as fileBacklogIssues / fileSecurityIssues.
+async function fileAuditIssues(env) {
+  const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+  const ghHeaders = {
+    'User-Agent': 'cycling-coach-bootstrap',
+    'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
+  const out = { issues: [] };
+
+  // Ensure v8.5.0 milestone exists.
+  const msRes = await fetch(`https://api.github.com/repos/${REPO}/milestones?state=all&per_page=100`, { headers: ghHeaders });
+  const existingMs = msRes.ok ? await msRes.json() : [];
+  const msByTitle = new Map(existingMs.map((m) => [m.title, m.number]));
+  if (!msByTitle.has('v8.5.0')) {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/milestones`, {
+      method: 'POST', headers: ghHeaders,
+      body: JSON.stringify({ title: 'v8.5.0', description: 'Weekly release' }),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      msByTitle.set('v8.5.0', created.number);
+    }
+  }
+
+  // De-dup by title.
+  const isRes = await fetch(`https://api.github.com/repos/${REPO}/issues?state=all&per_page=100`, { headers: ghHeaders });
+  const existingIs = isRes.ok ? await isRes.json() : [];
+  const existingIsTitles = new Set(existingIs.filter((i) => !i.pull_request).map((i) => i.title));
+
+  const ISSUES = [
+    {
+      title: 'RideDetail expand: animate transform/opacity, not height: auto',
+      labels: ['priority:medium', 'area:dashboard', 'type:perf'],
+      milestone: 'v8.5.0',
+      body:
+        '## Audit deferral — H6b\n2026-04-28 dashboard audit (`docs/superpowers/specs/2026-04-28-dashboard-design-audit.md`).\n\n### Problem\n`RideDetail` expand animation uses `initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: \'auto\' }}`. Animating to `height: auto` forces Motion to measure target height each frame and triggers layout — it\'s the explicit anti-pattern called out in the ui-ux-pro-max react-performance.csv: \'Use transform and opacity for animations\'.\n\n`VolumeChart` bars were already swapped to `scaleY` in commit `426f24e`; this issue tracks the trickier RideDetail case.\n\n### Options\n- (a) Drop the height animation entirely, keep opacity-fade. Layout snap is OK for an expand panel; Strava does the same.\n- (b) Use `<details>` element with CSS `interpolate-size: allow-keywords` (Chromium-only, recent — would need fallback).\n- (c) Measure with `ResizeObserver` on first open, cache the height per-rideId, animate to a number.\n\nRecommendation: (a) — simplest, removes the anti-pattern entirely. The opacity fade alone reads as \'expand\'.\n\n### Acceptance\n- [ ] RideDetail.tsx initial/animate/exit no longer reference `height`\n- [ ] Visual smoke test: expand a ride at 375px, confirm content reveals smoothly\n- [ ] React DevTools Profiler shows no layout passes during expand',
+    },
+    {
+      title: 'Accent #ff4d00 fails AA contrast for small text — introduce --c-accent-light',
+      labels: ['priority:medium', 'area:design-system', 'type:a11y'],
+      milestone: 'v8.5.0',
+      body:
+        '## Audit deferral — H8\n2026-04-28 dashboard audit. Touches the design system, deferred for a deliberate pass.\n\n### Problem\nMolten orange `#ff4d00` on canvas `#0a0a0c` is approximately 3.9:1 — fails WCAG AA for normal text (<24px / <19px bold), passes for large text. PARS uses the accent for some small mono labels:\n\n- `Pill.accent` (10px mono uppercase)\n- `.brandBadge` \'v8\' (9px mono)\n- `.surfaceEm` icon 12px\n- `.matchHigh` 22px is borderline (large-text threshold 19px bold / 24px regular)\n- `.bulletGood::before` decorative line — not text, exempt\n\n### Proposal\nIntroduce a sibling token `--c-accent-light: #ff7a3d` (≈ 5.2:1 on canvas), specifically for ≤14px usage. Don\'t change `--c-accent` itself — the brand call-to-action color stays. Audit the call-sites and swap the accent token for accent-light only on small-text instances.\n\n### Open question\nDoes the accent-light shift the brand feel? If so, alternative: brighten `--c-accent` itself slightly (e.g. `#ff5e1a`) to lift the whole system above 4.5:1. Single-source change, but every accent surface gets warmer.\n\n### Acceptance\n- [ ] Decision logged: introduce token vs. shift the existing one\n- [ ] All accent-on-canvas text ≤14px audited and brought to 4.5:1\n- [ ] Confluence "User Interfaces" page updated with the contrast rule\n- [ ] No regressions in PARS "feel" — review with design eye after change',
+    },
+    {
+      title: 'BottomNav active tab should sync to scroll position, not last click',
+      labels: ['priority:medium', 'area:dashboard', 'type:enhancement'],
+      milestone: 'v8.5.0',
+      body:
+        '## Audit deferral — M2\n2026-04-28 dashboard audit.\n\n### Problem\n`BottomNav` (mobile) tracks an `activeId` from `useState`, set on click. Once the user scrolls naturally — which is most of the time — the active orange dot stays on whichever tab they last tapped, not on the section currently in view. Skill rule: \'Navigation: Active State — Highlight active nav item with color/underline. Don\'t have no visual feedback on current location.\'\n\n### Approach\n`IntersectionObserver` over the four section IDs (`#today`, `#train`, `#stats`, `#you`). Threshold ~0.5; the section with the highest intersection ratio in the viewport wins. Update `activeId` on changes; debounce (rAF) to avoid thrash on fast scroll.\n\n`#you` doesn\'t exist as a section yet (it goes to UserMenu? to a settings page?) — decide as part of this work. Could leave as scrolling to the bottom of the dashboard for now.\n\n### Acceptance\n- [ ] BottomNav active state updates as the user scrolls (no click required)\n- [ ] Tapping a tab still scrolls to + activates its section\n- [ ] No re-render storms — observer fires reasonably (every section transition)\n- [ ] \'#you\' has a defined target (or removed from BottomNav)\n- [ ] Manual smoke at 375px',
+    },
+    {
+      title: 'UserMenu: arrow-key navigation + focus management (extract useFocusTrap)',
+      labels: ['priority:medium', 'area:dashboard', 'type:a11y'],
+      milestone: 'v8.5.0',
+      body:
+        '## Audit deferral — M5 (+ refactors H3 into shared util)\n2026-04-28 dashboard audit. The OnboardingModal got an inline focus trap in commit `0e168a1`; this issue extracts it into a reusable hook and applies it to UserMenu.\n\n### Problem (UserMenu)\nThe popover has `role="menu"` + `role="menuitem"` (good), `aria-expanded`, `aria-haspopup`, ESC + click-outside close (good). Missing per ARIA:\n- ↑/↓ to move between menu items\n- Focus moves into menu when opened\n- Focus returns to the trigger when closed\n\n### Approach\n1. Extract `useFocusTrap(active: boolean, opts: { restore: boolean })` from `OnboardingModal.tsx` into `apps/web/src/hooks/useFocusTrap.ts`. Returns a ref to attach to the trapping container.\n2. Add `useArrowMenu` companion hook for ↑/↓/Home/End within a list of refs.\n3. Apply both to `UserMenu`. `OnboardingModal` re-uses the trap.\n\n### Acceptance\n- [ ] `useFocusTrap` hook in `apps/web/src/hooks/` with unit notes in JSDoc\n- [ ] OnboardingModal swapped to use the hook (delete inline trap, no behavior change)\n- [ ] UserMenu uses the hook + arrow nav: open menu → first item focused → ↓/↑ moves → ESC closes → trigger refocused\n- [ ] Tab still works to leave the menu (closes it)\n- [ ] Manual keyboard probe of both surfaces',
     },
   ];
 
