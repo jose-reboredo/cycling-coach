@@ -2,7 +2,23 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.2.0](./CHANGELOG.md#820--2026-04-28)** · 2026-04-28
+**Current release: [v8.3.0](./CHANGELOG.md#830--2026-04-28)** · 2026-04-28
+
+## What's new in v8.3.0
+
+GitHub Issues become the source of truth for the public roadmap. The [`/whats-next`](https://cycling-coach.josem-reboredo.workers.dev/whats-next) page reflects the live issue tracker within five minutes — so weekly releases are driven directly by milestone closures, not a separate spreadsheet.
+
+```
+GitHub Issues  ─►  Worker /roadmap  ─►  /whats-next page
+[label/milestone]   [5-min edge cache]   [Tanstack Query, 5-min stale]
+```
+
+- New `Worker /roadmap` endpoint proxies the GitHub REST API, normalises issues (title, body, labels → area + priority, milestone → target version, assignees → in-progress status), and caches at the edge.
+- `useRoadmap` hook with graceful fallback to the static seed (so the page is never blank during the GitHub bootstrap).
+- `scripts/bootstrap-issues.sh` — idempotent — sets up labels (`priority:*`, `area:*`, `type:*`), milestones (`v8.3.0`, `v8.4.0`, `v8.5.0`), and the open-backlog issues.
+- `CONTRIBUTING.md` documents the workflow.
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the issue conventions and weekly release cadence.
 
 ## What's new in v8.2.0
 

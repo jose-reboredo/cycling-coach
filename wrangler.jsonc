@@ -19,7 +19,8 @@
 			"/coach",
 			"/coach-ride",
 			"/webhook",
-			"/version"
+			"/version",
+			"/roadmap"
 		]
 	},
 	"observability": {

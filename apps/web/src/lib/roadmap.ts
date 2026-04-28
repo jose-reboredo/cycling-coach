@@ -1,7 +1,11 @@
-// Roadmap surface — drives the /whats-next page. Mirrors the issue list in
-// .github/ISSUES_v8.0.0.md so the public roadmap stays in sync.
+// Static seed for the /whats-next page. Used as a fallback when the live
+// /roadmap endpoint (which proxies GitHub Issues) is unreachable or empty.
+//
+// Source of truth in production: GitHub Issues at
+//   https://github.com/jose-reboredo/cycling-coach/issues
+// Labels drive area/priority/type; milestones drive `target` (e.g. 'v8.3.0').
 
-export type Priority = 'high' | 'medium' | 'low';
+export type Priority = 'high' | 'medium' | 'low' | string;
 export type Area =
   | 'dashboard'
   | 'design-system'
@@ -11,18 +15,26 @@ export type Area =
   | 'ci'
   | 'pwa'
   | 'perf'
-  | 'routes';
-export type Status = 'in-progress' | 'open' | 'shipped';
+  | 'routes'
+  | string;
+export type Status = 'in-progress' | 'open' | 'shipped' | string;
 
 export interface RoadmapItem {
-  id: string;
+  /** stable id — string for the seed list, GitHub issue number for live items */
+  id: string | number;
   title: string;
   body: string;
   area: Area;
   priority: Priority;
   status: Status;
-  /** semver target — when we'd like to ship this */
-  target?: string;
+  /** semver target — when we'd like to ship this. From GitHub milestone. */
+  target?: string | null;
+  /** GitHub issue URL, present only on live items */
+  url?: string;
+  /** GitHub issue number, present only on live items */
+  number?: number;
+  closed_at?: string | null;
+  updated_at?: string;
 }
 
 export const ROADMAP: RoadmapItem[] = [

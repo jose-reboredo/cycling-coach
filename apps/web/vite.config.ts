@@ -31,6 +31,7 @@ export default defineConfig({
       '/coach-ride': forward(),
       '/version':    forward(),
       '/webhook':    forward(),
+      '/roadmap':    forward(),
     },
   },
   build: {

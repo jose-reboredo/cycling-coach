@@ -13,7 +13,7 @@
  
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v8.2.0';
+const WORKER_VERSION = 'v8.3.0';
 const BUILD_DATE = '2026-04-28';
  
 // Resolve the user-facing origin so OAuth redirect_uri lands where the user
@@ -441,10 +441,120 @@ Respond ONLY with valid JSON, no markdown:
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
- 
+
+    // ============= ROADMAP =============
+    // GitHub Issues are the source of truth for the public roadmap. The
+    // /whats-next page in the React SPA fetches this endpoint, which proxies
+    // GitHub's REST API and caches the response at the edge for 5 minutes.
+    if (url.pathname === '/roadmap') {
+      try {
+        const cacheKey = new Request(`${url.origin}/__roadmap-cache`, { method: 'GET' });
+        const cache = caches.default;
+        const cached = await cache.match(cacheKey);
+        if (cached) {
+          return new Response(cached.body, {
+            status: cached.status,
+            headers: { ...Object.fromEntries(cached.headers), 'X-Cache': 'HIT' },
+          });
+        }
+
+        const owner = env.GITHUB_OWNER || 'jose-reboredo';
+        const repo = env.GITHUB_REPO || 'cycling-coach';
+        const ghHeaders = {
+          'User-Agent': 'cycling-coach-worker',
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        };
+        if (env.GITHUB_TOKEN) ghHeaders['Authorization'] = `Bearer ${env.GITHUB_TOKEN}`;
+
+        const ghRes = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/issues?state=all&per_page=100&sort=updated&direction=desc`,
+          { headers: ghHeaders },
+        );
+        if (!ghRes.ok) {
+          return new Response(
+            JSON.stringify({ error: 'GitHub fetch failed', status: ghRes.status, items: [] }),
+            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+        const issues = await ghRes.json();
+        const items = issues
+          .filter((i) => !i.pull_request)
+          .map(normalizeGhIssue);
+
+        const body = JSON.stringify({
+          repo: `${owner}/${repo}`,
+          fetched_at: Date.now(),
+          count: items.length,
+          items,
+        });
+        const response = new Response(body, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=300, s-maxage=300',
+            'X-Cache': 'MISS',
+          },
+        });
+        await cache.put(cacheKey, response.clone());
+        return response;
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ error: e.message, items: [] }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
     return Response.redirect(url.origin + '/', 302);
   },
 };
+
+// Map a GitHub issue to the shape the React WhatsNext page expects.
+//
+// Conventions (enforced by labels + milestones on github.com):
+//   • status:     state == 'closed' → 'shipped'
+//                 'status:in-progress' label OR has assignee → 'in-progress'
+//                 else → 'open'
+//   • area:       'area:<name>' label  (dashboard / design-system / auth / db /
+//                                       backend / ci / pwa / perf / routes)
+//   • priority:   'priority:high|medium|low'
+//   • type:       'type:feature|bug|chore'
+//   • target:     milestone title (e.g. 'v8.3.0')
+function normalizeGhIssue(i) {
+  const labels = (i.labels || []).map((l) => (typeof l === 'string' ? l : l.name));
+  const stripPrefix = (prefix) => {
+    const hit = labels.find((l) => l.startsWith(prefix));
+    return hit ? hit.slice(prefix.length) : null;
+  };
+  const inProgress =
+    labels.includes('status:in-progress') || (i.assignees && i.assignees.length > 0);
+  let status = 'open';
+  if (i.state === 'closed') status = 'shipped';
+  else if (inProgress) status = 'in-progress';
+
+  const body = String(i.body || '')
+    .replace(/\r/g, '')
+    .split(/\n\s*\n/)[0]
+    .replace(/^[#>*\-\s]+/, '')
+    .slice(0, 280);
+
+  return {
+    id: i.number,
+    number: i.number,
+    title: i.title,
+    body,
+    url: i.html_url,
+    area: stripPrefix('area:') || 'dashboard',
+    priority: stripPrefix('priority:') || 'medium',
+    type: stripPrefix('type:') || 'feature',
+    status,
+    target: i.milestone?.title || null,
+    closed_at: i.closed_at,
+    updated_at: i.updated_at,
+  };
+}
  
 // Persist user and Strava tokens to D1.
 // Failures are logged but do not block the auth flow (graceful degradation).

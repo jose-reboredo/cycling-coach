@@ -4,6 +4,42 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [8.3.0] — 2026-04-28
+
+GitHub Issues become the source of truth for the public roadmap. The `/whats-next` page now reflects the live state of the issue tracker within five minutes of any change. Releases ship weekly, driven by milestone closures.
+
+### Added
+
+- **Worker `/roadmap` endpoint** — proxies `https://api.github.com/repos/<owner>/<repo>/issues`, normalises each issue (title, first paragraph of body, labels, milestone, state, assignees) into the same shape the React page expects. Edge-cached for 5 minutes via Cloudflare's Cache API. Optional `GITHUB_TOKEN` Worker secret for higher rate limits / private repos.
+- **`useRoadmap` Tanstack Query hook** — wraps `/roadmap`, falls back to the static `lib/roadmap.ts` seed if the request fails or returns empty (so the page is never blank during the first GitHub bootstrap).
+- **`/whats-next` page rewrite** — pulls live items, links each card to its GitHub issue, shows the issue number, surfaces a `Live · GitHub` vs `Fallback · seed` pill, a "Updated 3m ago" timestamp, and a Refresh button. Adds a "Open an issue on GitHub" CTA in the footer.
+- **`scripts/bootstrap-issues.sh`** — idempotent shell script that uses `gh` to ensure the labels (`priority:*`, `area:*`, `type:*`, `status:in-progress`), milestones (`v8.3.0`, `v8.4.0`, `v8.5.0`), and the open-backlog issues exist. Re-running is safe.
+- **`CONTRIBUTING.md`** — documents the GitHub-issues-driven workflow, label/milestone conventions, weekly release cadence, and local-dev pointers.
+
+### Changed
+
+- **`lib/roadmap.ts`** demoted from source-of-truth to fallback seed. Item type widened to accept GitHub-fed shape (numeric ids, optional `url`, `number`, `closed_at`, `updated_at`).
+- **Vite proxy + `wrangler.jsonc`** updated to forward `/roadmap` to the Worker (added to `assets.run_worker_first`).
+
+### Workflow
+
+```
+GitHub Issues  ─►  Worker /roadmap  ─►  /whats-next page
+[label/milestone]   [5-min edge cache]   [Tanstack Query, 5-min stale]
+```
+
+To bootstrap your issue tracker:
+
+```bash
+brew install gh
+gh auth login
+./scripts/bootstrap-issues.sh
+```
+
+After that, every `gh issue create` (or web-UI add / close / milestone change) shows up on the public roadmap inside ~5 minutes.
+
+---
+
 ## [8.2.0] — 2026-04-28
 
 Issue-cleanup release. Audited the v8.0.0 follow-up list and shipped four of five remaining items in one go. The last (`[backfill]`) is deferred — it depends on the remote D1 schema migration, which requires your action.
