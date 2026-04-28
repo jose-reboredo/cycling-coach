@@ -476,32 +476,6 @@ Respond ONLY with valid JSON, no markdown:
       }
     }
 
-    // ============= ADMIN: FILE AUDIT ISSUES =============
-    // One-shot — files the 4 deferrals from the 2026-04-28 dashboard audit
-    // against the v8.5.0 milestone. Idempotent — skips titles that already
-    // exist. Remove this route handler after running (per the same convention
-    // as fileBacklogIssues / fileSecurityIssues — keep the helper for reference).
-    if (url.pathname === '/admin/file-audit-issues' && request.method === 'POST') {
-      const adminCheck = requireAdmin(request, env);
-      if (adminCheck) return adminCheck;
-      if (!env.GITHUB_TOKEN) {
-        return new Response(
-          JSON.stringify({ error: 'GITHUB_TOKEN secret missing' }),
-          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-      try {
-        const result = await fileAuditIssues(env);
-        return new Response(JSON.stringify(result, null, 2), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } catch (e) {
-        return new Response(JSON.stringify({ error: e.message }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
     // ============= ROADMAP =============
     // GitHub Issues are the source of truth for the public roadmap. The
     // /whats-next page in the React SPA fetches this endpoint, which proxies
@@ -1218,6 +1192,10 @@ async function fileBacklogIssues(env) {
 // Files the 4 audit deferrals from the 2026-04-28 dashboard design audit
 // against the v8.5.0 milestone. Idempotent — skips titles that already exist.
 // Same wire format as fileBacklogIssues / fileSecurityIssues.
+//
+// Route handler removed after one-shot run on 2026-04-28 (issues #24–#27).
+// To re-invoke: re-add the /admin/file-audit-issues block in fetch() above.
+// eslint-disable-next-line no-unused-vars
 async function fileAuditIssues(env) {
   const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
   const ghHeaders = {
