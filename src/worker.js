@@ -518,6 +518,114 @@ Respond ONLY with valid JSON, no markdown:
 // the fetch() block above. Idempotent — safe to re-run.
 // Files the v8.x backlog (still-open items from the original v8.0.0 issue list)
 // as real GitHub issues. Idempotent — skips titles that already exist.
+// Files the security audit batch. Idempotent — skips titles that already exist.
+async function fileSecurityIssues(env) {
+  const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+  const ghHeaders = {
+    'User-Agent': 'cycling-coach-bootstrap',
+    Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
+  const out = { issues: [] };
+
+  const msRes = await fetch(`https://api.github.com/repos/${REPO}/milestones?state=all&per_page=100`, { headers: ghHeaders });
+  const existingMs = msRes.ok ? await msRes.json() : [];
+  const msByTitle = new Map(existingMs.map((m) => [m.title, m.number]));
+
+  const isRes = await fetch(`https://api.github.com/repos/${REPO}/issues?state=all&per_page=100`, { headers: ghHeaders });
+  const existingIs = isRes.ok ? await isRes.json() : [];
+  const existingIsTitles = new Set(existingIs.filter((i) => !i.pull_request).map((i) => i.title));
+
+  const ISSUES = [
+    {
+      title: 'OAuth state parameter is predictable JSON, not a CSRF nonce',
+      labels: ['priority:high', 'area:auth', 'type:bug'],
+      milestone: 'v8.4.0',
+      body:
+        '## Bug\n`/authorize` currently sets:\n```js\nconst state = btoa(JSON.stringify({ pwa: isPwa, origin }));\n```\nThe state value is deterministic — same input produces the same output. `/callback` decodes it to extract origin + pwa flag, but never verifies the value was issued by us.\n\n## Risk (CSRF)\n1. Attacker initiates OAuth in their own browser, gets a `code`.\n2. Tricks victim into clicking `https://cycling-coach.../callback?code=<attacker_code>&state=<predictable>`.\n3. Victim\'s browser exchanges the attacker\'s code → Strava returns *attacker\'s* tokens → written to victim\'s localStorage.\n4. Victim now sees attacker\'s data; any actions are logged against the attacker.\n\nThe OAuth spec mandates `state` be a single-use, unguessable nonce.\n\n## Fix\n- `/authorize`: generate `crypto.randomUUID()` per call. Store in KV (`key=uuid`, `value={pwa,origin,expires_at}`, TTL 10 min). Set `state` param to the uuid only.\n- `/callback`: read uuid from `state`, look up KV, verify exists + not expired, delete on use (single-use).\n- Move pwa + origin metadata into the KV value, off the wire.\n\n## Acceptance\n- [ ] KV namespace bound to Worker (`OAUTH_STATE`)\n- [ ] `/authorize` generates random uuid, stores in KV with 10-min TTL\n- [ ] `/callback` rejects requests where state isn\'t in KV (returns 403)\n- [ ] State is single-use (deleted from KV after first read)\n- [ ] PWA + origin metadata still round-trips correctly\n- [ ] Smoke: full OAuth flow works end-to-end after change',
+    },
+    {
+      title: 'Add security headers to all Worker responses (CSP, HSTS, X-Frame-Options)',
+      labels: ['priority:high', 'area:backend', 'type:feature'],
+      milestone: 'v8.4.0',
+      body:
+        '## Feature\nNone of these headers are currently set on Worker responses or static assets:\n- `Content-Security-Policy`\n- `Strict-Transport-Security` (HSTS)\n- `X-Frame-Options` (clickjack protection)\n- `X-Content-Type-Options: nosniff`\n- `Referrer-Policy: strict-origin-when-cross-origin`\n- `Permissions-Policy: camera=(), microphone=(), geolocation=()`\n\n## Implementation\nWrap Worker responses with a `securityHeaders(res)` helper. For static assets, prepend response headers via the asset-handler `_headers` file or runtime middleware.\n\n## Recommended CSP (provisional, tighten later)\n```\ndefault-src \'self\';\nscript-src \'self\';\nstyle-src \'self\' \'unsafe-inline\' https://fonts.googleapis.com;\nfont-src \'self\' https://fonts.gstatic.com;\nimg-src \'self\' https://images.unsplash.com https://*.strava.com data: blob:;\nconnect-src \'self\' https://api.anthropic.com https://www.strava.com https://api.github.com;\nframe-ancestors \'none\';\nbase-uri \'self\';\n```\n\n## Acceptance\n- [ ] `securityHeaders()` helper applies the 6 headers above\n- [ ] All Worker JSON/HTML responses include them\n- [ ] Static assets (SPA, /sw.js, /manifest, icons) include them\n- [ ] HSTS only enabled on the `*.workers.dev` host (not localhost dev)\n- [ ] Verified via securityheaders.com or `curl -I` — score ≥ A\n- [ ] No regression: SPA loads, fonts render, /api proxy works',
+    },
+    {
+      title: 'Lock down CORS on /coach + /coach-ride — replace * with allowlist',
+      labels: ['priority:medium', 'area:backend', 'type:chore'],
+      milestone: 'v8.4.0',
+      body:
+        '## Chore\nThe Worker sets `Access-Control-Allow-Origin: *` on every response. For:\n- `/api/*` — fine (Authorization header is the gate)\n- `/roadmap` — fine (public read)\n- `/version` — fine (public read)\n- `/coach`, `/coach-ride` — **not fine**: any third-party page can POST to these endpoints with the user\'s `api_key` in the body if they trick the user into providing it\n\n## Fix\nReplace blanket `*` for the AI endpoints with a per-route allowlist:\n```js\nconst ALLOWED_ORIGINS = [\n  \'https://cycling-coach.josem-reboredo.workers.dev\',\n  \'http://localhost:5173\',\n];\nconst origin = request.headers.get(\'Origin\') || \'\';\nconst aiCors = {\n  \'Access-Control-Allow-Origin\': ALLOWED_ORIGINS.includes(origin) ? origin : \'null\',\n  Vary: \'Origin\',\n  ...\n};\n```\n\n## Acceptance\n- [ ] /coach + /coach-ride only return CORS headers when Origin is in allowlist\n- [ ] /api/*, /roadmap, /version keep `*` (no credentials, no per-user data)\n- [ ] OPTIONS preflight handled correctly for both modes\n- [ ] No regression: the React SPA still calls /coach successfully from prod + dev',
+    },
+    {
+      title: '/webhook POST has no source verification',
+      labels: ['priority:medium', 'area:backend', 'type:bug'],
+      milestone: 'v8.5.0',
+      body:
+        '## Bug\n`POST /webhook` accepts any payload and logs it via `console.log`. Currently low-impact — the handler doesn\'t write to D1 — but as soon as we wire D1 sync to webhook events (depends on backfill flow), an attacker can spam fake events and corrupt our state.\n\n## Strava webhook signing\nStrava webhooks don\'t carry HMAC signatures, but they do come from a small set of [published IP ranges](https://developers.strava.com/docs/webhookexamples/). Two viable defences:\n1. **IP allowlist** at the Worker — verify `request.headers.get(\'cf-connecting-ip\')` is in Strava\'s range\n2. **Path-based shared secret** — register the webhook with a path like `/webhook/<random-secret>` (Strava\'s API allows arbitrary URL); attacker can\'t hit it without the URL\n\n## Acceptance\n- [ ] Either IP allowlist OR path-based shared secret implemented\n- [ ] Spam request to /webhook (from non-Strava IP / wrong path) returns 403, not 200\n- [ ] Legitimate Strava webhook events still flow through\n- [ ] Document the choice in CONTRIBUTING.md\n\n## Depends on\n- Schema v2 migration applied (#7) — until D1 webhook sync ships, this is hardening, not blocking',
+    },
+    {
+      title: 'Rate-limit /coach + /coach-ride to prevent abuse + cost runaway',
+      labels: ['priority:medium', 'area:backend', 'type:feature'],
+      milestone: 'v8.5.0',
+      body:
+        '## Feature\nBoth `/coach` and `/coach-ride` proxy to Anthropic Claude. With no rate limits, a malicious script that obtains a user\'s `api_key` can spam Claude indefinitely through us, burning the user\'s Anthropic credits.\n\nWorse: if `env.ANTHROPIC_API_KEY` (the optional fallback) is ever set, the endpoints would use *our* key for any unauthenticated request.\n\n## Implementation\nUse [Cloudflare Workers Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/):\n\n```jsonc\n"rate_limiting": [\n  { "name": "AI_RATE", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }\n]\n```\n\n- Per-IP: 60 req/hour for `/coach`, 120 req/hour for `/coach-ride`.\n- Per-token (athlete_id parsed from Strava token): 100 reports/day for `/coach`, 500 verdicts/day for `/coach-ride`.\n\n## Acceptance\n- [ ] Rate-limit binding wired in `wrangler.jsonc`\n- [ ] Worker checks limit before forwarding to Anthropic\n- [ ] Returns 429 with `Retry-After` header when exceeded\n- [ ] Logs/metrics: counter for "rate-limited requests" per endpoint\n- [ ] Smoke: 61st request from same IP within 1h returns 429',
+    },
+    {
+      title: 'STRAVA_VERIFY_TOKEN has insecure fallback string in source',
+      labels: ['priority:low', 'area:backend', 'type:chore'],
+      milestone: 'v8.5.0',
+      body:
+        '## Chore\nIn `src/worker.js`:\n```js\nif (mode === \'subscribe\' && token === (env.STRAVA_VERIFY_TOKEN || \'cycling-coach-verify\')) {\n```\n\nIf the env var isn\'t set in Cloudflare (current state likely), anyone reading the source on GitHub knows the verify token. They can subscribe arbitrary endpoints to the cycling-coach Strava app\'s webhooks if they have OAuth access — minor but an easy win.\n\n## Fix\nFail-closed if the env var is missing:\n```js\nif (!env.STRAVA_VERIFY_TOKEN) {\n  return new Response(\'Webhook verification not configured\', { status: 503 });\n}\nif (mode === \'subscribe\' && token === env.STRAVA_VERIFY_TOKEN) { ... }\n```\n\nThen set the env var:\n```\necho -n "<random-string>" | npx wrangler secret put STRAVA_VERIFY_TOKEN\n```\n\n## Acceptance\n- [ ] Hardcoded fallback removed\n- [ ] `STRAVA_VERIFY_TOKEN` secret set in Cloudflare\n- [ ] Webhook GET returns 503 if env missing\n- [ ] Webhook subscription via Strava UI still works after rotation',
+    },
+    {
+      title: 'Redact api_key from any logged error paths in Worker',
+      labels: ['priority:low', 'area:backend', 'type:chore'],
+      milestone: 'v8.5.0',
+      body:
+        '## Chore\nThe Worker has `observability.logs.persist: true` in `wrangler.jsonc` — all console output is retained. `/coach` and `/coach-ride` accept `api_key` in the JSON body. If the request handler throws on a path that includes the body in the error message, the key ends up in persistent logs.\n\n## Audit + fix\nGrep `src/worker.js` for `console.log` and `console.error` paths in `/coach` and `/coach-ride`. Today they look clean — but defensive: add a global `redactSensitive(s)` that strips `api_key`, `access_token`, `refresh_token` from any log message.\n\n```js\nfunction redactSensitive(s) {\n  return String(s)\n    .replace(/api_key["\\s:]*"?[a-zA-Z0-9_-]+/g, \'api_key="[redacted]"\')\n    .replace(/sk-ant-[a-zA-Z0-9_-]+/g, \'[redacted-anthropic-key]\')\n    .replace(/access_token["\\s:]*"?[a-zA-Z0-9_-]+/g, \'access_token="[redacted]"\');\n}\n```\n\n## Acceptance\n- [ ] `redactSensitive` helper added\n- [ ] All `console.log`/`error` paths in `/coach` + `/coach-ride` wrap their args\n- [ ] Cloudflare log search for `sk-ant-` or `api_key=` returns no real values',
+    },
+    {
+      title: '/admin/* endpoint pattern needs explicit auth, not just developer discipline',
+      labels: ['priority:low', 'area:backend', 'type:chore'],
+      milestone: 'v8.5.0',
+      body:
+        '## Chore\nThe bootstrap pattern we used for `/admin/file-backlog`, `/admin/file-security`, `/admin/close-issue`, `/admin/bootstrap-roadmap` relies on the developer remembering to: add → deploy → run → remove → redeploy. If any step is interrupted, the endpoint stays publicly accessible (only gated by `env.GITHUB_TOKEN`\'s existence — anyone who finds the path can hit it and trigger writes).\n\n## Fix\nAdd an `Authorization: Bearer <ADMIN_SECRET>` check on every `/admin/*` endpoint. `ADMIN_SECRET` stored as Worker secret (separate from `GITHUB_TOKEN`). Even if an endpoint is forgotten in code, it can\'t be exploited without the secret.\n\n```js\nfunction requireAdmin(request, env) {\n  const auth = request.headers.get(\'Authorization\');\n  if (!env.ADMIN_SECRET || auth !== `Bearer ${env.ADMIN_SECRET}`) {\n    return new Response(\'Unauthorized\', { status: 401 });\n  }\n  return null;\n}\n```\n\n## Acceptance\n- [ ] `ADMIN_SECRET` Worker secret created\n- [ ] Every `/admin/*` handler calls `requireAdmin` first\n- [ ] curl without header returns 401\n- [ ] Future admin endpoints inherit this guard automatically',
+    },
+    {
+      title: 'Document localStorage tokens / XSS threat model in SECURITY.md',
+      labels: ['priority:low', 'area:auth', 'type:chore'],
+      milestone: 'v8.5.0',
+      body:
+        '## Documentation\nWe store Strava tokens (`cc_tokens`) + Anthropic API key (`cc_anthropicKey`) + athlete profile (`cc_athleteProfile`) in localStorage. Standard pattern, but vulnerable to XSS — if any XSS sink lands in the React code, attacker exfiltrates everything.\n\nToday there are zero `dangerouslySetInnerHTML` / `innerHTML` usages. React\'s default escaping is the only XSS defence. Stacking CSP (separate issue) is the real defence.\n\n## What to write\nNew `SECURITY.md` at repo root with:\n- **Threat model** — assets stored locally, attack vectors, current mitigations\n- **Defences in place** — React escaping, planned CSP, Strangler-Fig server-side migration path\n- **Future considerations** — httpOnly cookies for Strava tokens, encrypted storage for Anthropic key\n- **Disclosure policy** — how to report security issues (email or GitHub Security Advisory)\n\n## Acceptance\n- [ ] `SECURITY.md` created at repo root\n- [ ] Linked from README + CONTRIBUTING\n- [ ] GitHub Security Advisory enabled in repo settings',
+    },
+  ];
+
+  for (const issue of ISSUES) {
+    if (existingIsTitles.has(issue.title)) {
+      out.issues.push({ title: issue.title, status: 'exists' });
+      continue;
+    }
+    const milestoneNum = msByTitle.get(issue.milestone);
+    const payload = { title: issue.title, body: issue.body, labels: issue.labels };
+    if (milestoneNum) payload.milestone = milestoneNum;
+    const r = await fetch(`https://api.github.com/repos/${REPO}/issues`, {
+      method: 'POST', headers: ghHeaders, body: JSON.stringify(payload),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      out.issues.push({ title: issue.title, status: 'created', number: created.number, url: created.html_url });
+    } else {
+      const err = await r.text().catch(() => '');
+      out.issues.push({ title: issue.title, status: r.status, error: err.slice(0, 200) });
+    }
+  }
+  return out;
+}
+
 async function fileBacklogIssues(env) {
   const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
   const ghHeaders = {
