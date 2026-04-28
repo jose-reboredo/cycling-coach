@@ -516,6 +516,103 @@ Respond ONLY with valid JSON, no markdown:
 // One-shot roadmap bootstrap (kept for reference / future re-seeding).
 // Endpoint removed in v8.3.0 — to invoke again, re-add the route handler in
 // the fetch() block above. Idempotent — safe to re-run.
+// Files the v8.x backlog (still-open items from the original v8.0.0 issue list)
+// as real GitHub issues. Idempotent — skips titles that already exist.
+async function fileBacklogIssues(env) {
+  const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+  const ghHeaders = {
+    'User-Agent': 'cycling-coach-bootstrap',
+    'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
+  const out = { issues: [] };
+
+  // Resolve milestone titles → numbers (created during the previous bootstrap).
+  const msRes = await fetch(`https://api.github.com/repos/${REPO}/milestones?state=all&per_page=100`, { headers: ghHeaders });
+  const existingMs = msRes.ok ? await msRes.json() : [];
+  const msByTitle = new Map(existingMs.map((m) => [m.title, m.number]));
+
+  // Pre-fetch existing issue titles for de-dup.
+  const isRes = await fetch(`https://api.github.com/repos/${REPO}/issues?state=all&per_page=100`, { headers: ghHeaders });
+  const existingIs = isRes.ok ? await isRes.json() : [];
+  const existingIsTitles = new Set(existingIs.filter((i) => !i.pull_request).map((i) => i.title));
+
+  const ISSUES = [
+    {
+      title: 'Apply schema v2 migration to remote D1',
+      labels: ['priority:high', 'area:db', 'type:chore'],
+      milestone: 'v8.3.0',
+      body:
+        '## Chore\nThe schema v2 migration at `migrations/0001_pmc_and_events.sql` has been written but never applied to the remote D1. It adds:\n- `users.ftp_w / weight_kg / hr_max / ftp_set_at`\n- `activities.duration_s / average_watts / np_w / if_pct / tss / primary_zone`\n- new `daily_load` rollup table for fast PMC reads\n- event extension columns on `goals` (`event_name / event_type / event_distance_km / event_elevation_m / event_location / event_priority`)\n\n## Run\n```bash\nnpx wrangler d1 execute cycling_coach_db --file migrations/0001_pmc_and_events.sql --remote\n```\n\n## Acceptance\n- [ ] Migration applied to remote D1\n- [ ] Verified with `wrangler d1 execute --command "PRAGMA table_info(activities);" --remote` — new columns visible\n- [ ] Verified with `wrangler d1 execute --command "PRAGMA table_info(daily_load);" --remote` — new table visible\n- [ ] Existing rows untouched (additive migration)\n\n## Blocks\n- #2 backfill (depends on these columns existing)',
+    },
+    {
+      title: 'Retroactive TSS backfill from strava_raw_json',
+      labels: ['priority:high', 'area:backend', 'type:feature'],
+      milestone: 'v8.3.0',
+      body:
+        '## Feature\nOnce schema v2 is applied AND the user has set their FTP, walk every existing `activities` row, extract `weighted_average_watts` / `average_watts` from the stored `strava_raw_json`, and compute:\n\n```\nIF  = NP / FTP\nTSS = duration_h × IF² × 100\n```\n\nWrite back to the new columns. Idempotent — re-running shouldn\'t double-count.\n\n## Implementation\n- Worker endpoint `POST /admin/backfill-tss` (auth-gated, single-user-only for now).\n- For each row: parse `strava_raw_json`, compute, UPDATE.\n- Seed `daily_load` from the resulting per-day TSS sums so the PMC has a real starting series.\n- Remove the endpoint after running (same pattern as the issue-bootstrap endpoint).\n\n## Acceptance\n- [ ] Endpoint computes TSS for every ride that has watts data\n- [ ] Activities without watts get a duration-based proxy (≈70 TSS / hour) — clearly tagged\n- [ ] `daily_load` rolled up across all backfilled rides\n- [ ] PMC strip on dashboard shows real numbers, not duration proxy\n- [ ] Re-running is a no-op (no double-counting)\n\n## Depends on\n- Schema v2 migration applied (separate issue)',
+    },
+    {
+      title: 'Update Cloudflare CI build command to `npm run build:web`',
+      labels: ['priority:high', 'area:ci', 'type:chore'],
+      milestone: 'v8.3.0',
+      body:
+        '## Chore\nThe Cloudflare Workers Builds CI is still using the legacy build command (likely just `wrangler deploy` with no SPA build step). Today every release goes out via local `npx wrangler deploy` because CI would deploy a stale `apps/web/dist`.\n\n## Steps\n1. Workers & Pages → cycling-coach → Settings → Builds\n2. **Build command** → `npm run build:web`\n3. **Deploy command** → leave as `npx wrangler deploy` (default)\n4. Save\n\n## Acceptance\n- [ ] CI build command updated\n- [ ] Push to main triggers full SPA rebuild → Worker deploy with fresh assets\n- [ ] Smoke: `/`, `/dashboard`, `/privacy`, `/whats-next` all 200 with the latest React shell\n- [ ] No more need for manual `npx wrangler deploy` from local',
+    },
+    {
+      title: 'iOS home-screen install + offline PMC tile',
+      labels: ['priority:low', 'area:pwa', 'type:feature'],
+      milestone: 'v8.4.0',
+      body:
+        '## Polish\nv8.2.0 ships the PWA shell (`manifest.webmanifest`, maskable icon, service worker). Two things still need work:\n\n### 1. iOS install flow validation\nVerify Add-to-Home-Screen on iOS Safari produces a clean standalone-mode app (no browser chrome, correct icon, correct splash colour). Document the flow in CONTRIBUTING.\n\n### 2. Offline PMC tile\nWhen offline (`navigator.onLine === false` OR fetch fails), render the **last-cached** PMC strip + greeting + recents from IndexedDB instead of a blank screen. Cache the most recent `/api/athlete` + `/api/athlete/activities` payloads in IndexedDB on every successful fetch; rehydrate from there when network fails.\n\n## Acceptance\n- [ ] iOS Add-to-Home-Screen tested, splash + icon render correctly\n- [ ] Cached athlete + activities written to IndexedDB after every successful fetch\n- [ ] Dashboard reads from IndexedDB when fetch fails\n- [ ] PMC strip + recents render with last-known data offline\n- [ ] "Last updated 2h ago · offline" pill visible when serving cached data\n- [ ] Coming back online auto-refreshes\n\n## Distinct from issue #1\nThis is polish + offline UX. Issue #1 is the OAuth-in-PWA-mode bug (different problem).',
+    },
+    {
+      title: 'Persist training prefs to D1 (Strangler-Fig)',
+      labels: ['priority:low', 'area:db', 'type:chore'],
+      milestone: 'v8.5.0',
+      body:
+        '## Chore\nToday `surface_pref` and `start_address` (from the routes picker) only live in `localStorage` under `cc_trainingPrefs`. The legacy schema has a `training_prefs` table ready (`athlete_id, sessions_per_week, surface_pref, start_address, updated_at`).\n\n## Implementation (Strangler-Fig)\n- Worker endpoint `POST /training-prefs` writes the row keyed by `athlete_id`.\n- React `useTrainingPrefs` POSTs on update — keep writing to localStorage too until parity is confirmed.\n- Initial load: read from D1 on auth, fall back to localStorage if D1 row is empty (migration path).\n- After ~2 weeks of dual-write with no divergence, remove the localStorage path.\n\n## Acceptance\n- [ ] `/training-prefs` POST endpoint live\n- [ ] React hook dual-writes\n- [ ] On fresh device with stored prefs in D1, settings load from D1 on first dashboard render\n- [ ] No regression: localStorage continues working in parallel',
+    },
+    {
+      title: 'Lighthouse mobile ≥ 90 across all public routes',
+      labels: ['priority:medium', 'area:perf', 'type:chore'],
+      milestone: 'v8.5.0',
+      body:
+        '## Performance audit\nThe original brief mandates Lighthouse mobile ≥ 90 (Performance / Accessibility / Best Practices / SEO). Verify and fix.\n\n## Likely fixes (audit first)\n- Bundle: Motion is currently 18.8 KB gzipped — split or replace if it tips the score.\n- Fonts: preload `Geist` + `Geist Mono` first weights, set `display: swap` on the rest.\n- Images: ensure all explicit `width` / `height` (no layout shift).\n- Hover-only interactions audited (none for primary actions).\n\n## Acceptance\n- [ ] Lighthouse mobile ≥ 90 on `/`\n- [ ] Lighthouse mobile ≥ 90 on `/dashboard` (authed + demo modes)\n- [ ] Lighthouse mobile ≥ 90 on `/privacy`\n- [ ] Lighthouse mobile ≥ 90 on `/whats-next`\n- [ ] Lighthouse desktop ≥ 95 on all routes (bonus)\n- [ ] Results documented in CHANGELOG with before/after',
+    },
+    {
+      title: 'In-app "What\'s new" modal',
+      labels: ['priority:low', 'area:dashboard', 'type:feature'],
+      milestone: 'v8.5.0',
+      body:
+        '## Feature\nThe legacy v7 dashboard had a changelog modal accessible from a small badge in the top bar. Port it: when a new release ships, users see a discreet badge in the TopBar (`cc_lastSeenVersion < currentVersion`). Click → modal renders the latest 3 entries from `CHANGELOG.md`.\n\n## Implementation\n- Build a tiny CHANGELOG → JSON parser at compile time (Vite import or a build script that emits `apps/web/src/data/changelog.json`).\n- `<WhatsNewBadge>` in the TopBar trailing slot — only renders when there\'s an unseen newer version.\n- Modal: latest 3 release entries with rendered Markdown, dismiss button.\n- "Don\'t show again for vX.Y.Z" stores `cc_lastSeenVersion` in localStorage.\n\n## Acceptance\n- [ ] Badge appears on first dashboard load after a release\n- [ ] Click opens modal with latest 3 entries\n- [ ] Dismiss persists `cc_lastSeenVersion`\n- [ ] No badge on subsequent visits at the same version\n- [ ] Works in both authed + demo modes',
+    },
+  ];
+
+  for (const issue of ISSUES) {
+    if (existingIsTitles.has(issue.title)) {
+      out.issues.push({ title: issue.title, status: 'exists' });
+      continue;
+    }
+    const milestoneNum = msByTitle.get(issue.milestone);
+    const payload = { title: issue.title, body: issue.body, labels: issue.labels };
+    if (milestoneNum) payload.milestone = milestoneNum;
+    const r = await fetch(`https://api.github.com/repos/${REPO}/issues`, {
+      method: 'POST', headers: ghHeaders, body: JSON.stringify(payload),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      out.issues.push({ title: issue.title, status: 'created', number: created.number, url: created.html_url });
+    } else {
+      const err = await r.text().catch(() => '');
+      out.issues.push({ title: issue.title, status: r.status, error: err.slice(0, 200) });
+    }
+  }
+  return out;
+}
+
 async function bootstrapRoadmap(env) { // eslint-disable-line no-unused-vars
   const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
   const ghHeaders = {
