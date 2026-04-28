@@ -33,11 +33,15 @@
 }
 
 .subtleBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hit-min);
+  padding: 0 var(--s-3);
   font: 500 11px/1 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--c-text-muted);
-  padding: var(--s-2);
   border-radius: var(--r-sm);
   transition: color var(--d-fast) var(--e-out);
 }

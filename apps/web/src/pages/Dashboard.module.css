@@ -574,16 +574,18 @@
 }
 
 .demoBannerClose {
-  width: 28px;
-  height: 28px;
+  width: var(--hit-min);
+  height: var(--hit-min);
   border-radius: var(--r-full);
   color: var(--c-text-muted);
   background: var(--c-surface);
   border: 1px solid var(--c-line);
-  font: 500 16px/1 var(--font-sans);
+  font: 500 18px/1 var(--font-sans);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  transition: color var(--d-fast) var(--e-out);
 }
 .demoBannerClose:hover {
   color: var(--c-text);

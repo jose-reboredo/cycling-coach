@@ -54,8 +54,10 @@
 .surfaceBtn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--s-2);
-  padding: var(--s-2) var(--s-3);
+  min-height: var(--hit-min);
+  padding: 0 var(--s-4);
   background: transparent;
   border: 1px solid var(--c-line);
   border-radius: var(--r-sm);
@@ -103,11 +105,15 @@
   text-overflow: ellipsis;
 }
 .addressEdit {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-min);
+  padding: 0 var(--s-3);
   font: 500 10px/1 var(--font-mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--c-accent);
-  padding: 0;
+  border-radius: var(--r-sm);
 }
 .addressEdit:hover {
   color: var(--c-accent-deep);
@@ -129,11 +135,18 @@
   font: 500 13px/1 var(--font-sans);
 }
 .addressCancel {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-min);
+  padding: 0 var(--s-3);
   font: 500 10px/1 var(--font-mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--c-text-muted);
-  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+}
+.addressCancel:hover {
+  color: var(--c-text);
 }
 
 .list {
@@ -234,6 +247,11 @@
 }
 
 .showAll {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  min-height: var(--hit-min);
   font: 500 11px/1 var(--font-mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
