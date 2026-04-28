@@ -11,6 +11,8 @@
 //   STRAVA_VERIFY_TOKEN   - any string for webhook verification (optional)
 // ============================================================
  
+import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
+
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
 const WORKER_VERSION = 'v8.3.0';
@@ -621,7 +623,50 @@ function confluenceClient(env) {
         }),
       });
     },
+    /**
+     * Confluence v2 delete is two-step: first DELETE moves to trash, second
+     * DELETE with `purge=true` permanently removes. We do both for a true
+     * cleanup, swallowing the second error if the page is already gone.
+     */
+    async deletePage(id) {
+      await call(`/pages/${id}`, { method: 'DELETE' });
+      try {
+        await call(`/pages/${id}?purge=true`, { method: 'DELETE' });
+      } catch {
+        /* purge race / not-yet-in-trash — first DELETE moved it, that's enough */
+      }
+    },
   };
+}
+
+// SHA-256 of a string. Used to skip Confluence PUTs when content didn't
+// actually change (avoids spurious version bumps + page-history noise).
+async function sha256(text) {
+  const data = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Upsert a single spec page: ensure it exists, then PUT the latest content
+// only if its hash differs from what we last pushed (tracked in DOCS_KV).
+async function upsertSpecPage(env, conf, { spaceId, parentId, page }) {
+  const id = await ensurePage(env, conf, {
+    spaceId,
+    parentId,
+    title: page.title,
+    initialStorage: page.storage,
+  });
+  const newHash = await sha256(page.storage);
+  const kv = env.DOCS_KV;
+  const cachedHash = kv ? await kv.get(`hash:${page.slug}`) : null;
+  if (cachedHash === newHash) {
+    return { slug: page.slug, id, status: 'unchanged' };
+  }
+  await replacePage(conf, id, { title: page.title, storage: page.storage });
+  if (kv) await kv.put(`hash:${page.slug}`, newHash);
+  return { slug: page.slug, id, status: cachedHash ? 'updated' : 'initialised' };
 }
 
 async function ensurePage(env, conf, { spaceId, parentId, title, initialStorage }) {
@@ -789,6 +834,19 @@ async function recentCommits(env) {
   }));
 }
 
+/**
+ * Doc-sync orchestrator. Three update modes co-exist:
+ *
+ *   • Spec pages (SPEC_PAGES from src/docs.js): canonical content lives in
+ *     code. Each spec page is upserted; a content-hash check skips PUT when
+ *     storage XHTML hasn't changed (no spurious version bumps).
+ *   • Roadmap page: always regenerated fresh from GitHub Issues.
+ *   • Releases page: append-only — one child per WORKER_VERSION.
+ *
+ * On first run after the doc-structure refactor, legacy pages from the prior
+ * 2-page structure ('Functional documentation' / 'Technical documentation')
+ * are deleted via the v2 API.
+ */
 async function documentRelease(env) {
   const conf = confluenceClient(env);
   const spaceKey = env.CONFLUENCE_SPACE_KEY || 'CC';
@@ -797,8 +855,44 @@ async function documentRelease(env) {
   const version = WORKER_VERSION;
   const date = new Date().toISOString().slice(0, 10);
 
-  // Pull roadmap data directly from GitHub (calling our own /roadmap from
-  // inside the Worker is a self-loopback that Cloudflare blocks).
+  const result = {
+    version,
+    date,
+    spec_pages: [],
+    legacy_removed: [],
+    roadmap: null,
+    releases_parent: null,
+    release_entry: null,
+  };
+
+  // -------- 1. Cleanup legacy pages --------
+  const homepageChildren = await conf.children(homepageId);
+  for (const legacyTitle of LEGACY_PAGES_TO_REMOVE) {
+    const legacy = homepageChildren.find((c) => c.title === legacyTitle);
+    if (!legacy) continue;
+    try {
+      await conf.deletePage(legacy.id);
+      if (env.DOCS_KV) {
+        const slug = legacyTitle
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+        await env.DOCS_KV.delete(`page:${slug}`);
+        await env.DOCS_KV.delete(`hash:${slug}`);
+      }
+      result.legacy_removed.push({ title: legacyTitle, id: legacy.id, status: 'deleted' });
+    } catch (e) {
+      result.legacy_removed.push({ title: legacyTitle, id: legacy.id, status: 'error', error: e.message });
+    }
+  }
+
+  // -------- 2. Upsert spec pages (init-once + content-hash delta) --------
+  for (const page of SPEC_PAGES) {
+    const r = await upsertSpecPage(env, conf, { spaceId, parentId: homepageId, page });
+    result.spec_pages.push(r);
+  }
+
+  // -------- 3. Roadmap (always regenerated fresh) --------
   const REPO_FULL = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
   let roadmap = { items: [] };
   if (env.GITHUB_TOKEN) {
@@ -818,13 +912,34 @@ async function documentRelease(env) {
       roadmap.items = issues.filter((i) => !i.pull_request).map(normalizeGhIssue);
     }
   }
-  const openIssues = (roadmap.items || []).filter((i) => i.status !== 'shipped').length;
-  const shippedIssues = (roadmap.items || []).filter((i) => i.status === 'shipped').length;
+  const roadmapId = await ensurePage(env, conf, {
+    spaceId,
+    parentId: homepageId,
+    title: 'Roadmap',
+    initialStorage: '<h1>Roadmap</h1><p>Initialising…</p>',
+  });
+  await replacePage(conf, roadmapId, { title: 'Roadmap', storage: renderRoadmapPage(roadmap) });
+  result.roadmap = {
+    id: roadmapId,
+    status: 'updated',
+    count: roadmap.items.length,
+    open: roadmap.items.filter((i) => i.status !== 'shipped').length,
+    shipped: roadmap.items.filter((i) => i.status === 'shipped').length,
+  };
+
+  // -------- 4. Releases (append-only child per release) --------
+  const releasesId = await ensurePage(env, conf, {
+    spaceId,
+    parentId: homepageId,
+    title: 'Releases',
+    initialStorage:
+      '<h1>Releases</h1><p>Auto-appended on every prod deploy. One child page per release.</p>',
+  });
+  result.releases_parent = { id: releasesId };
 
   let changelog = '';
   if (env.GITHUB_TOKEN) {
-    const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
-    const r = await fetch(`https://raw.githubusercontent.com/${REPO}/main/CHANGELOG.md`, {
+    const r = await fetch(`https://raw.githubusercontent.com/${REPO_FULL}/main/CHANGELOG.md`, {
       headers: { 'User-Agent': 'cycling-coach-worker' },
     });
     if (r.ok) {
@@ -835,54 +950,33 @@ async function documentRelease(env) {
       changelog = (match?.[0] || '').slice(0, 4000);
     }
   }
-
   const commits = await recentCommits(env);
-  const docs = await generateDocs(env, { version, date, changelog, commits, openIssues, shippedIssues });
-
-  const placeholder = (title) => `<h1>${escapeXml(title)}</h1><p>Initialising — first auto-generation pending.</p>`;
-  const [functionalId, technicalId, releasesId, roadmapId] = await Promise.all([
-    ensurePage(env, conf, { spaceId, parentId: homepageId, title: 'Functional documentation', initialStorage: placeholder('Functional documentation') }),
-    ensurePage(env, conf, { spaceId, parentId: homepageId, title: 'Technical documentation', initialStorage: placeholder('Technical documentation') }),
-    ensurePage(env, conf, { spaceId, parentId: homepageId, title: 'Releases', initialStorage: '<h1>Releases</h1><p>Auto-appended on every prod deploy.</p>' }),
-    ensurePage(env, conf, { spaceId, parentId: homepageId, title: 'Roadmap', initialStorage: placeholder('Roadmap') }),
-  ]);
-
-  await Promise.all([
-    replacePage(conf, functionalId, { title: 'Functional documentation', storage: docs.functional }),
-    replacePage(conf, technicalId, { title: 'Technical documentation', storage: docs.technical }),
-    replacePage(conf, roadmapId, { title: 'Roadmap', storage: renderRoadmapPage(roadmap) }),
-  ]);
-
-  const releaseChildren = await conf.children(releasesId);
   const releaseTitle = `Release ${version}`;
-  const releaseStorage = `<h1>${escapeXml(releaseTitle)}</h1>
-<p><strong>Date:</strong> ${date}</p>
-<h2>Changelog excerpt</h2>
-<pre>${escapeXml(changelog || '(no entry found in CHANGELOG.md)')}</pre>
-<h2>Commits</h2>
-<ul>${commits.map((c) => `<li><code>${escapeXml(c.sha.slice(0, 7))}</code> — ${escapeXml(c.message)}</li>`).join('')}</ul>`;
+  const releaseChildren = await conf.children(releasesId);
   let releaseChildId = releaseChildren.find((c) => c.title === releaseTitle)?.id;
   let releaseStatus = 'unchanged';
   if (!releaseChildId) {
+    const releaseStorage = `<h1>${escapeXml(releaseTitle)}</h1>
+<p><strong>Date:</strong> ${date}</p>
+<h2>Changelog</h2>
+<pre>${escapeXml(changelog || '(no entry found in CHANGELOG.md)')}</pre>
+<h2>Commits</h2>
+<ul>${commits
+      .map((c) => `<li><code>${escapeXml(c.sha.slice(0, 7))}</code> — ${escapeXml(c.message)}</li>`)
+      .join('')}</ul>`;
     const created = await conf.create({
-      spaceId, parentId: releasesId, title: releaseTitle, storage: releaseStorage,
+      spaceId,
+      parentId: releasesId,
+      title: releaseTitle,
+      storage: releaseStorage,
     });
     releaseChildId = created.id;
     releaseStatus = 'created';
   }
+  result.release_entry = { id: releaseChildId, title: releaseTitle, status: releaseStatus };
 
-  return {
-    version, date,
-    pages: {
-      functional: { id: functionalId, status: 'updated' },
-      technical: { id: technicalId, status: 'updated' },
-      roadmap: { id: roadmapId, status: 'updated' },
-      releases_parent: { id: releasesId },
-      release_entry: { id: releaseChildId, title: releaseTitle, status: releaseStatus },
-    },
-    openIssues, shippedIssues, commits: commits.length,
-    used_claude: !!(env.SYSTEM_ANTHROPIC_KEY || env.ANTHROPIC_API_KEY),
-  };
+  result.commits_in_window = commits.length;
+  return result;
 }
 
 // Map a GitHub issue to the shape the React WhatsNext page expects.
