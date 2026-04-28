@@ -513,6 +513,152 @@ Respond ONLY with valid JSON, no markdown:
 
 // Map a GitHub issue to the shape the React WhatsNext page expects.
 //
+// One-shot roadmap bootstrap (kept for reference / future re-seeding).
+// Endpoint removed in v8.3.0 — to invoke again, re-add the route handler in
+// the fetch() block above. Idempotent — safe to re-run.
+async function bootstrapRoadmap(env) { // eslint-disable-line no-unused-vars
+  const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+  const ghHeaders = {
+    'User-Agent': 'cycling-coach-bootstrap',
+    'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
+
+  const out = { labels: [], milestones: [], issues: [], errors: [] };
+
+  // ---- LABELS ----
+  const LABELS = [
+    { name: 'priority:high', color: 'B91C1C', description: 'Blocks something or a release' },
+    { name: 'priority:medium', color: 'F59E0B', description: 'Important, scheduled' },
+    { name: 'priority:low', color: '6B7280', description: 'Nice to have' },
+    { name: 'area:dashboard', color: 'FF4D00', description: 'Dashboard surface' },
+    { name: 'area:design-system', color: 'C4FF3A', description: 'Tokens, components, motion' },
+    { name: 'area:auth', color: '3B8CE8', description: 'OAuth, tokens, session' },
+    { name: 'area:db', color: '4ADE80', description: 'D1, schema, migrations' },
+    { name: 'area:backend', color: 'A855F7', description: 'Worker logic, API proxy' },
+    { name: 'area:ci', color: 'FACC15', description: 'Cloudflare Builds, CI/CD' },
+    { name: 'area:pwa', color: '8B5CF6', description: 'Service worker, manifest, offline' },
+    { name: 'area:perf', color: 'EF4444', description: 'Lighthouse, bundle, runtime' },
+    { name: 'area:routes', color: 'FB923C', description: 'Saved routes, picker' },
+    { name: 'type:feature', color: 'C4FF3A', description: 'New capability' },
+    { name: 'type:bug', color: 'EF4444', description: 'Defect / regression' },
+    { name: 'type:chore', color: '6B7280', description: 'Maintenance / cleanup' },
+    { name: 'status:in-progress', color: 'FF4D00', description: 'Actively being worked on' },
+  ];
+
+  // Pre-fetch existing labels
+  const lblRes = await fetch(`https://api.github.com/repos/${REPO}/labels?per_page=100`, { headers: ghHeaders });
+  const existingLabels = lblRes.ok ? (await lblRes.json()).map((l) => l.name) : [];
+  for (const l of LABELS) {
+    if (existingLabels.includes(l.name)) {
+      out.labels.push({ name: l.name, status: 'exists' });
+      continue;
+    }
+    const r = await fetch(`https://api.github.com/repos/${REPO}/labels`, {
+      method: 'POST', headers: ghHeaders, body: JSON.stringify(l),
+    });
+    out.labels.push({ name: l.name, status: r.status });
+  }
+
+  // ---- MILESTONES ----
+  const MILESTONES = [
+    { title: 'v8.3.0', description: 'Weekly release — backfill, live routes, CI build cmd' },
+    { title: 'v8.4.0', description: 'Weekly release — dashboard footer, goal editor, route fixes' },
+    { title: 'v8.5.0', description: 'Weekly release — perf + Lighthouse 90' },
+  ];
+  const msRes = await fetch(`https://api.github.com/repos/${REPO}/milestones?state=all&per_page=100`, { headers: ghHeaders });
+  const existingMs = msRes.ok ? await msRes.json() : [];
+  const msByTitle = new Map(existingMs.map((m) => [m.title, m.number]));
+  for (const m of MILESTONES) {
+    if (msByTitle.has(m.title)) {
+      out.milestones.push({ title: m.title, status: 'exists', number: msByTitle.get(m.title) });
+      continue;
+    }
+    const r = await fetch(`https://api.github.com/repos/${REPO}/milestones`, {
+      method: 'POST', headers: ghHeaders, body: JSON.stringify(m),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      msByTitle.set(m.title, created.number);
+      out.milestones.push({ title: m.title, status: 'created', number: created.number });
+    } else {
+      out.milestones.push({ title: m.title, status: r.status });
+    }
+  }
+
+  // ---- ISSUES ----
+  const ISSUES = [
+    {
+      title: 'Dashboard is missing the site footer',
+      labels: ['priority:medium', 'area:dashboard', 'type:bug'],
+      milestone: 'v8.4.0',
+      body:
+        '## Bug\nFooter renders on /, /privacy, and /whats-next but is missing on /dashboard.\n\n## Expected\nThe dashboard surface should carry the same editorial footer (brand mark, blurb, navigation columns, version stamp) so users have a consistent way to reach Privacy / What\'s next / Powered-by links from anywhere in the app.\n\n## Suggestion\n- Extract the existing Landing footer into a shared `<SiteFooter/>` component (apps/web/src/components/SiteFooter/).\n- Render it at the bottom of /dashboard (above BottomNav offset on mobile so it isn\'t covered) and on /whats-next + /privacy too.\n- Drop the "Revoke access" link from the public list while we\'re at it — see separate issue.',
+    },
+    {
+      title: 'Remove "Revoke access" from the public footer',
+      labels: ['priority:low', 'area:design-system', 'type:chore'],
+      milestone: 'v8.4.0',
+      body:
+        '## Cleanup\nThe Landing footer\'s "Trust" column currently exposes `https://www.strava.com/settings/apps` as "Revoke access". That action is only meaningful for an authenticated user — it confuses anonymous visitors and clutters the marketing surface.\n\n## Acceptance\n- Remove "Revoke access" from the public footer (Landing + WhatsNext).\n- Keep it inside the authenticated UserMenu where it already exists (avatar pill → "Revoke at Strava ↗").\n- Replace the slot with something useful for anon visitors: e.g. "Status" link to /version, or simply drop the column.',
+    },
+    {
+      title: 'Yearly km goal is not editable + clarify how it\'s set',
+      labels: ['priority:high', 'area:dashboard', 'type:feature'],
+      milestone: 'v8.4.0',
+      body:
+        '## Bug + question\nYearly distance goal is currently hardcoded at 8,000 km in MOCK_GOAL. The user can\'t change it. We also haven\'t decided how the goal is defined: AI-suggested or user-set?\n\n## Decision needed\n**Recommendation: user-set, with an AI-suggested default.**\n- On first visit (or if no goal is saved), the AI Coach panel can suggest a target based on (a) the rider\'s last 12 months of volume, (b) their declared goal event distance/elevation, (c) FTP-trend during build phase. We propose a number.\n- The user can accept it, override it, or clear it. Edits inline on the goal-ring card.\n\n## Acceptance\n- New `useYearlyGoal` hook backed by localStorage (cc_yearlyGoal { kmTarget, set_at, source: \'ai\'|\'user\' }).\n- Goal-ring card on the dashboard gets an "Edit" pencil that flips the ring tile into a numeric input.\n- AI Coach output extended with an optional `suggested_goal_km` field that pre-fills the input on first run, tagged as "AI-suggested" until the user touches it.\n- Persists alongside other prefs; will move to D1 `goals` table when schema v2 is applied remotely.',
+    },
+    {
+      title: 'Show distance + elevation numbers per bucket in the Volume chart',
+      labels: ['priority:medium', 'area:dashboard', 'type:feature'],
+      milestone: 'v8.4.0',
+      body:
+        '## Feature\nThe Volume chart (Distance & Elevation, weekly/monthly toggle) currently renders proportional bars with a tiny km value under each. Users want the full numeric breakdown alongside the bars: total distance per period AND total elevation per period.\n\n## Acceptance\n- Each bucket renders `<km>` AND `<m>` under the bar (mono, tabular numerals, slightly different weight to differentiate distance from elevation).\n- Hover/tap on a bar surfaces a tooltip with: km, m, ride count, TSS sum.\n- The header total already shows km + m for the visible window — keep that.\n- Mobile: if both labels don\'t fit, the elevation number sits in a smaller pill under the km value (don\'t truncate).\n- Maintain Lighthouse mobile ≥ 90 — no JS-heavy charting library, stick to inline SVG + Motion.',
+    },
+    {
+      title: 'Suggested routes broken + generate routes from AI plan + use Strava surface labels',
+      labels: ['priority:high', 'area:routes', 'type:bug'],
+      milestone: 'v8.4.0',
+      body:
+        '## Three problems in the Routes panel\n\n### 1. Currently broken\nThe Routes for today panel renders MOCK_ROUTES (Albis Loop, Üetliberg, Greifensee, etc.) — those don\'t reflect the user\'s actual saved routes and the scoring against today\'s plan is meaningless without real data.\n\n### 2. AI-generated route suggestions\nWe need a real path from "AI Coach said today is Sweet-spot 3×12 / 1h15" → "here are 3 routes that match". Two complementary sources:\n- **Strava saved routes**: hit /api/athlete/routes via the Worker proxy, score them against today\'s target zone + duration + elevation profile.\n- **AI-generated route brief**: when no saved route fits today\'s plan, the Claude weekly-plan prompt should include a "route brief" per day (start address + target distance + target elevation + terrain hint). Render that as a card the user can paste into Komoot/Ride With GPS to plan the route.\n\n### 3. Surface filter mismatch\nToday the picker offers "Tarmac / Gravel / Any". Strava\'s actual surface options are **Any / Paved / Dirt**. Match Strava labels exactly so the filter maps 1:1 to the API.\n\n## Acceptance\n- Replace MOCK_ROUTES with /api/athlete/routes results when tokens are present (live-routes issue already filed for v8.3.0 — link).\n- Surface picker copy: `Any`, `Paved`, `Dirt`. Map internal values: \'paved\' | \'dirt\' | \'any\'.\n- Coach output schema extended with `route_briefs: Record<DayName, { intent, target_distance_km, target_elevation_m, surface_hint }>`.\n- When today has no matching saved route OR the user has zero saved routes, show the AI route-brief card with a "Plan in Komoot ↗" deeplink.\n- Score: distance fit (40), zone overlap (30), surface fit (20), starred bonus (10) — same as today. Add elevation-fit (matches AI brief target ±20%) as a tie-breaker.',
+    },
+  ];
+
+  // Pre-fetch existing issues
+  const isRes = await fetch(`https://api.github.com/repos/${REPO}/issues?state=all&per_page=100`, { headers: ghHeaders });
+  const existingIs = isRes.ok ? await isRes.json() : [];
+  const existingIsTitles = new Set(existingIs.filter((i) => !i.pull_request).map((i) => i.title));
+
+  for (const issue of ISSUES) {
+    if (existingIsTitles.has(issue.title)) {
+      out.issues.push({ title: issue.title, status: 'exists' });
+      continue;
+    }
+    const milestoneNum = msByTitle.get(issue.milestone);
+    const payload = {
+      title: issue.title,
+      body: issue.body,
+      labels: issue.labels,
+    };
+    if (milestoneNum) payload.milestone = milestoneNum;
+    const r = await fetch(`https://api.github.com/repos/${REPO}/issues`, {
+      method: 'POST', headers: ghHeaders, body: JSON.stringify(payload),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      out.issues.push({ title: issue.title, status: 'created', number: created.number, url: created.html_url });
+    } else {
+      const err = await r.text().catch(() => '');
+      out.issues.push({ title: issue.title, status: r.status, error: err.slice(0, 200) });
+    }
+  }
+
+  return out;
+}
+
 // Conventions (enforced by labels + milestones on github.com):
 //   • status:     state == 'closed' → 'shipped'
 //                 'status:in-progress' label OR has assignee → 'in-progress'
