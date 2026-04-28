@@ -175,3 +175,11 @@ __pycache__/
 # Project-scoped Claude Code skills (per-machine install via uipro init).
 # Run `uipro init --ai claude` after cloning if you want UI/UX Pro Max.
 .claude/skills/
+
+# Vitest coverage output (apps/web)
+apps/web/coverage/
+
+# Playwright artifacts (apps/web)
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/playwright/.cache/
