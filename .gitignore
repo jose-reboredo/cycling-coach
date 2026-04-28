@@ -167,3 +167,11 @@ dist
 .wrangler/
 .deploy.env
 /.deploy.env*
+
+# Python bytecode (e.g. from .claude/skills/*/scripts)
+__pycache__/
+*.pyc
+
+# Project-scoped Claude Code skills (per-machine install via uipro init).
+# Run `uipro init --ai claude` after cloning if you want UI/UX Pro Max.
+.claude/skills/
