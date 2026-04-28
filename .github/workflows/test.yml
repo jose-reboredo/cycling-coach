@@ -41,6 +41,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Playwright
         working-directory: apps/web
+        env:
+          E2E_TARGET_PROD: '1'
         run: npx playwright test --reporter=list
       - name: Upload report on failure
         if: failure()

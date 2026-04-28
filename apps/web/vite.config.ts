@@ -6,9 +6,17 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 // Frontend deploys via Workers Static Assets attached to ../../src/worker.js.
 // In dev we proxy auth + API to the Worker (run `npm run dev:all` from repo
 // root to start both Worker and Vite).
+//
+// When E2E_TARGET_PROD=1 is set (e.g. in GitHub Actions), the proxy
+// targets the deployed prod Worker instead of localhost:8787 — so smoke
+// tests don't need a side-by-side wrangler dev process to satisfy
+// /roadmap, /version, etc.
 
-const TARGET = 'http://127.0.0.1:8787';
-const forward = () => ({ target: TARGET, changeOrigin: false });
+const TARGET =
+  process.env.E2E_TARGET_PROD === '1'
+    ? 'https://cycling-coach.josem-reboredo.workers.dev'
+    : 'http://127.0.0.1:8787';
+const forward = () => ({ target: TARGET, changeOrigin: true, secure: true });
 
 export default defineConfig({
   plugins: [
