@@ -442,6 +442,38 @@ Respond ONLY with valid JSON, no markdown:
       });
     }
 
+    // ============= ADMIN: DOCUMENT RELEASE =============
+    // Fulfils issue #23 — auto-updates Confluence project docs on every deploy.
+    // Admin-gated. Returns 503 if Confluence secrets aren't configured (so the
+    // endpoint is safe to ship before the user adds the API token).
+    if (url.pathname === '/admin/document-release' && request.method === 'POST') {
+      const adminCheck = requireAdmin(request, env);
+      if (adminCheck) return adminCheck;
+      if (!env.CONFLUENCE_API_TOKEN || !env.CONFLUENCE_USER_EMAIL) {
+        return new Response(
+          JSON.stringify({
+            error: 'Confluence not configured',
+            missing: [
+              !env.CONFLUENCE_API_TOKEN && 'CONFLUENCE_API_TOKEN',
+              !env.CONFLUENCE_USER_EMAIL && 'CONFLUENCE_USER_EMAIL',
+            ].filter(Boolean),
+            hint: 'wrangler secret put CONFLUENCE_API_TOKEN  /  wrangler secret put CONFLUENCE_USER_EMAIL',
+          }, null, 2),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      try {
+        const result = await documentRelease(env);
+        return new Response(JSON.stringify(result, null, 2), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // ============= ROADMAP =============
     // GitHub Issues are the source of truth for the public roadmap. The
     // /whats-next page in the React SPA fetches this endpoint, which proxies
@@ -458,8 +490,9 @@ Respond ONLY with valid JSON, no markdown:
           });
         }
 
-        const owner = env.GITHUB_OWNER || 'jose-reboredo';
-        const repo = env.GITHUB_REPO || 'cycling-coach';
+        // GITHUB_REPO is in the standard "owner/repo" form. Split for /roadmap.
+        const repoFull = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+        const [owner, repo] = repoFull.includes('/') ? repoFull.split('/') : [env.GITHUB_OWNER || 'jose-reboredo', repoFull];
         const ghHeaders = {
           'User-Agent': 'cycling-coach-worker',
           'Accept': 'application/vnd.github+json',
@@ -510,6 +543,347 @@ Respond ONLY with valid JSON, no markdown:
     return Response.redirect(url.origin + '/', 302);
   },
 };
+
+// ============================================================
+// CONFLUENCE INTEGRATION (issue #23)
+// ============================================================
+function requireAdmin(request, env) {
+  const auth = request.headers.get('Authorization') || '';
+  const expected = env.ADMIN_SECRET ? `Bearer ${env.ADMIN_SECRET}` : '';
+  if (!expected) {
+    return new Response(JSON.stringify({ error: 'ADMIN_SECRET not configured' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  if (auth.length !== expected.length || auth !== expected) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  return null;
+}
+
+function confluenceClient(env) {
+  const base = (env.CONFLUENCE_BASE_URL || 'https://josemreboredo.atlassian.net').replace(/\/$/, '');
+  const auth = btoa(`${env.CONFLUENCE_USER_EMAIL}:${env.CONFLUENCE_API_TOKEN}`);
+  const headers = {
+    Authorization: `Basic ${auth}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  async function call(path, init = {}) {
+    const r = await fetch(`${base}/wiki/api/v2${path}`, { ...init, headers });
+    const text = await r.text();
+    let body;
+    try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+    if (!r.ok) {
+      throw new Error(`Confluence ${init.method || 'GET'} ${path} → ${r.status}: ${text.slice(0, 300)}`);
+    }
+    return body;
+  }
+  return {
+    async spaceId(spaceKey) {
+      const data = await call(`/spaces?keys=${encodeURIComponent(spaceKey)}`);
+      const id = data?.results?.[0]?.id;
+      if (!id) throw new Error(`Space '${spaceKey}' not found`);
+      return id;
+    },
+    async children(parentId) {
+      const data = await call(`/pages/${parentId}/children?limit=100`);
+      return data?.results ?? [];
+    },
+    async create({ spaceId, parentId, title, storage }) {
+      return call('/pages', {
+        method: 'POST',
+        body: JSON.stringify({
+          spaceId,
+          ...(parentId ? { parentId } : {}),
+          status: 'current',
+          title,
+          body: { representation: 'storage', value: storage },
+        }),
+      });
+    },
+    async getPage(id) {
+      return call(`/pages/${id}?body-format=storage`);
+    },
+    async update(id, { title, storage, version }) {
+      return call(`/pages/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          id,
+          status: 'current',
+          title,
+          body: { representation: 'storage', value: storage },
+          version: { number: version },
+        }),
+      });
+    },
+  };
+}
+
+async function ensurePage(env, conf, { spaceId, parentId, title, initialStorage }) {
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const cacheKey = `page:${slug}`;
+  const kv = env.DOCS_KV;
+  if (kv) {
+    const cached = await kv.get(cacheKey);
+    if (cached) return cached;
+  }
+  const kids = await conf.children(parentId);
+  let id = kids.find((k) => k.title === title)?.id;
+  if (!id) {
+    const created = await conf.create({ spaceId, parentId, title, storage: initialStorage });
+    id = created.id;
+  }
+  if (kv && id) await kv.put(cacheKey, id);
+  return id;
+}
+
+async function replacePage(conf, id, { title, storage }) {
+  const current = await conf.getPage(id);
+  const nextVersion = (current?.version?.number ?? 0) + 1;
+  return conf.update(id, { title, storage, version: nextVersion });
+}
+
+function escapeXml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+async function generateDocs(env, ctx) {
+  const apiKey = env.SYSTEM_ANTHROPIC_KEY || env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return {
+      functional: `<h1>Functional documentation</h1><p>Auto-generated for <strong>${escapeXml(ctx.version)}</strong> on ${ctx.date}.</p><ac:structured-macro ac:name="info"><ac:rich-text-body><p>Set <code>SYSTEM_ANTHROPIC_KEY</code> Worker secret to enable AI-generated docs.</p></ac:rich-text-body></ac:structured-macro><h2>Latest changes</h2><pre>${escapeXml(ctx.changelog || '(no changelog entry found)')}</pre>`,
+      technical: `<h1>Technical documentation</h1><p>Auto-generated for <strong>${escapeXml(ctx.version)}</strong> on ${ctx.date}.</p><ac:structured-macro ac:name="info"><ac:rich-text-body><p>Set <code>SYSTEM_ANTHROPIC_KEY</code> Worker secret to enable AI-generated docs.</p></ac:rich-text-body></ac:structured-macro><h2>Recent commits</h2><ul>${ctx.commits.map((c) => `<li><code>${escapeXml(c.sha.slice(0, 7))}</code> ${escapeXml(c.message)}</li>`).join('')}</ul>`,
+    };
+  }
+
+  const sharedContext = `Project: Cycling Coach
+Latest release: ${ctx.version} (${ctx.date})
+Roadmap: ${ctx.openIssues} open / ${ctx.shippedIssues} shipped (across milestones)
+
+CHANGELOG entry for this release:
+${ctx.changelog || '(no entry found)'}
+
+Recent commits since last release:
+${ctx.commits.map((c) => `- ${c.sha.slice(0, 7)} ${c.message}`).join('\n')}`;
+
+  const functionalPrompt = `You are a technical writer producing user-facing project documentation in Confluence storage format (XHTML).
+
+${sharedContext}
+
+TASK: Generate the FUNCTIONAL documentation page. Cover:
+1. What the app does (one paragraph)
+2. Per-route UX: Landing, Dashboard, Privacy, What's next, OAuth flow
+3. Key features (AI Coach, Routes picker, Onboarding, Goal event, Ride detail)
+4. User-facing changes since the last release (synthesise from CHANGELOG; don't repeat verbatim)
+
+FORMAT: Confluence storage XHTML. Use <h1>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <code>.
+For callouts use <ac:structured-macro ac:name="info"><ac:rich-text-body><p>...</p></ac:rich-text-body></ac:structured-macro>.
+Keep it tight — 600 words max.
+OUTPUT: just the XHTML, no markdown fences, no commentary.`;
+
+  const technicalPrompt = `You are a technical writer producing engineering documentation in Confluence storage format (XHTML).
+
+${sharedContext}
+
+TASK: Generate the TECHNICAL documentation page. Cover:
+1. Architecture (Cloudflare Worker + React SPA via Workers Static Assets + D1 + Anthropic Claude + GitHub Issues)
+2. Stack: React 19, Vite, TypeScript, Tanstack Router/Query, Motion, CSS Modules
+3. Data model: D1 schema (users, activities, daily_load, goals, training_prefs, ai_reports, ride_feedback) — high-level, not column-level
+4. Auth flow: Strava OAuth → Worker /authorize → /callback → tokens in localStorage (Strangler-Fig dual-write to D1)
+5. API endpoint inventory (/api/*, /authorize, /callback, /refresh, /coach, /coach-ride, /webhook, /version, /roadmap, /admin/*)
+6. Worker file map (src/worker.js sections)
+7. Security posture (current state + open hardening issues from this release)
+
+FORMAT: Confluence storage XHTML, same vocab as above.
+Length: ~800 words.
+OUTPUT: just the XHTML, no markdown fences, no commentary.`;
+
+  const callClaude = async (prompt) => {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2500,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`Claude ${r.status}: ${err.slice(0, 300)}`);
+    }
+    const data = await r.json();
+    return (data.content?.find((c) => c.type === 'text')?.text || '')
+      .replace(/^```(?:html|xml)?\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .trim();
+  };
+
+  const [functional, technical] = await Promise.all([
+    callClaude(functionalPrompt),
+    callClaude(technicalPrompt),
+  ]);
+  return { functional, technical };
+}
+
+function renderRoadmapPage(roadmap) {
+  const items = (roadmap?.items ?? []).slice().sort((a, b) => (a.number || 0) - (b.number || 0));
+  const byMilestone = new Map();
+  for (const it of items) {
+    const k = it.target || '— no milestone';
+    if (!byMilestone.has(k)) byMilestone.set(k, []);
+    byMilestone.get(k).push(it);
+  }
+  const sections = Array.from(byMilestone.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([milestone, list]) => {
+      const rows = list
+        .map(
+          (it) =>
+            `<tr><td><a href="${escapeXml(it.url || '#')}">#${it.number || it.id}</a></td><td>${escapeXml(it.title)}</td><td>${escapeXml(it.priority)}</td><td>${escapeXml(it.area)}</td><td>${escapeXml(it.status)}</td></tr>`,
+        )
+        .join('');
+      return `<h2>${escapeXml(milestone)}</h2><table><thead><tr><th>#</th><th>Title</th><th>Priority</th><th>Area</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+    })
+    .join('');
+  const counts = items.reduce((acc, it) => { acc[it.status] = (acc[it.status] || 0) + 1; return acc; }, {});
+  return `<h1>Roadmap</h1>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Auto-mirrored from <a href="https://cycling-coach.josem-reboredo.workers.dev/whats-next">/whats-next</a> on every prod deploy. GitHub Issues are the source of truth.</p></ac:rich-text-body></ac:structured-macro>
+<p><strong>Total:</strong> ${items.length} · <strong>Open:</strong> ${counts.open || 0} · <strong>In progress:</strong> ${counts['in-progress'] || 0} · <strong>Shipped:</strong> ${counts.shipped || 0}</p>
+${sections}`;
+}
+
+async function recentCommits(env) {
+  if (!env.GITHUB_TOKEN) return [];
+  const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+  const since = new Date(Date.now() - 30 * 86400_000).toISOString();
+  const r = await fetch(
+    `https://api.github.com/repos/${REPO}/commits?per_page=30&since=${since}`,
+    {
+      headers: {
+        'User-Agent': 'cycling-coach-worker',
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      },
+    },
+  );
+  if (!r.ok) return [];
+  const data = await r.json();
+  return data.map((c) => ({
+    sha: c.sha,
+    message: (c.commit?.message || '').split('\n')[0].slice(0, 120),
+  }));
+}
+
+async function documentRelease(env) {
+  const conf = confluenceClient(env);
+  const spaceKey = env.CONFLUENCE_SPACE_KEY || 'CC';
+  const homepageId = env.CONFLUENCE_HOMEPAGE_ID || '262256';
+  const spaceId = await conf.spaceId(spaceKey);
+  const version = WORKER_VERSION;
+  const date = new Date().toISOString().slice(0, 10);
+
+  // Pull roadmap data directly from GitHub (calling our own /roadmap from
+  // inside the Worker is a self-loopback that Cloudflare blocks).
+  const REPO_FULL = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+  let roadmap = { items: [] };
+  if (env.GITHUB_TOKEN) {
+    const ghRes = await fetch(
+      `https://api.github.com/repos/${REPO_FULL}/issues?state=all&per_page=100&sort=updated&direction=desc`,
+      {
+        headers: {
+          'User-Agent': 'cycling-coach-worker',
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+        },
+      },
+    );
+    if (ghRes.ok) {
+      const issues = await ghRes.json();
+      roadmap.items = issues.filter((i) => !i.pull_request).map(normalizeGhIssue);
+    }
+  }
+  const openIssues = (roadmap.items || []).filter((i) => i.status !== 'shipped').length;
+  const shippedIssues = (roadmap.items || []).filter((i) => i.status === 'shipped').length;
+
+  let changelog = '';
+  if (env.GITHUB_TOKEN) {
+    const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+    const r = await fetch(`https://raw.githubusercontent.com/${REPO}/main/CHANGELOG.md`, {
+      headers: { 'User-Agent': 'cycling-coach-worker' },
+    });
+    if (r.ok) {
+      const md = await r.text();
+      const versionEsc = version.replace(/^v/, '').replace(/\./g, '\\.');
+      const re = new RegExp(`## \\[${versionEsc}\\][\\s\\S]*?(?=\\n## \\[|$)`, 'm');
+      const match = md.match(re);
+      changelog = (match?.[0] || '').slice(0, 4000);
+    }
+  }
+
+  const commits = await recentCommits(env);
+  const docs = await generateDocs(env, { version, date, changelog, commits, openIssues, shippedIssues });
+
+  const placeholder = (title) => `<h1>${escapeXml(title)}</h1><p>Initialising — first auto-generation pending.</p>`;
+  const [functionalId, technicalId, releasesId, roadmapId] = await Promise.all([
+    ensurePage(env, conf, { spaceId, parentId: homepageId, title: 'Functional documentation', initialStorage: placeholder('Functional documentation') }),
+    ensurePage(env, conf, { spaceId, parentId: homepageId, title: 'Technical documentation', initialStorage: placeholder('Technical documentation') }),
+    ensurePage(env, conf, { spaceId, parentId: homepageId, title: 'Releases', initialStorage: '<h1>Releases</h1><p>Auto-appended on every prod deploy.</p>' }),
+    ensurePage(env, conf, { spaceId, parentId: homepageId, title: 'Roadmap', initialStorage: placeholder('Roadmap') }),
+  ]);
+
+  await Promise.all([
+    replacePage(conf, functionalId, { title: 'Functional documentation', storage: docs.functional }),
+    replacePage(conf, technicalId, { title: 'Technical documentation', storage: docs.technical }),
+    replacePage(conf, roadmapId, { title: 'Roadmap', storage: renderRoadmapPage(roadmap) }),
+  ]);
+
+  const releaseChildren = await conf.children(releasesId);
+  const releaseTitle = `Release ${version}`;
+  const releaseStorage = `<h1>${escapeXml(releaseTitle)}</h1>
+<p><strong>Date:</strong> ${date}</p>
+<h2>Changelog excerpt</h2>
+<pre>${escapeXml(changelog || '(no entry found in CHANGELOG.md)')}</pre>
+<h2>Commits</h2>
+<ul>${commits.map((c) => `<li><code>${escapeXml(c.sha.slice(0, 7))}</code> — ${escapeXml(c.message)}</li>`).join('')}</ul>`;
+  let releaseChildId = releaseChildren.find((c) => c.title === releaseTitle)?.id;
+  let releaseStatus = 'unchanged';
+  if (!releaseChildId) {
+    const created = await conf.create({
+      spaceId, parentId: releasesId, title: releaseTitle, storage: releaseStorage,
+    });
+    releaseChildId = created.id;
+    releaseStatus = 'created';
+  }
+
+  return {
+    version, date,
+    pages: {
+      functional: { id: functionalId, status: 'updated' },
+      technical: { id: technicalId, status: 'updated' },
+      roadmap: { id: roadmapId, status: 'updated' },
+      releases_parent: { id: releasesId },
+      release_entry: { id: releaseChildId, title: releaseTitle, status: releaseStatus },
+    },
+    openIssues, shippedIssues, commits: commits.length,
+    used_claude: !!(env.SYSTEM_ANTHROPIC_KEY || env.ANTHROPIC_API_KEY),
+  };
+}
 
 // Map a GitHub issue to the shape the React WhatsNext page expects.
 //

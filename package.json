@@ -9,7 +9,8 @@
     "dev": "wrangler dev",
     "build:web": "cd apps/web && npm install && npm run build",
     "build": "npm run build:web",
-    "deploy": "npm run build:web && wrangler deploy",
+    "deploy": "npm run build:web && wrangler deploy && npm run docs:sync",
+    "docs:sync": "if [ -z \"$ADMIN_SECRET\" ]; then echo '⚠ ADMIN_SECRET not set — skipping Confluence docs sync. Run: source .deploy.env'; else curl -fsS -X POST -H \"Authorization: Bearer $ADMIN_SECRET\" https://cycling-coach.josem-reboredo.workers.dev/admin/document-release || echo '⚠ Docs sync failed (non-fatal)'; fi",
     "start": "wrangler dev"
   },
   "devDependencies": {

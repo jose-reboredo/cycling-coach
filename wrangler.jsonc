@@ -20,7 +20,8 @@
 			"/coach-ride",
 			"/webhook",
 			"/version",
-			"/roadmap"
+			"/roadmap",
+			"/admin/*"
 		]
 	},
 	"observability": {
@@ -43,6 +44,23 @@
 			"binding": "cycling_coach_db",
 			"database_name": "cycling-coach-db",
 			"database_id": "bfc42f0f-a043-4058-854d-d8ebed9a8e4c"
+		}
+	],
+	// Non-sensitive Confluence config (issue #23 — auto-doc-on-deploy).
+	// Sensitive values (CONFLUENCE_API_TOKEN, CONFLUENCE_USER_EMAIL, ADMIN_SECRET,
+	// SYSTEM_ANTHROPIC_KEY) live in `wrangler secret put`.
+	"vars": {
+		"CONFLUENCE_BASE_URL": "https://josemreboredo.atlassian.net",
+		"CONFLUENCE_SPACE_KEY": "CC",
+		"CONFLUENCE_HOMEPAGE_ID": "262256",
+		"GITHUB_OWNER": "jose-reboredo",
+		"GITHUB_REPO": "jose-reboredo/cycling-coach"
+	},
+	// KV namespace for Confluence page-id caching (issue #23, deploy-doc agent).
+	"kv_namespaces": [
+		{
+			"binding": "DOCS_KV",
+			"id": "db369961d8d84acaac83d90ca9c438a8"
 		}
 	]
 }

@@ -71,6 +71,80 @@ npm run dev:all      # Vite (5173) + wrangler (8787) in parallel
 
 `/roadmap` works in dev — Vite proxies it to the Worker which fetches GitHub Issues.
 
+## Confluence auto-doc on every deploy (issue #23)
+
+Every prod deploy auto-updates four pages in your Confluence space (`CC`, homepage `262256`):
+
+```
+Cycling Coach (homepage)
+├── Releases             ← append-only, one child per release
+├── Functional documentation     ← regenerated each deploy
+├── Technical documentation      ← regenerated each deploy
+└── Roadmap                      ← live mirror of /roadmap (GitHub Issues)
+```
+
+### How it works
+
+```
+npm run deploy
+  ├─ npm run build:web                   build the SPA
+  ├─ wrangler deploy                     ship Worker + assets
+  └─ npm run docs:sync                   POST /admin/document-release
+                                         ↓
+                                         Worker:
+                                         1. Reads CHANGELOG.md from raw.githubusercontent
+                                         2. Pulls last 30 commits from GitHub
+                                         3. Pulls open-issue counts directly from GitHub
+                                         4. (Optional) calls Claude to write functional + technical narratives
+                                         5. PUTs to Confluence pages via the v2 REST API
+                                         6. Appends a Releases/v8.x.y child if missing
+```
+
+The endpoint is admin-gated by `Authorization: Bearer $ADMIN_SECRET`. Without the header → 401.
+
+### Required Worker secrets
+
+| Secret | What | How to set |
+|---|---|---|
+| `ADMIN_SECRET` | gates `/admin/*` endpoints | already set; mirror in `.deploy.env` for `npm run deploy` |
+| `CONFLUENCE_API_TOKEN` | Atlassian API token | `wrangler secret put CONFLUENCE_API_TOKEN` then paste from <https://id.atlassian.com/manage-profile/security/api-tokens> |
+| `CONFLUENCE_USER_EMAIL` | your Atlassian-account email | `wrangler secret put CONFLUENCE_USER_EMAIL` |
+| `GITHUB_TOKEN` | for issue + commit reads | already set (`public_repo` scope sufficient) |
+| `SYSTEM_ANTHROPIC_KEY` *(optional)* | enables AI-written functional + technical narratives | `wrangler secret put SYSTEM_ANTHROPIC_KEY` — if absent, deterministic fallback runs |
+
+Non-secret config lives in `wrangler.jsonc → vars`:
+- `CONFLUENCE_BASE_URL = "https://josemreboredo.atlassian.net"`
+- `CONFLUENCE_SPACE_KEY = "CC"`
+- `CONFLUENCE_HOMEPAGE_ID = "262256"`
+
+### `.deploy.env` (local-only, gitignored)
+
+`npm run docs:sync` reads `$ADMIN_SECRET` from the env. To make `npm run deploy` work without re-typing:
+
+```bash
+source .deploy.env
+npm run deploy
+```
+
+The `.deploy.env` template is created automatically on first integration setup; don't commit it.
+
+### Manually re-running the doc sync
+
+```bash
+source .deploy.env
+curl -fsS -X POST \
+  -H "Authorization: Bearer $ADMIN_SECRET" \
+  https://cycling-coach.josem-reboredo.workers.dev/admin/document-release | jq
+```
+
+Returns a summary of which pages were updated/created, the open/shipped issue counts, and whether Claude or the deterministic fallback was used.
+
+### Why deterministic fallback?
+
+The `documentRelease` function works without any LLM — when `SYSTEM_ANTHROPIC_KEY` is unset, it generates the four pages from the deterministic inputs (CHANGELOG entry, commit list, roadmap data). The Roadmap page is *always* deterministic (it's a structured table from GitHub data). Only the Functional + Technical narratives benefit from Claude.
+
+---
+
 ## Optional: GitHub auth for the Worker
 
 By default the Worker uses anonymous GitHub API requests (60/hour rate limit per IP — plenty given the 5-min edge cache). If you ever want higher limits or to read private issues, add a `GITHUB_TOKEN` secret to the Worker:
