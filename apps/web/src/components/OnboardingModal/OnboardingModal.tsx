@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { Eyebrow } from '../Eyebrow/Eyebrow';
 import { Pill } from '../Pill/Pill';
 import { Button } from '../Button/Button';
@@ -23,52 +24,19 @@ export function OnboardingModal({ open, initial, onSave, onSkip }: OnboardingMod
   const [ftp, setFtp] = useState<string>(initial.ftp?.toString() ?? '');
   const [weight, setWeight] = useState<string>(initial.weight?.toString() ?? '');
   const [hrMax, setHrMax] = useState<string>(initial.hrMax?.toString() ?? '');
-  const modalRef = useRef<HTMLDivElement | null>(null);
+  const modalRef = useFocusTrap<HTMLDivElement>(open);
 
-  // ESC dismiss + scroll lock + focus trap (Tab wraps; Shift-Tab wraps back)
-  // + restore focus to whatever was focused before the modal opened.
+  // ESC dismiss + scroll lock. Tab-trap + focus restore handled by useFocusTrap.
   useEffect(() => {
     if (!open) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-
-    const focusable = (): HTMLElement[] => {
-      const root = modalRef.current;
-      if (!root) return [];
-      return Array.from(
-        root.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((el) => !el.hasAttribute('aria-hidden'));
-    };
-
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onSkip();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const els = focusable();
-      if (els.length === 0) return;
-      const first = els[0]!;
-      const last = els[els.length - 1]!;
-      const active = document.activeElement;
-      if (e.shiftKey && active === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && active === last) {
-        e.preventDefault();
-        first.focus();
-      }
+      if (e.key === 'Escape') onSkip();
     };
-
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
-
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
-      // Restore focus to the trigger that opened the modal.
-      previouslyFocused?.focus?.();
     };
   }, [open, onSkip]);
 

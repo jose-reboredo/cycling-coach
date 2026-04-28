@@ -108,3 +108,36 @@ test.describe('Smoke — ride detail expand (/dashboard?demo=1)', () => {
     await expect(page.getByText(/connect Strava to see splits/i).first()).toBeVisible({ timeout: 5000 });
   });
 });
+
+test.describe('Smoke — UserMenu keyboard nav (/dashboard?demo=1)', () => {
+  test('arrow keys move between menuitems, ESC closes + restores focus', async ({ page }) => {
+    await page.goto('/dashboard?demo=1');
+    await page.waitForLoadState('networkidle');
+
+    // Trigger has aria-label="Account menu for ..."
+    const trigger = page.getByRole('button', { name: /account menu for/i });
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+
+    // Menu now visible; first menuitem should be focused
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    await expect.poll(async () =>
+      page.evaluate(() => document.activeElement?.getAttribute('role')),
+    ).toBe('menuitem');
+
+    // ArrowDown moves focus
+    const firstFocusedText = await page.evaluate(() => document.activeElement?.textContent);
+    await page.keyboard.press('ArrowDown');
+    const secondFocusedText = await page.evaluate(() => document.activeElement?.textContent);
+    expect(secondFocusedText).not.toBe(firstFocusedText);
+
+    // ESC closes + focus restores to trigger
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect.poll(async () =>
+      page.evaluate(() => document.activeElement?.getAttribute('aria-haspopup')),
+    ).toBe('menu');
+  });
+});
+

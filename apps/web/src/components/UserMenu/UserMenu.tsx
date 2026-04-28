@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import styles from './UserMenu.module.css';
 
 interface UserMenuProps {
@@ -20,6 +21,7 @@ interface UserMenuProps {
 export function UserMenu({ children, onSync, onDisconnect, onEditProfile, username }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useFocusTrap<HTMLDivElement>(open);
 
   useEffect(() => {
     if (!open) return;
@@ -38,6 +40,44 @@ export function UserMenu({ children, onSync, onDisconnect, onEditProfile, userna
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  // Move focus into the menu when it opens; ↑/↓/Home/End navigate
+  // between menuitem children. ESC + click-outside still close (handled above).
+  useEffect(() => {
+    if (!open) return;
+    const root = menuRef.current;
+    if (!root) return;
+
+    const items = () =>
+      Array.from(root.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+
+    // Focus first item on open (rAF to wait for AnimatePresence mount)
+    requestAnimationFrame(() => {
+      items()[0]?.focus();
+    });
+
+    const onKey = (e: KeyboardEvent) => {
+      const els = items();
+      if (els.length === 0) return;
+      const idx = els.indexOf(document.activeElement as HTMLElement);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        els[(idx + 1 + els.length) % els.length]?.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        els[(idx - 1 + els.length) % els.length]?.focus();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        els[0]?.focus();
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        els[els.length - 1]?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, menuRef]);
 
   return (
     <div className={styles.wrap} ref={wrapRef}>
@@ -58,6 +98,7 @@ export function UserMenu({ children, onSync, onDisconnect, onEditProfile, userna
       <AnimatePresence>
         {open ? (
           <motion.div
+            ref={menuRef}
             className={styles.menu}
             role="menu"
             initial={{ opacity: 0, y: -6, scale: 0.97 }}
