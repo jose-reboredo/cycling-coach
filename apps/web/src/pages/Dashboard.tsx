@@ -199,6 +199,7 @@ function DashboardView({
 
   const todays = todayKey();
   const todaysAiText = aiReport.report?.weeklyPlan?.[todays];
+  const greeting = greetingForHour(new Date().getHours());
 
   const handleGenerate = async () => {
     if (!apiKey) return;
@@ -300,7 +301,7 @@ function DashboardView({
                 </Pill>
               </div>
               <h1 className={styles.greet}>
-                Morning, <em>{firstName}</em>.
+                {greeting}, <em>{firstName}</em>.
               </h1>
               <p className={styles.greetLede}>
                 {pmc ? (
@@ -416,9 +417,9 @@ function DashboardView({
                 workout={TODAYS_WORKOUT}
                 day={todays.charAt(0).toUpperCase() + todays.slice(1)}
                 badge="Sample · generate plan below"
-                onStart={() =>
-                  alert('Generate your AI plan to replace this sample workout with your real one.')
-                }
+                onStart={() => {
+                  document.getElementById('train')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
               />
             )}
           </motion.section>
@@ -645,9 +646,7 @@ function DemoBanner() {
       <Pill dot tone="warn">
         Demo
       </Pill>
-      <p>
-        Demo data only — append <code>?demo=0</code> or remove it from the URL to see your real Strava data.
-      </p>
+      <p>You're viewing sample data. Connect Strava to see your own rides.</p>
       <Button size="sm" variant="primary" href={connectUrl()} withArrow>
         Connect
       </Button>
@@ -660,4 +659,11 @@ function DemoBanner() {
       </button>
     </div>
   );
+}
+
+function greetingForHour(h: number): string {
+  if (h < 5) return 'Late night';
+  if (h < 12) return 'Morning';
+  if (h < 18) return 'Afternoon';
+  return 'Evening';
 }

@@ -3,6 +3,21 @@
 // Single source of truth for the cycling-coach design system.
 // Reject: AI-slop aesthetic. Pure black canvas, molten orange,
 // mono numerals. Two families. Square-ish radii. Earned shadows.
+//
+// Why these choices over the ui-ux-pro-max sports-fitness preset
+// (Vibrant + Block-based · Barlow Condensed · green CTA)?
+//
+// PARS targets the "Marco" persona — Pas Normal Studios audience,
+// 30s, native digital, pro-rider aesthetic. The cockpit / instrument-
+// panel feel (Geist Mono numerals on dark canvas) is the brand;
+// athletic-condensed type would push the surface toward gym-app
+// territory. Molten orange #ff4d00 keeps the Strava-adjacent
+// association without copying their primary. Restraint is the point.
+//
+// This divergence is intentional and approved (see
+// docs/superpowers/specs/2026-04-28-dashboard-design-audit.md).
+// Future passes: don't regress to the preset; if a finding from the
+// skill's catalog conflicts with PARS, audit-first, fix-second.
 // ---------------------------------------------------------------
 
 export const tokens = {
