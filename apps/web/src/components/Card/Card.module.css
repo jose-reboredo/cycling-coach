@@ -1,0 +1,56 @@
+.root {
+  position: relative;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.base {
+  background: var(--c-surface);
+}
+
+.elev {
+  background: var(--c-surface-elev);
+}
+
+.pressed {
+  background: var(--c-surface-pressed);
+}
+
+.accent {
+  background: var(--c-surface);
+  border-color: rgba(255, 77, 0, 0.22);
+  box-shadow: var(--sh-glow);
+}
+
+.pad-sm {
+  padding: var(--s-4);
+}
+
+.pad-md {
+  padding: var(--s-5);
+}
+
+.pad-lg {
+  padding: var(--s-7);
+}
+
+.rule::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--c-accent);
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  .pad-md {
+    padding: var(--s-6);
+  }
+  .pad-lg {
+    padding: var(--s-8);
+  }
+}

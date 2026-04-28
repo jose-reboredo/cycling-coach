@@ -1,0 +1,124 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: var(--r-sm);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--d-fast) var(--e-out),
+    color var(--d-fast) var(--e-out),
+    box-shadow var(--d-fast) var(--e-out),
+    transform var(--d-fast) var(--e-out),
+    border-color var(--d-fast) var(--e-out);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+.root:active {
+  transform: translateY(0.5px);
+}
+
+.root:disabled,
+.root[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.arrow {
+  font-family: var(--font-sans);
+  font-size: 1.15em;
+  letter-spacing: 0;
+  text-transform: none;
+  transition: transform var(--d-base) var(--e-out);
+  margin-left: var(--s-1);
+}
+
+.root:hover .arrow {
+  transform: translateX(3px);
+}
+
+/* Sizes */
+.sm {
+  height: var(--hit-min);
+  padding-inline: var(--s-4);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.md {
+  height: var(--hit-comfy);
+  padding-inline: var(--s-6);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.lg {
+  height: var(--hit-big);
+  padding-inline: var(--s-7);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+/* Variants */
+.primary {
+  background: var(--c-accent);
+  color: var(--c-canvas);
+  box-shadow: var(--sh-glow);
+}
+
+.primary:hover {
+  background: var(--c-accent-deep);
+}
+
+.primary:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--sh-glow),
+    0 0 0 3px rgba(255, 77, 0, 0.35);
+}
+
+.secondary {
+  background: transparent;
+  color: var(--c-text);
+  border: 1px solid var(--c-line-strong);
+}
+
+.secondary:hover {
+  background: var(--c-surface);
+  border-color: var(--c-text-faint);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--c-text-muted);
+  padding-inline: var(--s-3);
+}
+
+.ghost:hover {
+  color: var(--c-text);
+}
+
+.strava {
+  background: var(--c-strava);
+  color: #fff;
+}
+
+.strava:hover {
+  filter: brightness(1.08);
+}

@@ -1,13 +1,19 @@
 {
   "name": "cycling-coach",
-  "version": "0.0.0",
+  "version": "8.0.0",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy",
+    "dev:web": "cd apps/web && npm run dev",
+    "dev:worker": "wrangler dev",
+    "dev:all": "concurrently -n worker,web -c yellow,cyan --kill-others-on-fail \"npm:dev:worker\" \"npm:dev:web\"",
     "dev": "wrangler dev",
+    "build:web": "cd apps/web && npm install && npm run build",
+    "build": "npm run build:web",
+    "deploy": "npm run build:web && wrangler deploy",
     "start": "wrangler dev"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "wrangler": "^4.85.0"
   }
 }

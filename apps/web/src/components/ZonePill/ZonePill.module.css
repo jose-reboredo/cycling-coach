@@ -1,0 +1,57 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: var(--r-full);
+  border: 1px solid var(--c-line);
+  background: var(--c-surface);
+  color: var(--c-text);
+  white-space: nowrap;
+}
+
+.size-sm {
+  padding: 3px 8px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+.size-md {
+  padding: 5px 10px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-full);
+  flex-shrink: 0;
+}
+
+.z1 .dot {
+  background: var(--c-z1);
+  box-shadow: 0 0 8px rgba(59, 140, 232, 0.6);
+}
+.z2 .dot {
+  background: var(--c-z2);
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+}
+.z3 .dot {
+  background: var(--c-z3);
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+}
+.z4 .dot {
+  background: var(--c-z4);
+  box-shadow: 0 0 8px rgba(251, 146, 60, 0.6);
+}
+.z5 .dot {
+  background: var(--c-z5);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+.z6 .dot {
+  background: var(--c-z6);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+}

@@ -1,0 +1,229 @@
+/* PARS — tokens.css
+ * ----------------------------------------------------------------
+ * Mirrors src/design/tokens.ts. Mounted on :root.
+ * Components consume via var(--*).
+ * Two files because (a) JS needs values for Motion + canvas drawing,
+ * (b) CSS needs custom properties for runtime theming + transitions.
+ * ---------------------------------------------------------------- */
+
+:root {
+  /* Fonts */
+  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "JetBrains Mono", monospace;
+
+  /* Surface */
+  --c-canvas: #0a0a0c;
+  --c-surface: #16181d;
+  --c-surface-elev: #1f232a;
+  --c-surface-pressed: #252a33;
+  --c-surface-overlay: rgba(10, 10, 12, 0.72);
+
+  /* Text */
+  --c-text: #f0f1f3;
+  --c-text-muted: #7d8290;
+  --c-text-faint: #454a55;
+
+  /* Line */
+  --c-line: rgba(255, 255, 255, 0.06);
+  --c-line-strong: rgba(255, 255, 255, 0.14);
+
+  /* Accent — molten orange */
+  --c-accent: #ff4d00;
+  --c-accent-deep: #cc3e00;
+  --c-accent-soft: rgba(255, 77, 0, 0.1);
+  --c-accent-glow: rgba(255, 77, 0, 0.22);
+
+  /* Zones (Coggan Z1–Z6) */
+  --c-z1: #3b8ce8;
+  --c-z2: #4ade80;
+  --c-z3: #facc15;
+  --c-z4: #fb923c;
+  --c-z5: #ef4444;
+  --c-z6: #a855f7;
+
+  /* Status */
+  --c-success: #22c55e;
+  --c-success-soft: rgba(34, 197, 94, 0.12);
+  --c-warn: #f59e0b;
+  --c-warn-soft: rgba(245, 158, 11, 0.12);
+  --c-danger: #ef4444;
+  --c-danger-soft: rgba(239, 68, 68, 0.12);
+
+  /* Strava brand */
+  --c-strava: #fc4c02;
+
+  /* Spacing */
+  --s-px: 1px;
+  --s-0-5: 2px;
+  --s-1: 4px;
+  --s-1-5: 6px;
+  --s-2: 8px;
+  --s-2-5: 10px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 28px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-14: 56px;
+  --s-16: 64px;
+  --s-20: 80px;
+  --s-24: 96px;
+  --s-32: 128px;
+
+  /* Radius */
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+  --r-xl: 16px;
+  --r-full: 9999px;
+
+  /* Shadow */
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --sh-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
+  --sh-glow: 0 0 0 1px rgba(255, 77, 0, 0.25), 0 8px 28px rgba(255, 77, 0, 0.18);
+  --sh-inner: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Motion durations */
+  --d-instant: 50ms;
+  --d-fast: 150ms;
+  --d-base: 220ms;
+  --d-slow: 420ms;
+  --d-lazy: 720ms;
+  --d-ring: 1200ms;
+
+  /* Motion easings */
+  --e-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --e-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --e-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --e-sharp: cubic-bezier(0.4, 0, 0.6, 0.2);
+
+  /* Hit targets */
+  --hit-min: 44px;
+  --hit-comfy: 48px;
+  --hit-big: 56px;
+
+  /* Z-index */
+  --z-base: 0;
+  --z-raised: 1;
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-nav: 200;
+  --z-overlay: 400;
+  --z-modal: 500;
+  --z-toast: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --d-instant: 1ms;
+    --d-fast: 1ms;
+    --d-base: 1ms;
+    --d-slow: 1ms;
+    --d-lazy: 1ms;
+    --d-ring: 1ms;
+  }
+}
+
+html {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--c-canvas);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Type utility classes — used by components, not freely. */
+.t-mono-xxs {
+  font: 500 10px/14px var(--font-mono);
+  letter-spacing: 0.16em;
+}
+.t-mono-xs {
+  font: 500 11px/16px var(--font-mono);
+  letter-spacing: 0.14em;
+}
+.t-mono-sm {
+  font: 500 13px/18px var(--font-mono);
+  letter-spacing: 0.1em;
+}
+.t-mono-md {
+  font: 500 15px/20px var(--font-mono);
+  letter-spacing: 0.08em;
+}
+.t-mono-lg {
+  font: 500 18px/24px var(--font-mono);
+  letter-spacing: 0.06em;
+}
+.t-mono-xl {
+  font: 500 24px/28px var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.t-mono-2xl {
+  font: 600 36px/40px var(--font-mono);
+  letter-spacing: -0.01em;
+}
+.t-mono-3xl {
+  font: 600 54px/54px var(--font-mono);
+  letter-spacing: -0.025em;
+}
+.t-mono-4xl {
+  font: 700 80px/80px var(--font-mono);
+  letter-spacing: -0.035em;
+}
+.t-mono-5xl {
+  font: 700 120px/108px var(--font-mono);
+  letter-spacing: -0.045em;
+}
+
+.t-sans-xs {
+  font: 400 12px/18px var(--font-sans);
+}
+.t-sans-sm {
+  font: 400 14px/22px var(--font-sans);
+}
+.t-sans-md {
+  font: 400 16px/26px var(--font-sans);
+}
+.t-sans-lg {
+  font: 500 18px/28px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+.t-sans-xl {
+  font: 500 22px/30px var(--font-sans);
+  letter-spacing: -0.012em;
+}
+.t-sans-2xl {
+  font: 600 28px/34px var(--font-sans);
+  letter-spacing: -0.018em;
+}
+.t-sans-3xl {
+  font: 600 40px/44px var(--font-sans);
+  letter-spacing: -0.025em;
+}
+.t-sans-4xl {
+  font: 700 64px/64px var(--font-sans);
+  letter-spacing: -0.035em;
+}
+.t-sans-5xl {
+  font: 700 96px/92px var(--font-sans);
+  letter-spacing: -0.045em;
+}
+
+/* Eyebrow utility — used everywhere. Mono uppercase tracked. */
+.eyebrow {
+  font: 500 11px/16px var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}

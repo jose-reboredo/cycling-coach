@@ -13,41 +13,83 @@
  
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v7.0.3';
-const BUILD_DATE = '2026-04-26';
+const WORKER_VERSION = 'v8.0.0';
+const BUILD_DATE = '2026-04-28';
  
+// Resolve the user-facing origin so OAuth redirect_uri lands where the user
+// actually is.
+//
+// Priority:
+//   1. ?origin=… query param (explicit, set by the React client in dev)
+//   2. X-Forwarded-Host header (in case any proxy honors xfwd)
+//   3. url.origin (production: Workers Static Assets — request hits Worker directly)
+//
+// We only honor the query-param origin when it's a localhost loopback to keep
+// it from being abused as an open redirect.
+function userOrigin(request, url) {
+  const explicit = url.searchParams.get('origin');
+  if (explicit) {
+    try {
+      const u = new URL(explicit);
+      if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
+        return u.origin;
+      }
+    } catch {}
+  }
+  const fwdHost = request.headers.get('x-forwarded-host');
+  const fwdProto = request.headers.get('x-forwarded-proto');
+  if (fwdHost) return `${fwdProto || 'http'}://${fwdHost}`;
+  return url.origin;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const origin = userOrigin(request, url);
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
     if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
- 
-    if (url.pathname === '/' || url.pathname === '') return htmlResponse(landingPage(url.origin));
-    if (url.pathname === '/dashboard' || url.pathname === '/dashboard/') return htmlResponse(dashboardPage(url.origin));
-    if (url.pathname === '/privacy' || url.pathname === '/privacy/') return htmlResponse(privacyPage(url.origin));
- 
+
+    if (url.pathname === '/' || url.pathname === '') return htmlResponse(landingPage(origin));
+    if (url.pathname === '/dashboard' || url.pathname === '/dashboard/') return htmlResponse(dashboardPage(origin));
+    if (url.pathname === '/privacy' || url.pathname === '/privacy/') return htmlResponse(privacyPage(origin));
+
     if (url.pathname === '/authorize') {
       const stravaAuth = new URL('https://www.strava.com/oauth/authorize');
       stravaAuth.searchParams.set('client_id', env.STRAVA_CLIENT_ID);
-      stravaAuth.searchParams.set('redirect_uri', `${url.origin}/callback`);
+      stravaAuth.searchParams.set('redirect_uri', `${origin}/callback`);
       stravaAuth.searchParams.set('response_type', 'code');
       stravaAuth.searchParams.set('approval_prompt', 'auto');
       stravaAuth.searchParams.set('scope', 'read,activity:read_all,profile:read_all');
-      // Forward the pwa flag through Strava's state parameter so /callback
-      // knows whether to show auto-redirect or manual copy-tokens UI.
+      // Strava round-trips the `state` param. We encode the user's origin and
+      // PWA flag so /callback can land them on the same dev port (or PWA flow).
       const isPwa = url.searchParams.get('pwa') === '1';
-      if (isPwa) stravaAuth.searchParams.set('state', 'pwa');
+      const state = btoa(JSON.stringify({ pwa: isPwa, origin }));
+      stravaAuth.searchParams.set('state', state);
       return Response.redirect(stravaAuth.toString(), 302);
     }
- 
+
     if (url.pathname === '/callback') {
       const code = url.searchParams.get('code');
       const error = url.searchParams.get('error');
-      const fromPwa = url.searchParams.get('state') === 'pwa';
+      // Decode state — supports both new JSON-encoded state and legacy 'pwa' string.
+      let stateData = { pwa: false, origin };
+      const rawState = url.searchParams.get('state');
+      if (rawState === 'pwa') {
+        stateData.pwa = true;
+      } else if (rawState) {
+        try {
+          const decoded = JSON.parse(atob(rawState));
+          if (decoded && typeof decoded === 'object') {
+            stateData = { pwa: !!decoded.pwa, origin: decoded.origin || origin };
+          }
+        } catch {}
+      }
+      const fromPwa = stateData.pwa;
+      const callbackOrigin = stateData.origin;
       if (error || !code) return htmlResponse(errorPage(error || 'No authorization code'));
       try {
         const tokenRes = await fetch('https://www.strava.com/oauth/token', {
@@ -63,7 +105,7 @@ export default {
         if (data.access_token) {
           // Strangler Fig: dual-write phase. Persist to D1, frontend still uses localStorage.
           await persistUserAndTokens(env.cycling_coach_db, data);
-          return htmlResponse(callbackPage(data, url.origin, fromPwa));
+          return htmlResponse(callbackPage(data, callbackOrigin, fromPwa));
         }
         return htmlResponse(errorPage(data.message || 'Token exchange failed'));
       } catch (e) { return htmlResponse(errorPage(e.message)); }

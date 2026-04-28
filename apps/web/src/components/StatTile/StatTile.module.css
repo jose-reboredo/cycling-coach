@@ -1,0 +1,95 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.label {
+  font: 500 10px/1.4 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  color: var(--c-text);
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-1-5);
+}
+
+.unit {
+  font-size: 0.46em;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+  font-family: var(--font-mono);
+}
+
+.delta {
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--c-text-faint);
+}
+
+/* Sizes */
+.size-sm .value {
+  font-size: 22px;
+}
+.size-md .value {
+  font-size: 32px;
+}
+.size-lg .value {
+  font-size: 56px;
+  letter-spacing: -0.035em;
+}
+
+@media (min-width: 768px) {
+  .size-md .value {
+    font-size: 36px;
+  }
+  .size-lg .value {
+    font-size: 80px;
+  }
+}
+
+/* Tones — value color */
+.tone-default {
+  color: var(--c-text);
+}
+.tone-accent {
+  color: var(--c-accent);
+}
+.tone-success {
+  color: var(--c-success);
+}
+.tone-warn {
+  color: var(--c-warn);
+}
+.tone-danger {
+  color: var(--c-danger);
+}
+.tone-z1 {
+  color: var(--c-z1);
+}
+.tone-z2 {
+  color: var(--c-z2);
+}
+.tone-z3 {
+  color: var(--c-z3);
+}
+.tone-z4 {
+  color: var(--c-z4);
+}
+.tone-z5 {
+  color: var(--c-z5);
+}
+.tone-z6 {
+  color: var(--c-z6);
+}

@@ -1,0 +1,120 @@
+.root {
+  background: var(--c-surface-elev);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+@media (min-width: 480px) {
+  .head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.numbers {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.numbers > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.numVal {
+  font: 600 24px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--c-text);
+}
+.numLabel {
+  font: 500 9px/1.4 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+.divider {
+  width: 1px;
+  height: 28px;
+  background: var(--c-line);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  width: 100%;
+}
+
+.col {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--c-surface);
+}
+
+.l0 {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+}
+.l1 {
+  background: rgba(255, 77, 0, 0.25);
+}
+.l2 {
+  background: rgba(255, 77, 0, 0.5);
+}
+.l3 {
+  background: rgba(255, 77, 0, 0.75);
+}
+.l4 {
+  background: var(--c-accent);
+  box-shadow: 0 0 6px rgba(255, 77, 0, 0.5);
+}
+
+.today {
+  outline: 1.5px solid var(--c-text);
+  outline-offset: 1px;
+  animation: pulse 2s var(--e-out) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    outline-color: var(--c-text);
+  }
+  50% {
+    outline-color: var(--c-accent);
+  }
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  font: 500 9px/1.4 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+.legendCell {
+  width: 10px;
+  height: 10px;
+  aspect-ratio: 1;
+  margin: 0 1px;
+}

@@ -1,0 +1,28 @@
+.root {
+  position: relative;
+  display: inline-block;
+}
+
+.svg {
+  display: block;
+}
+
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  text-align: center;
+  pointer-events: none;
+}
+
+.eyebrow,
+.label {
+  font: 500 10px/1.4 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}

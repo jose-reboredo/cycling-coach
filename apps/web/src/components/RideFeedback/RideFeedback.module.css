@@ -1,0 +1,112 @@
+.askBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: all var(--d-fast) var(--e-out);
+}
+.askBtn:hover:not(:disabled) {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+.askBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.askIcon {
+  color: var(--c-accent);
+  font-size: 12px;
+}
+
+.panel {
+  margin-top: var(--s-3);
+  padding: var(--s-4);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  border-left: 2px solid var(--c-accent);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s-2);
+}
+
+.timestamp {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.verdict {
+  font: italic 400 17px/1.4 var(--font-sans);
+  color: var(--c-accent);
+  letter-spacing: -0.005em;
+  margin-bottom: var(--s-2);
+}
+
+.body {
+  font: 400 14px/1.55 var(--font-sans);
+  color: var(--c-text);
+  margin-bottom: var(--s-3);
+}
+
+.next {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: 400 13px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  padding: var(--s-3);
+  background: var(--c-surface);
+  border-radius: var(--r-sm);
+  border-left: 2px solid var(--c-warn);
+}
+.next strong {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-warn);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font: 400 13px/1 var(--font-sans);
+  color: var(--c-text-muted);
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--c-line-strong);
+  border-top-color: var(--c-accent);
+  border-radius: var(--r-full);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error {
+  font: 400 13px/1.5 var(--font-sans);
+  color: var(--c-danger);
+}
