@@ -476,6 +476,31 @@ Respond ONLY with valid JSON, no markdown:
       }
     }
 
+    // ============= ADMIN: CLOSE TRIAGE ISSUES =============
+    // One-shot — closes v8.5.0 issues #21 + #23 (both already shipped).
+    // Idempotent — skips issues already closed. Remove this route handler
+    // after running, per the same convention as fileAuditIssues.
+    if (url.pathname === '/admin/close-issues' && request.method === 'POST') {
+      const adminCheck = requireAdmin(request, env);
+      if (adminCheck) return adminCheck;
+      if (!env.GITHUB_TOKEN) {
+        return new Response(
+          JSON.stringify({ error: 'GITHUB_TOKEN secret missing' }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      try {
+        const result = await closeAuditTriageIssues(env);
+        return new Response(JSON.stringify(result, null, 2), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // ============= ROADMAP =============
     // GitHub Issues are the source of truth for the public roadmap. The
     // /whats-next page in the React SPA fetches this endpoint, which proxies
@@ -1275,6 +1300,83 @@ async function fileAuditIssues(env) {
     } else {
       const err = await r.text().catch(() => '');
       out.issues.push({ title: issue.title, status: r.status, error: err.slice(0, 200) });
+    }
+  }
+  return out;
+}
+
+// Closes the two v8.5.0 issues that are de-facto already shipped:
+//   #21  /admin/* explicit auth — requireAdmin() shipped in v8.3.0
+//   #23  Auto-update Confluence on prod deploy — npm run docs:sync since v8.3.0
+// Idempotent — skips issues already in 'closed' state.
+//
+// Route handler removed after one-shot run on 2026-04-28 (Phase 0a of the
+// v8.5.0 backlog burn). To re-invoke: re-add the /admin/close-issues block
+// in fetch().
+// eslint-disable-next-line no-unused-vars
+async function closeAuditTriageIssues(env) {
+  const REPO = env.GITHUB_REPO || 'jose-reboredo/cycling-coach';
+  const ghHeaders = {
+    'User-Agent': 'cycling-coach-bootstrap',
+    'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
+
+  const TRIAGE = [
+    {
+      number: 21,
+      comment:
+        'Closing as already-shipped. `requireAdmin()` was added in v8.3.0 (commit `2766753`) ' +
+        'and is now used by every `/admin/*` endpoint that exists today (`/admin/document-release`, ' +
+        '`/admin/file-audit-issues` while it was active). The acceptance criteria here are met:\n\n' +
+        '- ✅ ADMIN_SECRET Worker secret created\n' +
+        '- ✅ Every /admin/* handler calls `requireAdmin` first\n' +
+        '- ✅ curl without header returns 401\n' +
+        '- ✅ Future admin endpoints inherit the guard automatically\n\n' +
+        'Closed via the v8.5.0 Phase 0 triage pass.',
+    },
+    {
+      number: 23,
+      comment:
+        'Closing as already-shipped. The auto-doc Worker endpoint `/admin/document-release` ' +
+        'shipped in v8.3.0 and runs on every `npm run deploy` (build:web → wrangler deploy → ' +
+        'docs:sync). Verified working through v8.3.0, v8.4.0, v8.4.1 deploys this week.\n\n' +
+        '- ✅ Confluence Releases parent page seeded\n' +
+        '- ✅ Per-release child pages created automatically\n' +
+        '- ✅ Spec pages hash-skip to avoid pointless rewrites\n' +
+        '- ✅ Roadmap page regenerated on each deploy\n\n' +
+        'Closed via the v8.5.0 Phase 0 triage pass.',
+    },
+  ];
+
+  const out = { closed: [] };
+  for (const item of TRIAGE) {
+    // Check current state.
+    const getRes = await fetch(`https://api.github.com/repos/${REPO}/issues/${item.number}`, { headers: ghHeaders });
+    if (!getRes.ok) {
+      out.closed.push({ number: item.number, status: getRes.status, error: 'fetch failed' });
+      continue;
+    }
+    const issue = await getRes.json();
+    if (issue.state === 'closed') {
+      out.closed.push({ number: item.number, status: 'already-closed', url: issue.html_url });
+      continue;
+    }
+
+    // Post the closing comment first, then close.
+    await fetch(`https://api.github.com/repos/${REPO}/issues/${item.number}/comments`, {
+      method: 'POST', headers: ghHeaders, body: JSON.stringify({ body: item.comment }),
+    });
+    const closeRes = await fetch(`https://api.github.com/repos/${REPO}/issues/${item.number}`, {
+      method: 'PATCH', headers: ghHeaders, body: JSON.stringify({ state: 'closed', state_reason: 'completed' }),
+    });
+    if (closeRes.ok) {
+      const updated = await closeRes.json();
+      out.closed.push({ number: item.number, status: 'closed', url: updated.html_url });
+    } else {
+      out.closed.push({ number: item.number, status: closeRes.status, error: await closeRes.text().catch(() => '') });
     }
   }
   return out;
