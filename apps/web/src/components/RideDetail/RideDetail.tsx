@@ -30,10 +30,10 @@ export function RideDetail({ rideId, enabled, fallback }: RideDetailProps) {
   return (
     <motion.div
       className={styles.root}
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
     >
       <div className={styles.inner}>
         {fallback ? (

@@ -78,3 +78,33 @@ test.describe('Smoke — whats-next (/whats-next)', () => {
     expect(errors, `unexpected console errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });
+
+test.describe('Smoke — ride detail expand (/dashboard?demo=1)', () => {
+  test('clicking a ride row reveals its detail panel', async ({ page }) => {
+    await page.goto('/dashboard?demo=1');
+    await page.waitForLoadState('networkidle');
+
+    // Dismiss the demo banner first — at mobile-375 it intercepts pointer
+    // events on the previous-rides section.
+    const dismissBanner = page.getByRole('button', { name: /^dismiss$/i });
+    if (await dismissBanner.count() > 0) {
+      await dismissBanner.first().click();
+    }
+
+    // The expand-button uses aria-label="Toggle detail for {ride name}".
+    // The previous-rides section is far down the page on mobile — scroll into
+    // view, then nudge up so the sticky TopBar doesn't overlap.
+    const expandBtn = page.getByRole('button', { name: /toggle detail for/i }).first();
+    await expandBtn.scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy(0, -80));
+    await expect(expandBtn).toBeVisible();
+
+    // aria-expanded flips synchronously on click — assert that first
+    // (deterministic), then wait for the panel content to appear.
+    await expandBtn.click();
+    await expect(expandBtn).toHaveAttribute('aria-expanded', 'true');
+
+    // FallbackBody (demo mode) renders a "connect Strava to see splits" note.
+    await expect(page.getByText(/connect Strava to see splits/i).first()).toBeVisible({ timeout: 5000 });
+  });
+});
