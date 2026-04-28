@@ -6,6 +6,8 @@
 #   M5  UserMenu keyboard nav + focus management
 # (M3 self-host fonts is already covered by issue #12 Lighthouse work — skipped.)
 #
+# Originally targeted v8.4.0; reslotted to v8.5.0 once v8.4.0 shipped.
+#
 # Idempotent: re-running won't duplicate (matches title against existing issues).
 #
 # Prereqs: gh authenticated (gh auth login). Milestone + labels exist
@@ -14,7 +16,7 @@
 set -euo pipefail
 
 REPO="${REPO:-jose-reboredo/cycling-coach}"
-MILESTONE="${MILESTONE:-v8.4.0}"
+MILESTONE="${MILESTONE:-v8.5.0}"
 echo "→ Repo: $REPO"
 echo "→ Milestone: $MILESTONE"
 
