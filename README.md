@@ -2,7 +2,23 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.3.0](./CHANGELOG.md#830--2026-04-28)** · 2026-04-28
+**Current release: [v8.4.0](./CHANGELOG.md#840--2026-04-28)** · 2026-04-28
+
+## What's new in v8.4.0
+
+Dashboard design audit pass against the [`ui-ux-pro-max`](https://github.com/) skill catalog (99 UX guidelines + 44 react-perf + 53 react-stack rules). 22 findings · 13 shipped · 4 deferred to v8.5.0.
+
+- **Reduced-motion respected end-to-end** — `<MotionConfig reducedMotion="user">` wraps the app so JS-prop transitions on `motion.section` honor the OS setting. The `prefers-reduced-motion` block in `tokens.css` now squashes any hardcoded keyframe duration globally, killing the infinite Pill / today-pulse animations for motion-sensitive users.
+- **Touch targets ≥ 44 px** on every small ghost button (`subtleBtn`, `surfaceBtn`, `addressEdit`, `demoBannerClose`, `showAll`, `skipBtn`, `dangerBtn`) — the WCAG floor flagged by the skill's Touch: Touch Target Size rule.
+- **Modal focus trap + restore** — `OnboardingModal` now traps Tab/Shift-Tab inside the dialog and returns focus to the trigger on close (skill rule: A11y: Manage focus properly).
+- **Skip-to-main link** — first focusable element in `__root.tsx`, jumps over TopBar + UserMenu.
+- **TopBar safe-area inset** — sticky bar clears the iPhone notch / dynamic island.
+- **Address input gets `aria-label`**; **VolumeChart gets `role="img"`** with a generated label and the bogus `role="tablist"` is dropped (no matching tabpanels) — replaced with `aria-pressed` on the toggle buttons.
+- **VolumeChart bars: `height` → `transform: scaleY`** — GPU-composited; no more layout pass per frame.
+- **Polish** — time-of-day greeting (no more "Morning, Marco" at 9 PM), `alert()` replaced with smooth-scroll to the AI Coach section, demo banner copy cleaned up.
+- **Deferred to v8.5.0** — RideDetail expand animation, accent-on-canvas contrast for ≤14px text (`--c-accent-light`), BottomNav scroll-sync, UserMenu keyboard nav. Filed as 4 issues via `scripts/file-v8.4.0-audit-issues.sh`.
+
+Audit report: [`docs/superpowers/specs/2026-04-28-dashboard-design-audit.md`](./docs/superpowers/specs/2026-04-28-dashboard-design-audit.md).
 
 ## What's new in v8.3.0
 

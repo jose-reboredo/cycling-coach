@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v8.3.0';
+const WORKER_VERSION = 'v8.4.0';
 const BUILD_DATE = '2026-04-28';
  
 // Resolve the user-facing origin so OAuth redirect_uri lands where the user

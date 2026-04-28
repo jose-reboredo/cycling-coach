@@ -4,6 +4,63 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [8.4.0] — 2026-04-28
+
+Dashboard design audit pass — first invocation of the `ui-ux-pro-max` skill (99 UX guidelines + 44 react-perf + 53 react-stack rules) against `/dashboard`. **22 findings**: 13 shipped this release, 4 filed as v8.5.0 issues, the rest already covered by existing issues.
+
+The audit was scoped to two breakpoints (375 px / 1280 px) and the skill's eight priority categories (Accessibility CRITICAL → Charts LOW). PARS as a design language stays — the skill's sports-fitness preset (Vibrant + Block-based, Barlow Condensed, green CTA) was rejected as off-brand for the Marco persona; the rationale lives at the top of `apps/web/src/design/tokens.ts` so future passes don't regress it.
+
+### Added — Accessibility
+
+- **`<MotionConfig reducedMotion="user">`** wrapping the entire React tree in `main.tsx`. Every `motion.section` / `motion.div` literal `transition` prop now short-circuits under `prefers-reduced-motion` — Motion library's built-in handling, but it requires the wrapper to engage.
+- **Global reduced-motion CSS catch** in `tokens.css` — sets `animation-duration: 1ms`, `animation-iteration-count: 1`, `transition-duration: 1ms` on `*` inside the `prefers-reduced-motion: reduce` block. Stops the hardcoded `1.6s ... infinite` pulses (Pill `.dot`, today-pulse on the AI Coach week plan, today-pulse on the dashboard week-day badge) regardless of how they're declared.
+- **Skip-to-main link** as the first child of `<body>` (rendered from `__root.tsx`), styled in `reset.css`. Keyboard-only users land on a focusable "Skip to main content" pill that jumps over TopBar + UserMenu to the dashboard's `<main id="main">`.
+- **OnboardingModal focus trap + restore** — Tab / Shift-Tab now wrap inside the dialog (queries focusable descendants on each keystroke); on close, focus returns to whichever element opened the modal (`document.activeElement` snapshot taken on open).
+- **TopBar safe-area inset** — `padding-top: calc(var(--s-3) + env(safe-area-inset-top, 0))` so the sticky bar clears the iPhone notch / dynamic island.
+- **VolumeChart `role="img"` + `aria-label`** with a generated description ("Volume — last 12 weeks: 1,247 km, 18,400 m elevation"). Screen readers now get a meaningful summary instead of a div soup.
+- **Address input `aria-label="Start address"`** in RoutesPicker — placeholder is no longer the only accessible label.
+
+### Changed — Touch targets
+
+- **Eight ghost / mono-text buttons** bumped to `min-height: var(--hit-min)` (44 px) — the WCAG floor: `AiCoachCard.subtleBtn`, `GoalEventCard.{subtleBtn, dangerBtn}`, `OnboardingModal.skipBtn`, `RoutesPicker.{surfaceBtn, addressEdit, addressCancel, showAll}`, `Dashboard.demoBannerClose` (was 28 × 28 → now 44 × 44). Visual weight unchanged; a 44 px hit zone now wraps the small mono labels.
+
+### Changed — Performance
+
+- **VolumeChart bars: `height` → `transform: scaleY`**. Animating `height` forced layout each frame; the skill's react-performance.csv flags this directly as 'Animation: Transform Performance'. Bars now fill the column at full height and scale from `bottom center` — GPU-composited, no layout cost.
+
+### Changed — Semantics
+
+- **VolumeChart toggle:** `role="tablist"` / `role="tab"` dropped (no matching `tabpanel`s existed); replaced with `role="group"` + `aria-pressed` on the buttons. Functionally identical, ARIA semantics now complete.
+
+### Changed — Polish
+
+- **Time-of-day greeting** — `Morning / Afternoon / Evening / Late night` based on `getHours()`. The hero used to greet "Morning, Marco" at 9 PM.
+- **`alert()` replaced with smooth-scroll** — the sample WorkoutCard's Start button used to pop a native dialog telling the user to generate their AI plan; it now smooth-scrolls to the AI Coach section (`#train`) instead.
+- **Demo banner copy** — "Demo data only — append `?demo=0`..." replaced with "You're viewing sample data. Connect Strava to see your own rides." No URL syntax in user-facing copy.
+
+### Added — Documentation
+
+- **Audit design doc + report** committed at `docs/superpowers/specs/2026-04-28-dashboard-design-audit-design.md` and `2026-04-28-dashboard-design-audit.md`. Full methodology, surface-by-surface findings ranked by severity + effort, fix-vs-defer rationale.
+- **PARS rationale block** at the top of `apps/web/src/design/tokens.ts` — explains why we keep Geist + molten orange + cockpit dark over the skill's sports-fitness preset.
+
+### Added — Tooling
+
+- **`scripts/file-v8.4.0-audit-issues.sh`** — idempotent shell script that mirrors `bootstrap-issues.sh` to file the four audit deferrals against the v8.4.0 milestone (will reslot into v8.5.0 when run after this release).
+
+### Deferred to v8.5.0
+
+- **H6b** — RideDetail expand: stop animating `height: auto`, switch to opacity-fade or a measured-height approach.
+- **H8** — Accent `#ff4d00` fails WCAG AA contrast for ≤14 px text on canvas. Introduce `--c-accent-light` for small-text usage; PARS brand keeps `--c-accent` for CTAs.
+- **M2** — BottomNav active tab should follow scroll position via `IntersectionObserver`, not stay on the last-clicked item.
+- **M5** — UserMenu keyboard nav (↑/↓/Home/End) + focus management. Extracts `useFocusTrap` hook from OnboardingModal so it's shared.
+
+### Verification
+
+- `npm run build:web` — TS strict + Vite production build clean.
+- Manual probe deferred to user (Claude can't render a browser): 375 px / 1280 px walk through the dashboard, keyboard tab through skip-link + modal focus trap, OS reduced-motion toggle.
+
+---
+
 ## [8.3.0] — 2026-04-28
 
 GitHub Issues become the source of truth for the public roadmap. The `/whats-next` page now reflects the live state of the issue tracker within five minutes of any change. Releases ship weekly, driven by milestone closures.
