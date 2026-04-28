@@ -33,13 +33,14 @@
   --c-accent-soft: rgba(255, 77, 0, 0.1);
   --c-accent-glow: rgba(255, 77, 0, 0.22);
 
-  /* Zones (Coggan Z1–Z6) */
+  /* Zones (Strava Z1–Z7 — Coggan + Neuromuscular) */
   --c-z1: #3b8ce8;
   --c-z2: #4ade80;
   --c-z3: #facc15;
   --c-z4: #fb923c;
   --c-z5: #ef4444;
   --c-z6: #a855f7;
+  --c-z7: #6b21a8;
 
   /* Status */
   --c-success: #22c55e;

@@ -40,3 +40,16 @@ createRoot(rootEl).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// PWA service worker — register only in prod where the file is served from
+// the same origin. In Vite dev there's no /sw.js so we'd 404.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/' })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[sw] registration failed:', err);
+      });
+  });
+}

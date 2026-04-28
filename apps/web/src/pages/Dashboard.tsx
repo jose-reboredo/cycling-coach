@@ -24,7 +24,9 @@ import { LoadingScreen } from './LoadingScreen';
 import { GoalEventCard } from '../components/GoalEventCard/GoalEventCard';
 import { UserMenu } from '../components/UserMenu/UserMenu';
 import { RideDetail } from '../components/RideDetail/RideDetail';
+import { OnboardingModal } from '../components/OnboardingModal/OnboardingModal';
 import { useGoalEvent } from '../hooks/useGoalEvent';
+import { useAthleteProfile } from '../hooks/useAthleteProfile';
 import { AnimatePresence } from 'motion/react';
 import {
   MARCO,
@@ -67,7 +69,12 @@ export function Dashboard() {
 
 function DashboardInner({ usingMock }: { usingMock: boolean }) {
   const queryClient = useQueryClient();
-  const { rides: realRides, loading, error, athlete } = useRides({ enabled: !usingMock });
+  const profile = useAthleteProfile();
+  const ftpForRides = usingMock ? MARCO.ftp : profile.profile.ftp ?? 0;
+  const { rides: realRides, loading, error, athlete } = useRides({
+    enabled: !usingMock,
+    ftp: ftpForRides,
+  });
 
   // Loading state on first authed fetch
   if (!usingMock && loading && realRides.length === 0) {
@@ -87,23 +94,36 @@ function DashboardInner({ usingMock }: { usingMock: boolean }) {
   const avatarInitials = (firstName.charAt(0) + (lastName.charAt(0) || '')).toUpperCase() || 'YOU';
 
   return (
-    <DashboardView
-      activities={activities}
-      firstName={firstName}
-      lastName={lastName}
-      city={city}
-      profilePhoto={profilePhoto}
-      avatarInitials={avatarInitials}
-      usingMock={usingMock}
-      onSync={() => {
-        queryClient.invalidateQueries({ queryKey: ['athlete'] });
-        queryClient.invalidateQueries({ queryKey: ['activities'] });
-      }}
-      onDisconnect={() => {
-        clearTokens();
-        if (typeof window !== 'undefined') window.location.href = '/';
-      }}
-    />
+    <>
+      <DashboardView
+        activities={activities}
+        firstName={firstName}
+        lastName={lastName}
+        city={city}
+        profilePhoto={profilePhoto}
+        avatarInitials={avatarInitials}
+        usingMock={usingMock}
+        ftp={usingMock ? MARCO.ftp : profile.profile.ftp ?? 0}
+        weight={usingMock ? MARCO.weight : profile.profile.weight ?? 0}
+        onSync={() => {
+          queryClient.invalidateQueries({ queryKey: ['athlete'] });
+          queryClient.invalidateQueries({ queryKey: ['activities'] });
+        }}
+        onDisconnect={() => {
+          clearTokens();
+          if (typeof window !== 'undefined') window.location.href = '/';
+        }}
+        onEditProfile={() => profile.resetDismissal()}
+      />
+      <OnboardingModal
+        open={!usingMock && profile.needsOnboarding}
+        initial={profile.profile}
+        onSave={({ ftp, weight, hrMax }) => {
+          profile.save({ ftp, weight, hrMax });
+        }}
+        onSkip={profile.dismissOnboarding}
+      />
+    </>
   );
 }
 
@@ -115,8 +135,11 @@ interface DashboardViewProps {
   profilePhoto: string;
   avatarInitials: string;
   usingMock: boolean;
+  ftp: number;
+  weight: number;
   onSync: () => void;
   onDisconnect: () => void;
+  onEditProfile: () => void;
 }
 
 function DashboardView({
@@ -127,8 +150,11 @@ function DashboardView({
   profilePhoto,
   avatarInitials,
   usingMock,
+  ftp,
+  weight,
   onSync,
   onDisconnect,
+  onEditProfile,
 }: DashboardViewProps) {
   // Derived from the active activity set (mock or real)
   const pmc = useMemo(() => computePmcDelta(activities), [activities]);
@@ -154,9 +180,7 @@ function DashboardView({
     return activities.filter((a) => a.date >= yearStart).reduce((s, a) => s + a.distanceKm, 0);
   }, [activities]);
 
-  // FTP & W/kg — only known for mock until v8 onboarding ships
-  const ftp = usingMock ? MARCO.ftp : 0;
-  const weight = usingMock ? MARCO.weight : 0;
+  // FTP & W/kg — captured from the onboarding modal (or Marco mock).
   const wPerKg = ftp && weight ? (ftp / weight).toFixed(2) : '—';
 
   const coachStats = useMemo(() => computeStats(activities, yearKm), [activities, yearKm]);
@@ -232,6 +256,7 @@ function DashboardView({
             username={`${firstName}${lastName ? ' ' + lastName : ''}`}
             onSync={onSync}
             onDisconnect={onDisconnect}
+            onEditProfile={onEditProfile}
           >
             <span className={styles.userPill}>
               {profilePhoto ? (

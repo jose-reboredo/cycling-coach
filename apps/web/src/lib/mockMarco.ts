@@ -36,7 +36,7 @@ export interface MockActivity {
   avgWatts: number;
   npWatts: number;
   tss: number;
-  primaryZone: 1 | 2 | 3 | 4 | 5 | 6;
+  primaryZone: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   prCount: number;
   type: 'Ride' | 'VirtualRide';
   hr: number;
@@ -56,7 +56,8 @@ function seedActivities(): MockActivity[] {
     3: ['Tempo ride', 'Sweet-spot session', 'Tempo on the rollers'],
     4: ['Threshold intervals', '4×8 @ FTP', 'Sustained efforts'],
     5: ['VO₂ max repeats', '5×3 VO₂', 'Hill repeats'],
-    6: ['Sprint work', 'Anaerobic capacity'],
+    6: ['Anaerobic capacity', 'Microbursts'],
+    7: ['Sprint work', 'Neuromuscular drills'],
   };
 
   for (let i = 89; i >= 0; i--) {

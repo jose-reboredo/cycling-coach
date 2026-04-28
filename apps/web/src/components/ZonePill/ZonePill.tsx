@@ -1,6 +1,8 @@
 import styles from './ZonePill.module.css';
 
-export type Zone = 1 | 2 | 3 | 4 | 5 | 6;
+// Strava 7-zone power model. Z1–Z6 = Coggan; Z7 = Neuromuscular Power
+// (>150% FTP), surfaced for sprint efforts and short power spikes.
+export type Zone = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 const ZONE_LABEL: Record<Zone, string> = {
   1: 'Z1 · Recovery',
@@ -9,6 +11,7 @@ const ZONE_LABEL: Record<Zone, string> = {
   4: 'Z4 · Threshold',
   5: 'Z5 · VO₂ Max',
   6: 'Z6 · Anaerobic',
+  7: 'Z7 · Neuromuscular',
 };
 
 interface ZonePillProps {

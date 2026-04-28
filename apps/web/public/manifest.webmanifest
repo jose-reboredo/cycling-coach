@@ -1,0 +1,45 @@
+{
+  "name": "Cycling Coach",
+  "short_name": "Coach",
+  "description": "Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08090b",
+  "theme_color": "#08090b",
+  "categories": ["fitness", "health", "lifestyle", "sports"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today's workout",
+      "url": "/dashboard#today",
+      "description": "Jump straight to today's session"
+    },
+    {
+      "name": "AI Coach",
+      "url": "/dashboard#train",
+      "description": "Generate or review the weekly plan"
+    },
+    {
+      "name": "Previous rides",
+      "url": "/dashboard#stats",
+      "description": "Browse the last 8 rides + per-ride coach verdict"
+    }
+  ]
+}

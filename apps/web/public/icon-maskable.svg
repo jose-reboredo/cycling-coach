@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable icon — content kept inside the safe zone (40% inset). -->
+  <rect width="512" height="512" fill="#08090b"/>
+  <g transform="translate(256 256) scale(8)" fill="none" stroke="#ff4d00" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(-16 -16)">
+      <circle cx="8" cy="22" r="5"/>
+      <circle cx="24" cy="22" r="5"/>
+      <path d="M8 22 L13 12 L21 12 L24 22"/>
+      <path d="M13 12 L19 22"/>
+      <path d="M21 12 L19 22"/>
+      <path d="M11 12 L13 12"/>
+      <path d="M21 12 L23.5 10.5"/>
+      <circle cx="19" cy="22" r=".9" fill="#ff4d00" stroke="none"/>
+    </g>
+  </g>
+</svg>

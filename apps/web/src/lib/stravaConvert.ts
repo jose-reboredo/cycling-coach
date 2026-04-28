@@ -22,7 +22,7 @@ export function stravaToActivity(s: StravaActivity, ftp?: number): MockActivity 
   const npWatts = s.weighted_average_watts ?? avgWatts;
 
   let tss: number;
-  let primaryZone: 1 | 2 | 3 | 4 | 5 | 6 = 2;
+  let primaryZone: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2;
 
   if (ftp && ftp > 0 && npWatts > 0) {
     const intensityFactor = npWatts / ftp;

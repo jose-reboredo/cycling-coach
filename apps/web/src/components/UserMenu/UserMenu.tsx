@@ -7,6 +7,7 @@ interface UserMenuProps {
   children: React.ReactNode;
   onSync: () => void;
   onDisconnect: () => void;
+  onEditProfile?: () => void;
   username: string;
 }
 
@@ -16,7 +17,7 @@ interface UserMenuProps {
  * Surfaces sync, disconnect, and the Strava revoke-link (so users can fully
  * remove the OAuth grant, not just delete local tokens).
  */
-export function UserMenu({ children, onSync, onDisconnect, username }: UserMenuProps) {
+export function UserMenu({ children, onSync, onDisconnect, onEditProfile, username }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -83,6 +84,23 @@ export function UserMenu({ children, onSync, onDisconnect, username }: UserMenuP
                 <span className={styles.itemSub}>Refetch rides from Strava</span>
               </span>
             </button>
+
+            {onEditProfile ? (
+              <button
+                role="menuitem"
+                className={styles.item}
+                onClick={() => {
+                  setOpen(false);
+                  onEditProfile();
+                }}
+              >
+                <span className={styles.itemIcon} aria-hidden="true">⚙</span>
+                <span className={styles.itemBody}>
+                  <span>Edit profile</span>
+                  <span className={styles.itemSub}>FTP · weight · HR max</span>
+                </span>
+              </button>
+            ) : null}
 
             <a
               role="menuitem"

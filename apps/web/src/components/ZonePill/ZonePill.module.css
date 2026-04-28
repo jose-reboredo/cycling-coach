@@ -55,3 +55,7 @@
   background: var(--c-z6);
   box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
 }
+.z7 .dot {
+  background: var(--c-z7);
+  box-shadow: 0 0 8px rgba(107, 33, 168, 0.7);
+}

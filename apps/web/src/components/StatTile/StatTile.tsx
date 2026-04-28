@@ -9,7 +9,7 @@ interface StatTileProps {
   /** small trend / delta line under the unit */
   delta?: ReactNode;
   /** color the value with a zone token (z1..z6) or status (success/warn/danger) */
-  tone?: 'default' | 'accent' | 'success' | 'warn' | 'danger' | 'z1' | 'z2' | 'z3' | 'z4' | 'z5' | 'z6';
+  tone?: 'default' | 'accent' | 'success' | 'warn' | 'danger' | 'z1' | 'z2' | 'z3' | 'z4' | 'z5' | 'z6' | 'z7';
   /** size scale: sm = secondary stats, md = primary stats, lg = hero */
   size?: 'sm' | 'md' | 'lg';
 }

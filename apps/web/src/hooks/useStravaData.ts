@@ -33,9 +33,10 @@ export function useActivities(enabled = true) {
 
 /**
  * Combined hook — returns the converted activities (rides only), filtered to
- * 90 days for our widgets. Falls back to [] while loading.
+ * 120 days for our widgets. Pass `ftp` to compute real TSS / primary zone;
+ * leave undefined for the duration-based proxy.
  */
-export function useRides(opts?: { ftp?: number; enabled?: boolean }): {
+export function useRides(opts?: { ftp?: number | null; enabled?: boolean }): {
   rides: MockActivity[];
   loading: boolean;
   error: Error | null;
@@ -46,10 +47,10 @@ export function useRides(opts?: { ftp?: number; enabled?: boolean }): {
   const athleteQ = useAthlete(enabled);
   const actsQ = useActivities(enabled);
 
+  const ftp = opts?.ftp ?? undefined;
   const rides = (actsQ.data ?? [])
     .filter(isRide)
-    .map((a) => stravaToActivity(a, opts?.ftp))
-    // Only the last 120 days — keeps the heatmap + chart honest
+    .map((a) => stravaToActivity(a, ftp ?? 0))
     .filter((a) => {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 120);

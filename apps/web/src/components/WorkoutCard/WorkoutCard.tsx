@@ -43,6 +43,7 @@ const ZONE_BG: Record<Zone, string> = {
   4: 'var(--c-z4)',
   5: 'var(--c-z5)',
   6: 'var(--c-z6)',
+  7: 'var(--c-z7)',
 };
 
 function fmtDur(seconds: number) {

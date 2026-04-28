@@ -32,9 +32,10 @@ export const tokens = {
     accentSoft: 'rgba(255,77,0,.10)',
     accentGlow: 'rgba(255,77,0,.22)',
 
-    /** Coggan 6-zone power model.
+    /** Strava 7-zone power model (Z1–Z6 = Coggan + Z7 = Neuromuscular).
      *  Z1 recovery · Z2 endurance · Z3 tempo
-     *  Z4 threshold · Z5 vo2 · Z6 anaerobic */
+     *  Z4 threshold · Z5 vo2 · Z6 anaerobic
+     *  Z7 neuromuscular (>150% FTP — sprints) */
     zone: {
       z1: '#3b8ce8',
       z2: '#4ade80',
@@ -42,6 +43,7 @@ export const tokens = {
       z4: '#fb923c',
       z5: '#ef4444',
       z6: '#a855f7',
+      z7: '#6b21a8',
     },
 
     status: {

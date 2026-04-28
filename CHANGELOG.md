@@ -4,6 +4,49 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [8.2.0] — 2026-04-28
+
+Issue-cleanup release. Audited the v8.0.0 follow-up list and shipped four of five remaining items in one go. The last (`[backfill]`) is deferred — it depends on the remote D1 schema migration, which requires your action.
+
+### Added — first-run FTP onboarding
+
+- **`useAthleteProfile`** hook backed by localStorage (`cc_athleteProfile` + `cc_onboardingDismissed`). Captures FTP, weight, HR max and exposes `needsOnboarding`, `isComplete`, `dismissOnboarding`.
+- **`<OnboardingModal>`** — first time you reach `/dashboard` after auth, a modal asks for the three numbers. Live W/kg readout + classification ("cat-2 / strong amateur" etc.) as you type. Skip stores a dismissal flag; "Edit profile" in the user menu reopens it.
+- **Real TSS + zone math** turns on once FTP is saved. The `useRides` hook now takes `ftp` and feeds it to `stravaToActivity`, which computes `npWatts / ftp` for IF and uses `zoneFor(npWatts, ftp)` instead of defaulting Z2.
+
+### Added — Strava 7-zone power model
+
+- **Z7 Neuromuscular Power** (>150 % FTP) added end-to-end:
+  - `Zone` type widened to `1 | 2 | 3 | 4 | 5 | 6 | 7`.
+  - `--c-z7: #6b21a8` token in `tokens.{ts,css}`.
+  - `COGGAN_ZONES` re-bucketed: Z6 = anaerobic capacity (1.21–1.50 × FTP), Z7 = neuromuscular (>1.50 × FTP).
+  - `ZonePill` + `WorkoutCard` + `StatTile` accept Z7. Glow + zone-stripe render purple-deep.
+
+### Added — PWA shell
+
+- **`apps/web/public/manifest.webmanifest`** — name, theme color, standalone display, three home-screen shortcuts (Today / Train / Previous rides).
+- **`apps/web/public/icon.svg` + `icon-maskable.svg`** — molten-orange BikeMark on the canvas-deep tarmac.
+- **`apps/web/public/sw.js`** — cache-first for static assets, network-first for navigation requests with offline fallback to the cached SPA shell. `/api/*`, `/authorize`, `/callback`, `/refresh`, `/coach*`, `/webhook`, `/version` are always passed through to the network (never cached).
+- Service-worker registration in `main.tsx` is gated on `import.meta.env.PROD` so dev never tries to load `/sw.js`.
+
+### Changed — Worker pruned
+
+- Deleted **2,692 lines** of dead HTML from `src/worker.js`: `landingPage()`, `dashboardPage()`, `privacyPage()`, `SHARED_HEAD`, `SHARED_BG`, `BIKE_GLYPH`, `FAVICON_B64`. Workers Static Assets makes them unreachable; they were just bundle weight.
+- `callbackPage()` slimmed to ~50 lines (PWA branch + standard browser branch). `errorPage()` slimmed to ~15 lines. Both inline minimal CSS using the PARS palette.
+- The fetch handler's `/`, `/dashboard`, `/privacy` routes were also removed — those are SPA-served. Worker now goes from 3,375 → **683 lines** (-80 %).
+
+### Changed — UserMenu
+
+- New "Edit profile" entry surfacing the FTP/weight/HR-max modal again post-onboarding.
+
+### Deferred to v8.3.0
+
+- `[backfill]` Retroactive TSS computation from existing `activities.strava_raw_json`. Depends on `migrations/0001_pmc_and_events.sql` being applied to the remote D1 (`wrangler d1 execute cycling_coach_db --file migrations/0001_pmc_and_events.sql --remote` — your call).
+- `[live-routes]` Replace `MOCK_ROUTES` with `/api/athlete/routes` response.
+- `[ci-build-cmd]` Update Cloudflare Workers Builds command to `npm run build:web`.
+
+---
+
 ## [8.1.0] — 2026-04-28
 
 Five tracked feature requests, shipped in one release.
