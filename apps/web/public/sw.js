@@ -7,7 +7,7 @@
 //
 // Bump CACHE on every meaningful release so old payloads get evicted.
 
-const CACHE = 'cycling-coach-v8.2.0';
+const CACHE = 'cycling-coach-v8.4.1';
 const CORE = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
 
 const NEVER_CACHE = (path) =>
@@ -17,7 +17,9 @@ const NEVER_CACHE = (path) =>
   path === '/refresh' ||
   path.startsWith('/coach') ||
   path === '/webhook' ||
-  path === '/version';
+  path === '/version' ||
+  path === '/roadmap' ||
+  path.startsWith('/admin/');
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

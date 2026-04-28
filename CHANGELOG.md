@@ -4,6 +4,19 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [8.4.1] — 2026-04-28
+
+Hotfix: `/whats-next` showed a stale issue count in PWA mode.
+
+### Fixed
+
+- **Service worker `NEVER_CACHE` was missing `/roadmap`**, so the SW served the first-fetched roadmap response forever (cache-first strategy). After the v8.4.0 release filed audit deferrals #24–#27, users on the PWA still saw the old 21-open-issue count. Added `/roadmap` and `/admin/*` to `NEVER_CACHE` — these are dynamic data + admin endpoints that should never be cached client-side.
+- **`CACHE` version pinned at `v8.2.0`**. The service worker's bust mechanism is "bump `CACHE` on every meaningful release"; v8.3.0 and v8.4.0 missed the bump. Set to `cycling-coach-v8.4.1`. The `activate` listener deletes any cache key not matching the current name, so old PWA caches evict on first reload.
+
+Users on the PWA may need a hard refresh (or close + reopen the installed app) once to pick up the new SW; from there everything stays current.
+
+---
+
 ## [8.4.0] — 2026-04-28
 
 Dashboard design audit pass — first invocation of the `ui-ux-pro-max` skill (99 UX guidelines + 44 react-perf + 53 react-stack rules) against `/dashboard`. **22 findings**: 13 shipped this release, 4 filed as v8.5.0 issues, the rest already covered by existing issues.
