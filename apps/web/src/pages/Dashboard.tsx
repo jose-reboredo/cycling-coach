@@ -630,6 +630,9 @@ function DashboardView({
           </motion.section>
 
           {usingMock ? <DemoBanner /> : null}
+
+          {/* BottomNav scroll-anchor for the "You" tab — empty marker, no UI. */}
+          <div id="you" aria-hidden="true" style={{ height: 1 }} />
         </Container>
       </main>
 

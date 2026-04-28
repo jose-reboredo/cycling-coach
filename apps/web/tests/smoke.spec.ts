@@ -109,6 +109,31 @@ test.describe('Smoke — ride detail expand (/dashboard?demo=1)', () => {
   });
 });
 
+test.describe('Smoke — BottomNav scroll sync (/dashboard?demo=1)', () => {
+  // Only runs at mobile-375 (BottomNav is display: none at ≥1024px).
+  test.skip(
+    ({ viewport }) => Boolean(viewport && viewport.width >= 1024),
+    'BottomNav hidden on desktop',
+  );
+
+  test('scrolling to a section activates its BottomNav tab', async ({ page }) => {
+    await page.goto('/dashboard?demo=1');
+    await page.waitForLoadState('networkidle');
+
+    // Initial state — Today tab active.
+    const todayTab = page.locator('a[href="#today"]');
+    await expect(todayTab).toHaveAttribute('aria-current', 'page');
+
+    // Scroll the train (AI Coach) section into the middle of the viewport.
+    await page.locator('#train').scrollIntoViewIfNeeded();
+    // Give IntersectionObserver a moment to fire + state to flush.
+    await page.waitForTimeout(800);
+
+    const trainTab = page.locator('a[href="#train"]');
+    await expect(trainTab).toHaveAttribute('aria-current', 'page');
+  });
+});
+
 test.describe('Smoke — UserMenu keyboard nav (/dashboard?demo=1)', () => {
   test('arrow keys move between menuitems, ESC closes + restores focus', async ({ page }) => {
     await page.goto('/dashboard?demo=1');

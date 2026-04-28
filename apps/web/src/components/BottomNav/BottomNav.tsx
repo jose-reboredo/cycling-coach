@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './BottomNav.module.css';
 
 // Bottom-nav tabs are scroll-to-section anchors rather than routes — the
@@ -11,9 +11,35 @@ const ITEMS = [
   { id: 'you', label: 'You', icon: <YouIcon />, hash: '#you' },
 ] as const;
 
-/** BottomNav — mobile authenticated tab bar. Hidden on desktop (≥1024px). */
+/** BottomNav — mobile authenticated tab bar. Hidden on desktop (≥1024px).
+ *  Active tab is synced to the section currently in view via IntersectionObserver
+ *  (no longer just last-clicked). */
 export function BottomNav() {
   const [activeId, setActiveId] = useState<string>('today');
+
+  useEffect(() => {
+    const ids = ITEMS.map((i) => i.id);
+    const elements = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (elements.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]) {
+          setActiveId(visible[0].target.id);
+        }
+      },
+      { threshold: [0.25, 0.5, 0.75], rootMargin: '-30% 0px -30% 0px' },
+    );
+
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <nav className={styles.root} aria-label="Primary">
       <ul className={styles.list}>
