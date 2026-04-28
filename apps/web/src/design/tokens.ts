@@ -46,6 +46,7 @@ export const tokens = {
     accentDeep: '#cc3e00',
     accentSoft: 'rgba(255,77,0,.10)',
     accentGlow: 'rgba(255,77,0,.22)',
+    accentLight: '#ff7a3d', // AA-passing accent for ≤14px text on canvas (~5.2:1)
 
     /** Strava 7-zone power model (Z1–Z6 = Coggan + Z7 = Neuromuscular).
      *  Z1 recovery · Z2 endurance · Z3 tempo

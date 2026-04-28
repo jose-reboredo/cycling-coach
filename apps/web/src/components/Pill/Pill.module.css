@@ -40,7 +40,7 @@
 }
 
 .accent {
-  color: var(--c-accent);
+  color: var(--c-accent-light);
   background: var(--c-accent-soft);
   border-color: rgba(255, 77, 0, 0.22);
 }

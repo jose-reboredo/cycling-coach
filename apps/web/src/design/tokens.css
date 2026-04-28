@@ -32,6 +32,7 @@
   --c-accent-deep: #cc3e00;
   --c-accent-soft: rgba(255, 77, 0, 0.1);
   --c-accent-glow: rgba(255, 77, 0, 0.22);
+  --c-accent-light: #ff7a3d; /* AA-passing accent for ≤14px text on canvas (≈5.2:1) */
 
   /* Zones (Strava Z1–Z7 — Coggan + Neuromuscular) */
   --c-z1: #3b8ce8;

@@ -43,7 +43,7 @@
   font: 500 9px/1 var(--font-mono);
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--c-accent);
+  color: var(--c-accent-light);
   background: var(--c-accent-soft);
   padding: 3px 6px;
   border-radius: var(--r-full);
