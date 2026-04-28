@@ -1,0 +1,240 @@
+.root {
+  overflow: hidden;
+  margin-top: var(--s-3);
+}
+
+.inner {
+  padding: var(--s-5);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  border-left: 2px solid var(--c-accent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.demoNote {
+  font: italic 400 13px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  padding: var(--s-3);
+  background: var(--c-warn-soft);
+  border-radius: var(--r-sm);
+  border-left: 2px solid var(--c-warn);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.desc {
+  font: 400 14px/1.6 var(--font-sans);
+  color: var(--c-text-muted);
+  white-space: pre-wrap;
+}
+
+.photo {
+  width: 100%;
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line);
+  filter: grayscale(0.15) contrast(1.05);
+}
+
+.map {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-3);
+}
+@media (min-width: 600px) {
+  .statsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (min-width: 1024px) {
+  .statsGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.stat {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statLabel {
+  font: 500 9px/1.4 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.statValue {
+  font: 600 22px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  color: var(--c-text);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.statUnit {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.listItem {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--s-2);
+  align-items: center;
+  padding: var(--s-2-5) var(--s-3);
+  background: var(--c-surface);
+  border-radius: var(--r-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.listLabel {
+  font: 500 13px/1.3 var(--font-sans);
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listValue {
+  font: 500 12px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+  color: var(--c-text-muted);
+}
+
+.splits {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+}
+
+.splitRow {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px 50px;
+  gap: var(--s-2);
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.splitNum {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.splitBar {
+  height: 6px;
+  background: var(--c-canvas);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.splitFill {
+  height: 100%;
+  background: var(--c-accent);
+  border-radius: 2px;
+}
+
+.splitTime {
+  font: 500 12px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text);
+  text-align: right;
+}
+
+.splitElev {
+  font: 500 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text-faint);
+  text-align: right;
+}
+.splitElevUp {
+  color: var(--c-warn);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  font: 400 13px/1 var(--font-sans);
+  color: var(--c-text-muted);
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--c-line-strong);
+  border-top-color: var(--c-accent);
+  border-radius: var(--r-full);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error {
+  font: 400 13px/1.5 var(--font-sans);
+  color: var(--c-danger);
+  padding: var(--s-3);
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--c-line);
+}
+
+.outLink {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+  text-decoration: none;
+  transition: color var(--d-fast) var(--e-out);
+}
+.outLink:hover {
+  color: var(--c-accent-deep);
+}

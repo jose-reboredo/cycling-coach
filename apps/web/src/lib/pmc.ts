@@ -64,3 +64,50 @@ export function tssFromAvgWatts(durationSec: number, avgWatts: number, ftp: numb
   const intensityFactor = avgWatts / ftp;
   return tssFromIntensity(durationSec, intensityFactor);
 }
+
+/**
+ * Build PMC + 7-day delta from a list of activities. Used by both the mock
+ * data path and the real-Strava path. Returns null when activities is empty.
+ */
+export function computePmcDelta(
+  activities: { date: string; tss: number }[],
+  windowDays = 90,
+): {
+  ctl: number;
+  atl: number;
+  tsb: number;
+  ctlDelta: number;
+  atlDelta: number;
+  tsbDelta: number;
+} | null {
+  if (activities.length === 0) return null;
+
+  // Build a zero-filled daily TSS rollup for the last `windowDays` (today inclusive).
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const map = new Map<string, number>();
+  for (let i = windowDays - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    map.set(d.toISOString().slice(0, 10), 0);
+  }
+  for (const a of activities) {
+    if (map.has(a.date)) map.set(a.date, (map.get(a.date) ?? 0) + a.tss);
+  }
+  const daily: DailyLoad[] = Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, tss]) => ({ date, tss }));
+
+  const series = computePmc(daily);
+  const last = series[series.length - 1];
+  const week = series[series.length - 8];
+  if (!last) return null;
+  return {
+    ctl: last.ctl,
+    atl: last.atl,
+    tsb: last.tsb,
+    ctlDelta: week ? Number((last.ctl - week.ctl).toFixed(1)) : 0,
+    atlDelta: week ? Number((last.atl - week.atl).toFixed(1)) : 0,
+    tsbDelta: week ? Number((last.tsb - week.tsb).toFixed(1)) : 0,
+  };
+}

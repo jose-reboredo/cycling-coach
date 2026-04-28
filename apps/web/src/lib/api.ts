@@ -49,8 +49,61 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+export interface StravaSplit {
+  distance: number;
+  elapsed_time: number;
+  elevation_difference: number;
+  moving_time: number;
+  split: number;
+  average_speed: number;
+  average_heartrate?: number;
+}
+
+export interface StravaBestEffort {
+  name: string;
+  elapsed_time: number;
+  distance: number;
+  pr_rank?: number | null;
+}
+
+export interface StravaSegmentEffort {
+  id: number;
+  name: string;
+  elapsed_time: number;
+  moving_time: number;
+  distance: number;
+  achievement_count: number;
+  pr_rank?: number | null;
+  segment?: { id: number; name: string };
+}
+
+export interface StravaPhoto {
+  primary?: {
+    urls?: { '100'?: string; '600'?: string };
+  };
+  count: number;
+}
+
+export interface StravaActivityDetail
+  extends Omit<StravaActivity, 'map'> {
+  description?: string;
+  max_speed?: number;
+  max_watts?: number;
+  splits_metric?: StravaSplit[];
+  best_efforts?: StravaBestEffort[];
+  segment_efforts?: StravaSegmentEffort[];
+  photos?: StravaPhoto;
+  /** detail endpoint returns both the encoded full polyline and the summary */
+  map?: { polyline?: string; summary_polyline?: string };
+  device_name?: string;
+  trainer?: boolean;
+  commute?: boolean;
+}
+
 export const stravaApi = {
   athlete: () => call<StravaAthlete>('athlete'),
   activities: (page = 1, perPage = 100) =>
     call<StravaActivity[]>(`athlete/activities?per_page=${perPage}&page=${page}`),
+  activityDetail: (id: number | string) =>
+    call<StravaActivityDetail>(`activities/${id}`),
 };

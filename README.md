@@ -2,7 +2,23 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.0.0 — PARS](./CHANGELOG.md#800--2026-04-28)** · 2026-04-28
+**Current release: [v8.1.0](./CHANGELOG.md#810--2026-04-28)** · 2026-04-28
+
+## What's new in v8.1.0
+
+Five tracked feature requests, shipped in one release.
+
+- **Editable goal event** — inline editor on the dashboard event card. Name, type, date, distance, elevation, location, priority (A/B/C). Persists locally; syncs to D1 when schema v2 is applied.
+- **Disconnect Strava menu** — avatar pill opens a popover with *Sync now*, *Revoke at Strava ↗*, and *Disconnect Strava*. Click-outside + ESC dismiss.
+- **Ride detail on tap** — clicking any row in Recents lazy-fetches the rich payload from `/api/activities/{id}` and expands inline: description, photo, decoded polyline (SVG), full stats grid, best efforts, segments with achievements, kilometre splits.
+- **`/whats-next` page** — public roadmap with priority + status pills and target versions, linked from the landing footer.
+- **Bottom-nav rename** — "Stats" → "Rides", "Recents" → "Previous rides".
+
+See [`CHANGELOG.md`](./CHANGELOG.md) for the full history including v8.0.0 + v8.0.1.
+
+## What's new in v8.0.1 — Hotfix
+
+Critical fix to v8.0.0: the dashboard was rendering Marco mock data even after a successful Strava OAuth round-trip. v8.0.1 wires the auth gate (`/dashboard` with no tokens → `ConnectScreen`), the loading screen, and the real-data swap (`useStravaData` → Tanstack Query → derive every widget from the user's actual rides). Mock data only ever renders in dev or when `?demo=1` is present.
 
 ## What's new in v8.0.0
 

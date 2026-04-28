@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
@@ -18,14 +19,19 @@ import { StreakHeatmap } from '../components/StreakHeatmap/StreakHeatmap';
 import { WinsTimeline } from '../components/WinsTimeline/WinsTimeline';
 import { VolumeChart } from '../components/VolumeChart/VolumeChart';
 import { RoutesPicker } from '../components/RoutesPicker/RoutesPicker';
+import { ConnectScreen } from './ConnectScreen';
+import { LoadingScreen } from './LoadingScreen';
+import { GoalEventCard } from '../components/GoalEventCard/GoalEventCard';
+import { UserMenu } from '../components/UserMenu/UserMenu';
+import { RideDetail } from '../components/RideDetail/RideDetail';
+import { useGoalEvent } from '../hooks/useGoalEvent';
+import { AnimatePresence } from 'motion/react';
 import {
   MARCO,
   MOCK_ACTIVITIES,
-  MOCK_PMC,
   MOCK_GOAL,
-  MOCK_EVENT,
   TODAYS_WORKOUT,
-  pmcWith7dDelta,
+  type MockActivity,
 } from '../lib/mockMarco';
 import { fmtDurationShort, fmtKm, fmtRelative, daysBetween } from '../lib/format';
 import { connectUrl } from '../lib/connectUrl';
@@ -33,47 +39,139 @@ import { useApiKey } from '../hooks/useApiKey';
 import { useTrainingPrefs } from '../hooks/useTrainingPrefs';
 import { useAiReport } from '../hooks/useAiReport';
 import { useRideFeedback } from '../hooks/useRideFeedback';
+import { useRides } from '../hooks/useStravaData';
 import { computeStats, recentForCoach, todayKey } from '../lib/coachUtils';
 import { buildStreak } from '../lib/streak';
 import { extractWins } from '../lib/wins';
+import { computePmcDelta } from '../lib/pmc';
+import { readTokens, clearTokens } from '../lib/auth';
 import styles from './Dashboard.module.css';
 
 export function Dashboard() {
-  // P2 schema not migrated yet — when it is, replace these with hooks against
-  // /api/athlete + /api/athlete/activities. For now: Marco's seeded mock so
-  // the UI renders compelling content even with no Strava connection.
-  const pmc = useMemo(() => pmcWith7dDelta(), []);
-  const recents = useMemo(() => MOCK_ACTIVITIES.slice().reverse().slice(0, 8), []);
-  const eventDaysOut = useMemo(() => daysBetween(new Date(), MOCK_EVENT.date), []);
-  const weeklyTss = useMemo(() => MOCK_PMC.slice(-7).reduce((a, p) => a + p.tss, 0), []);
-  const weeklyHours = useMemo(() => {
+  // Auth gate — checked once on mount, stable per page load.
+  const tokens = useMemo(() => readTokens(), []);
+  const isDemo = useMemo(
+    () =>
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('demo') === '1',
+    [],
+  );
+
+  // No tokens, not demo → ConnectScreen. Mock data is dev/demo-only.
+  if (!tokens && !isDemo) {
+    return <ConnectScreen />;
+  }
+
+  return <DashboardInner usingMock={isDemo} />;
+}
+
+function DashboardInner({ usingMock }: { usingMock: boolean }) {
+  const queryClient = useQueryClient();
+  const { rides: realRides, loading, error, athlete } = useRides({ enabled: !usingMock });
+
+  // Loading state on first authed fetch
+  if (!usingMock && loading && realRides.length === 0) {
+    return <LoadingScreen />;
+  }
+
+  // 401 / network error → fall back to a friendly reconnect screen.
+  if (!usingMock && error) {
+    return <ConnectScreen error={error.message} />;
+  }
+
+  const activities: MockActivity[] = usingMock ? MOCK_ACTIVITIES : realRides;
+  const firstName = usingMock ? MARCO.firstName : athlete?.firstname ?? 'You';
+  const lastName = usingMock ? MARCO.lastName : athlete?.lastname ?? '';
+  const city = usingMock ? MARCO.city : athlete?.city ?? '';
+  const profilePhoto = usingMock ? '' : athlete?.profile ?? '';
+  const avatarInitials = (firstName.charAt(0) + (lastName.charAt(0) || '')).toUpperCase() || 'YOU';
+
+  return (
+    <DashboardView
+      activities={activities}
+      firstName={firstName}
+      lastName={lastName}
+      city={city}
+      profilePhoto={profilePhoto}
+      avatarInitials={avatarInitials}
+      usingMock={usingMock}
+      onSync={() => {
+        queryClient.invalidateQueries({ queryKey: ['athlete'] });
+        queryClient.invalidateQueries({ queryKey: ['activities'] });
+      }}
+      onDisconnect={() => {
+        clearTokens();
+        if (typeof window !== 'undefined') window.location.href = '/';
+      }}
+    />
+  );
+}
+
+interface DashboardViewProps {
+  activities: MockActivity[];
+  firstName: string;
+  lastName: string;
+  city: string;
+  profilePhoto: string;
+  avatarInitials: string;
+  usingMock: boolean;
+  onSync: () => void;
+  onDisconnect: () => void;
+}
+
+function DashboardView({
+  activities,
+  firstName,
+  lastName,
+  city,
+  profilePhoto,
+  avatarInitials,
+  usingMock,
+  onSync,
+  onDisconnect,
+}: DashboardViewProps) {
+  // Derived from the active activity set (mock or real)
+  const pmc = useMemo(() => computePmcDelta(activities), [activities]);
+  const recents = useMemo(
+    () => activities.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8),
+    [activities],
+  );
+  const goalEvent = useGoalEvent();
+
+  const weeklyStats = useMemo(() => {
     const since = new Date();
     since.setDate(since.getDate() - 7);
     const sinceISO = since.toISOString().slice(0, 10);
-    const sec = MOCK_ACTIVITIES.filter((a) => a.date >= sinceISO).reduce(
-      (s, a) => s + a.durationSec,
-      0,
-    );
-    return sec / 3600;
-  }, []);
+    const window = activities.filter((a) => a.date >= sinceISO);
+    return {
+      tss: window.reduce((a, r) => a + r.tss, 0),
+      hours: window.reduce((a, r) => a + r.durationSec, 0) / 3600,
+    };
+  }, [activities]);
 
-  // Stats + recents in the shape the AI coach expects
-  const coachStats = useMemo(
-    () => computeStats(MOCK_ACTIVITIES, MOCK_GOAL.yearKm),
-    [],
-  );
-  const coachRecent = useMemo(() => recentForCoach(MOCK_ACTIVITIES, 10), []);
+  const yearKm = useMemo(() => {
+    const yearStart = `${new Date().getFullYear()}-01-01`;
+    return activities.filter((a) => a.date >= yearStart).reduce((s, a) => s + a.distanceKm, 0);
+  }, [activities]);
 
-  // Derived widgets
-  const streak = useMemo(() => buildStreak(MOCK_ACTIVITIES), []);
-  const wins = useMemo(() => extractWins(MOCK_ACTIVITIES), []);
+  // FTP & W/kg — only known for mock until v8 onboarding ships
+  const ftp = usingMock ? MARCO.ftp : 0;
+  const weight = usingMock ? MARCO.weight : 0;
+  const wPerKg = ftp && weight ? (ftp / weight).toFixed(2) : '—';
 
-  // BYOK + training prefs + AI report state
+  const coachStats = useMemo(() => computeStats(activities, yearKm), [activities, yearKm]);
+  const coachRecent = useMemo(() => recentForCoach(activities, 10), [activities]);
+
+  const streak = useMemo(() => buildStreak(activities), [activities]);
+  const wins = useMemo(() => extractWins(activities), [activities]);
+
+  // BYOK + AI state
   const { key: apiKey, save: saveApiKey, clear: clearApiKey } = useApiKey();
   const { prefs, update: updatePrefs } = useTrainingPrefs();
   const aiReport = useAiReport();
   const rideFeedback = useRideFeedback();
   const [openFeedbackId, setOpenFeedbackId] = useState<number | null>(null);
+  const [openDetailId, setOpenDetailId] = useState<number | null>(null);
 
   const todays = todayKey();
   const todaysAiText = aiReport.report?.weeklyPlan?.[todays];
@@ -84,7 +182,7 @@ export function Dashboard() {
       await aiReport.generate({
         apiKey,
         sessionsPerWeek: prefs.sessions_per_week,
-        athlete: { firstname: MARCO.firstName },
+        athlete: { firstname: firstName },
         stats: coachStats,
         recent: coachRecent,
       });
@@ -93,13 +191,13 @@ export function Dashboard() {
     }
   };
 
-  const handleAskRide = async (rideId: number, ride: typeof MOCK_ACTIVITIES[number]) => {
+  const handleAskRide = async (rideId: number, ride: MockActivity) => {
     if (!apiKey) return;
     setOpenFeedbackId(rideId);
     try {
       await rideFeedback.fetch(rideId, {
         apiKey,
-        athlete: { firstname: MARCO.firstName },
+        athlete: { firstname: firstName },
         context: {
           totalRides: coachStats.rideCount,
           avgDistance: Math.round(coachStats.totalDistance / Math.max(coachStats.rideCount, 1)),
@@ -123,31 +221,39 @@ export function Dashboard() {
     }
   };
 
+  const yearGoalKm = MOCK_GOAL.goalKm;
+
   return (
     <div className={styles.shell}>
       <TopBar
         variant="app"
         trailing={
-          <>
+          <UserMenu
+            username={`${firstName}${lastName ? ' ' + lastName : ''}`}
+            onSync={onSync}
+            onDisconnect={onDisconnect}
+          >
             <span className={styles.userPill}>
-              <span className={styles.userAvatar}>{MARCO.avatar}</span>
+              {profilePhoto ? (
+                <img src={profilePhoto} alt="" className={styles.userPhoto} />
+              ) : (
+                <span className={styles.userAvatar}>{avatarInitials}</span>
+              )}
               <span className={styles.userMeta}>
                 <span className={styles.userName}>
-                  {MARCO.firstName} {MARCO.lastName.charAt(0)}.
+                  {firstName} {lastName.charAt(0)}
+                  {lastName ? '.' : ''}
                 </span>
-                <span className={styles.userCity}>{MARCO.city}</span>
+                {city ? <span className={styles.userCity}>{city}</span> : null}
               </span>
             </span>
-            <Button size="sm" variant="ghost" aria-label="Sync">
-              ↻
-            </Button>
-          </>
+          </UserMenu>
         }
       />
 
       <main className={styles.main}>
         <Container width="wide">
-          {/* HERO FOLD — primary glance */}
+          {/* HERO FOLD */}
           <section id="today" className={styles.foldHero}>
             <motion.div
               className={styles.foldLeft}
@@ -165,18 +271,32 @@ export function Dashboard() {
                   })}
                 </Eyebrow>
                 <Pill dot tone="success">
-                  In sync
+                  {usingMock ? 'Demo data' : 'In sync'}
                 </Pill>
               </div>
               <h1 className={styles.greet}>
-                Morning, <em>{MARCO.firstName}</em>.
+                Morning, <em>{firstName}</em>.
               </h1>
               <p className={styles.greetLede}>
-                Form is <strong>productive</strong>.{' '}
-                {pmc
-                  ? `TSB at ${pmc.tsb > 0 ? '+' : ''}${Math.round(pmc.tsb)} — `
-                  : ''}
-                you're ready for a hard session today.
+                {pmc ? (
+                  <>
+                    Form is{' '}
+                    <strong>
+                      {pmc.tsb > 5 ? 'fresh' : pmc.tsb < -15 ? 'overreached' : pmc.tsb < -5 ? 'fatigued' : 'productive'}
+                    </strong>
+                    . TSB at {pmc.tsb > 0 ? '+' : ''}
+                    {Math.round(pmc.tsb)} —{' '}
+                    {pmc.tsb > 5
+                      ? 'great day to test the legs.'
+                      : pmc.tsb < -15
+                        ? 'recover hard before the next session.'
+                        : pmc.tsb < -5
+                          ? 'easier session today, full effort tomorrow.'
+                          : 'ready for a hard session today.'}
+                  </>
+                ) : (
+                  <>Welcome back. Generate your AI plan to get a structured week.</>
+                )}
               </p>
 
               {pmc ? (
@@ -191,11 +311,16 @@ export function Dashboard() {
               ) : null}
 
               <div className={styles.quickStats}>
-                <StatTile size="sm" label="Week TSS" value={weeklyTss} />
-                <StatTile size="sm" label="Week hours" value={weeklyHours.toFixed(1)} unit="h" />
-                <StatTile size="sm" label="FTP" value={MARCO.ftp} unit="W" />
-                <StatTile size="sm" label="W/kg" value={(MARCO.ftp / MARCO.weight).toFixed(2)} />
+                <StatTile size="sm" label="Week TSS" value={Math.round(weeklyStats.tss)} />
+                <StatTile size="sm" label="Week hours" value={weeklyStats.hours.toFixed(1)} unit="h" />
+                <StatTile size="sm" label="FTP" value={ftp || '—'} unit={ftp ? 'W' : ''} />
+                <StatTile size="sm" label="W/kg" value={wPerKg} />
               </div>
+              {!ftp ? (
+                <p className={styles.proxyNote}>
+                  TSS is a duration-based proxy until you set FTP. PMC math turns real once FTP is captured.
+                </p>
+              ) : null}
             </motion.div>
 
             <motion.aside
@@ -204,59 +329,34 @@ export function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
             >
-              <Card tone="elev" pad="md" className={styles.eventCard}>
-                <div className={styles.eventHead}>
-                  <Eyebrow tone="accent">Goal event</Eyebrow>
-                  <Pill tone="accent">{eventDaysOut > 0 ? `${eventDaysOut}d` : 'today'}</Pill>
-                </div>
-                <h3 className={styles.eventTitle}>{MOCK_EVENT.name}</h3>
-                <p className={styles.eventSub}>
-                  {MOCK_EVENT.type} · {MOCK_EVENT.location}
-                </p>
-                <div className={styles.eventStats}>
-                  <div>
-                    <span>{MOCK_EVENT.distanceKm}</span>
-                    <span>km</span>
-                  </div>
-                  <div>
-                    <span>{MOCK_EVENT.elevationM.toLocaleString()}</span>
-                    <span>m vert</span>
-                  </div>
-                  <div>
-                    <span>
-                      {new Date(MOCK_EVENT.date).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                      })}
-                    </span>
-                    <span>date</span>
-                  </div>
-                </div>
-              </Card>
+              <GoalEventCard
+                event={goalEvent.event}
+                onSave={goalEvent.save}
+                onClear={goalEvent.clear}
+              />
 
               <Card tone="elev" pad="md" className={styles.goalCard}>
                 <Eyebrow>Year-to-date · {new Date().getFullYear()}</Eyebrow>
                 <div className={styles.goalRow}>
                   <ProgressRing
-                    value={MOCK_GOAL.yearKm / MOCK_GOAL.goalKm}
+                    value={Math.min(yearKm / yearGoalKm, 1)}
                     size={140}
                     thickness={10}
                     eyebrow="km"
-                    label={`of ${MOCK_GOAL.goalKm.toLocaleString()}`}
+                    label={`of ${yearGoalKm.toLocaleString()}`}
                   >
-                    <span className={styles.goalNum}>{MOCK_GOAL.yearKm.toLocaleString()}</span>
+                    <span className={styles.goalNum}>{Math.round(yearKm).toLocaleString()}</span>
                   </ProgressRing>
                   <div className={styles.goalNotes}>
                     <p>
-                      <strong>{Math.round((MOCK_GOAL.yearKm / MOCK_GOAL.goalKm) * 100)}%</strong>{' '}
-                      of yearly target.
+                      <strong>{Math.round((yearKm / yearGoalKm) * 100)}%</strong> of yearly target.
                     </p>
                     <p className={styles.goalSub}>
                       Projected year-end:&nbsp;
                       <strong>
                         {Math.round(
-                          (MOCK_GOAL.yearKm /
-                            Math.max(daysBetween('2026-01-01', new Date()), 1)) *
+                          (yearKm /
+                            Math.max(daysBetween(`${new Date().getFullYear()}-01-01`, new Date()), 1)) *
                             365,
                         ).toLocaleString()}{' '}
                         km
@@ -269,7 +369,7 @@ export function Dashboard() {
             </motion.aside>
           </section>
 
-          {/* TODAY'S WORKOUT — uses AI plan if generated, else falls back to mock */}
+          {/* TODAY'S WORKOUT */}
           <motion.section
             className={styles.todaySection}
             initial={{ opacity: 0, y: 20 }}
@@ -289,16 +389,16 @@ export function Dashboard() {
             ) : (
               <WorkoutCard
                 workout={TODAYS_WORKOUT}
-                day="Thursday"
-                badge="Today (sample)"
+                day={todays.charAt(0).toUpperCase() + todays.slice(1)}
+                badge="Sample · generate plan below"
                 onStart={() =>
-                  alert('Generate your AI plan below to replace this sample workout with a real one.')
+                  alert('Generate your AI plan to replace this sample workout with your real one.')
                 }
               />
             )}
           </motion.section>
 
-          {/* STREAK + WINS — momentum signals, two columns on desktop */}
+          {/* STREAK + WINS */}
           <motion.section
             className={styles.momentumSection}
             initial={{ opacity: 0, y: 20 }}
@@ -312,7 +412,7 @@ export function Dashboard() {
             </div>
           </motion.section>
 
-          {/* VOLUME CHART — distance + elevation, weekly/monthly toggle */}
+          {/* VOLUME CHART */}
           <motion.section
             className={styles.volumeSection}
             initial={{ opacity: 0, y: 20 }}
@@ -320,10 +420,10 @@ export function Dashboard() {
             viewport={{ once: true, margin: '-80px' }}
             transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
           >
-            <VolumeChart rides={MOCK_ACTIVITIES} />
+            <VolumeChart rides={activities} />
           </motion.section>
 
-          {/* AI COACH — full panel: BYOK, sessions/week, weekly plan, regenerate */}
+          {/* AI COACH */}
           <motion.section
             id="train"
             className={styles.aiSection}
@@ -356,7 +456,7 @@ export function Dashboard() {
             />
           </motion.section>
 
-          {/* ROUTES PICKER — saved routes scored against today's plan + surface + start address */}
+          {/* ROUTES PICKER */}
           <motion.section
             className={styles.routesSection}
             initial={{ opacity: 0, y: 20 }}
@@ -379,12 +479,12 @@ export function Dashboard() {
               onSurfaceChange={(s) =>
                 updatePrefs({ surface_pref: s === 'mixed' ? 'any' : s })
               }
-              startAddress={prefs.start_address ?? ''}
+              startAddress={prefs.start_address ?? city}
               onStartAddressChange={(s) => updatePrefs({ start_address: s })}
             />
           </motion.section>
 
-          {/* RECENTS — each ride has an inline coach-verdict panel */}
+          {/* RECENTS */}
           <motion.section
             id="stats"
             className={styles.recentSection}
@@ -394,72 +494,116 @@ export function Dashboard() {
             transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
           >
             <header className={styles.weekHead}>
-              <Eyebrow rule tone="accent">№ 03 — Recents</Eyebrow>
+              <Eyebrow rule tone="accent">№ 04 — Previous rides</Eyebrow>
               <h2 className={styles.h2}>
-                The last <em>eight rides</em>.
+                The last <em>{recents.length} rides</em>.
               </h2>
               <p className={styles.h2Sub}>
-                Tap any ride for a one-line coach verdict + a concrete suggestion for next time.
+                Tap any ride for the full breakdown — splits, segments, photos, polyline. Use
+                "Get coach verdict" for a one-line AI assessment.
               </p>
             </header>
 
-            <div className={styles.rides}>
-              {recents.map((r) => {
-                const cached = rideFeedback.get(r.id);
-                const open = openFeedbackId === r.id || !!cached;
-                const isLoading = rideFeedback.loadingId === String(r.id);
-                const error = rideFeedback.errors[String(r.id)];
-                return (
-                  <article key={r.id} className={styles.ride}>
-                    <div className={styles.rideTop}>
-                      <div className={styles.rideMain}>
-                        <h4 className={styles.rideName}>{r.name}</h4>
-                        <div className={styles.rideMeta}>
-                          <ZonePill zone={r.primaryZone} size="sm" />
-                          <span>{fmtRelative(r.date)}</span>
-                          {r.type === 'VirtualRide' ? <Pill>Indoor</Pill> : null}
-                          {r.prCount > 0 ? <Pill tone="accent">{r.prCount} PR</Pill> : null}
+            {recents.length === 0 ? (
+              <div className={styles.emptyRides}>
+                <p>No rides yet. Once you log a ride on Strava it'll show up here.</p>
+              </div>
+            ) : (
+              <div className={styles.rides}>
+                {recents.map((r) => {
+                  const cached = rideFeedback.get(r.id);
+                  const fbOpen = openFeedbackId === r.id || !!cached;
+                  const fbLoading = rideFeedback.loadingId === String(r.id);
+                  const fbError = rideFeedback.errors[String(r.id)];
+                  const detailOpen = openDetailId === r.id;
+                  return (
+                    <article key={r.id} className={styles.ride}>
+                      <button
+                        type="button"
+                        className={styles.rideTop}
+                        onClick={() => setOpenDetailId(detailOpen ? null : r.id)}
+                        aria-expanded={detailOpen}
+                        aria-label={`Toggle detail for ${r.name}`}
+                      >
+                        <div className={styles.rideMain}>
+                          <h4 className={styles.rideName}>
+                            {r.name}
+                            <span className={`${styles.rideChev} ${detailOpen ? styles.rideChevOpen : ''}`} aria-hidden="true">
+                              ›
+                            </span>
+                          </h4>
+                          <div className={styles.rideMeta}>
+                            <ZonePill zone={r.primaryZone} size="sm" />
+                            <span>{fmtRelative(r.date)}</span>
+                            {r.type === 'VirtualRide' ? <Pill>Indoor</Pill> : null}
+                            {r.prCount > 0 ? <Pill tone="accent">{r.prCount} PR</Pill> : null}
+                          </div>
                         </div>
+                        <div className={styles.rideStats}>
+                          <span>
+                            <strong>{fmtKm(r.distanceKm * 1000)}</strong> km
+                          </span>
+                          <span>
+                            <strong>{fmtDurationShort(r.durationSec)}</strong>
+                          </span>
+                          <span>
+                            <strong>{r.tss}</strong> TSS
+                          </span>
+                          <span>
+                            <strong>{r.npWatts || '—'}</strong> NP
+                          </span>
+                        </div>
+                      </button>
+
+                      <AnimatePresence initial={false}>
+                        {detailOpen ? (
+                          <RideDetail
+                            key="detail"
+                            rideId={r.id}
+                            enabled={detailOpen}
+                            {...(usingMock
+                              ? {
+                                  fallback: {
+                                    name: r.name,
+                                    distanceKm: r.distanceKm,
+                                    durationSec: r.durationSec,
+                                    elevationM: r.elevationM,
+                                    avgWatts: r.avgWatts,
+                                    npWatts: r.npWatts,
+                                    hr: r.hr,
+                                    tss: r.tss,
+                                  },
+                                }
+                              : {})}
+                          />
+                        ) : null}
+                      </AnimatePresence>
+
+                      <div className={styles.rideActions}>
+                        {fbOpen ? (
+                          <RideFeedbackPanel
+                            loading={fbLoading}
+                            {...(fbError !== undefined ? { error: fbError } : {})}
+                            {...(cached !== undefined ? { feedback: cached } : {})}
+                            onAsk={() => handleAskRide(r.id, r)}
+                            disabled={!apiKey}
+                          />
+                        ) : (
+                          <RideFeedbackPanel
+                            loading={false}
+                            onAsk={() => handleAskRide(r.id, r)}
+                            disabled={!apiKey}
+                          />
+                        )}
                       </div>
-                      <div className={styles.rideStats}>
-                        <span>
-                          <strong>{fmtKm(r.distanceKm * 1000)}</strong> km
-                        </span>
-                        <span>
-                          <strong>{fmtDurationShort(r.durationSec)}</strong>
-                        </span>
-                        <span>
-                          <strong>{r.tss}</strong> TSS
-                        </span>
-                        <span>
-                          <strong>{r.npWatts}</strong> NP
-                        </span>
-                      </div>
-                    </div>
-                    <div className={styles.rideActions}>
-                      {open ? (
-                        <RideFeedbackPanel
-                          loading={isLoading}
-                          {...(error !== undefined ? { error } : {})}
-                          {...(cached !== undefined ? { feedback: cached } : {})}
-                          onAsk={() => handleAskRide(r.id, r)}
-                          disabled={!apiKey}
-                        />
-                      ) : (
-                        <RideFeedbackPanel
-                          loading={false}
-                          onAsk={() => handleAskRide(r.id, r)}
-                          disabled={!apiKey}
-                        />
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </motion.section>
 
-          <DemoBanner />
+          {usingMock ? <DemoBanner /> : null}
         </Container>
       </main>
 
@@ -477,8 +621,7 @@ function DemoBanner() {
         Demo
       </Pill>
       <p>
-        You're viewing seeded demo data for <strong>Marco Bianchi</strong>. Connect your Strava to
-        see your own PMC, plan and rides.
+        Demo data only — append <code>?demo=0</code> or remove it from the URL to see your real Strava data.
       </p>
       <Button size="sm" variant="primary" href={connectUrl()} withArrow>
         Connect

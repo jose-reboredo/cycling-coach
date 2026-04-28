@@ -7,7 +7,7 @@ import styles from './BottomNav.module.css';
 const ITEMS = [
   { id: 'today', label: 'Today', icon: <TodayIcon />, hash: '#today' },
   { id: 'train', label: 'Train', icon: <TrainIcon />, hash: '#train' },
-  { id: 'stats', label: 'Stats', icon: <StatsIcon />, hash: '#stats' },
+  { id: 'stats', label: 'Rides', icon: <StatsIcon />, hash: '#stats' },
   { id: 'you', label: 'You', icon: <YouIcon />, hash: '#you' },
 ] as const;
 

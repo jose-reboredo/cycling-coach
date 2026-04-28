@@ -29,6 +29,14 @@
   font: 600 11px/1 var(--font-mono);
   letter-spacing: 0.05em;
 }
+
+.userPhoto {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-full);
+  object-fit: cover;
+  border: 1px solid var(--c-line-strong);
+}
 .userMeta {
   display: none;
   flex-direction: column;
@@ -121,6 +129,22 @@
   border: 1px solid var(--c-line);
   border-radius: var(--r-md);
   padding: var(--s-3);
+}
+
+.proxyNote {
+  font: italic 400 12px/1.5 var(--font-sans);
+  color: var(--c-text-faint);
+  margin-top: var(--s-2);
+}
+
+.emptyRides {
+  padding: var(--s-8);
+  text-align: center;
+  background: var(--c-surface);
+  border: 1px dashed var(--c-line-strong);
+  border-radius: var(--r-md);
+  font: italic 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
 }
 
 .foldRight {
@@ -424,6 +448,22 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--s-3);
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+  border-radius: var(--r-sm);
+  transition: background var(--d-fast) var(--e-out);
+}
+.rideTop:hover {
+  background: var(--c-surface-elev);
+}
+.rideTop:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 4px;
 }
 @media (min-width: 768px) {
   .rideTop {
@@ -431,6 +471,18 @@
     gap: var(--s-6);
     align-items: center;
   }
+}
+
+.rideChev {
+  display: inline-block;
+  font: 600 18px/1 var(--font-sans);
+  color: var(--c-text-faint);
+  margin-left: var(--s-2);
+  transition: transform var(--d-fast) var(--e-out);
+}
+.rideChevOpen {
+  transform: rotate(90deg);
+  color: var(--c-accent);
 }
 
 .rideActions {

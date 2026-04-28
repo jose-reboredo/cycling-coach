@@ -1,0 +1,122 @@
+.wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: var(--r-full);
+}
+.trigger:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 4px;
+}
+
+.chev {
+  font: 600 12px/1 var(--font-sans);
+  color: var(--c-text-muted);
+  margin-right: var(--s-2);
+  transition: transform var(--d-fast) var(--e-out);
+}
+.chevOpen {
+  transform: rotate(180deg);
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--s-2));
+  z-index: var(--z-dropdown);
+  min-width: 280px;
+  background: var(--c-surface-overlay);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-lg);
+  padding: var(--s-2);
+  transform-origin: top right;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-3) var(--s-3) var(--s-2);
+  border-bottom: 1px solid var(--c-line);
+  margin-bottom: var(--s-2);
+}
+
+.headLabel {
+  font: 500 9px/1.4 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.headName {
+  font: 500 14px/1 var(--font-sans);
+  letter-spacing: -0.005em;
+  color: var(--c-text);
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: var(--s-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: transparent;
+  border: none;
+  color: var(--c-text);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--d-fast) var(--e-out);
+}
+.item:hover {
+  background: var(--c-surface-elev);
+}
+
+.itemIcon {
+  font: 600 16px/1 var(--font-sans);
+  color: var(--c-text-muted);
+  text-align: center;
+}
+.itemDanger .itemIcon {
+  color: var(--c-danger);
+}
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.itemBody > span:first-child {
+  font: 500 13px/1.2 var(--font-sans);
+  letter-spacing: -0.005em;
+  color: var(--c-text);
+}
+.itemDanger .itemBody > span:first-child {
+  color: var(--c-danger);
+}
+.itemSub {
+  font: 500 10px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--c-text-faint);
+}
+
+.divider {
+  height: 1px;
+  background: var(--c-line);
+  margin: var(--s-2) var(--s-2);
+}

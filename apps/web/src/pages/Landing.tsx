@@ -282,6 +282,7 @@ export function Landing() {
                 { href: '/dashboard', label: 'Dashboard' },
                 { href: connectUrl(), label: 'Connect Strava' },
                 { href: '#what', label: 'What you get' },
+                { href: '/whats-next', label: "What's next" },
               ]} />
               <FootCol title="Trust" links={[
                 { href: '/privacy', label: 'Privacy' },
@@ -295,7 +296,7 @@ export function Landing() {
             </div>
           </div>
           <div className={styles.footBottom}>
-            <span className={styles.footVer}>v8.0.0 · April 2026</span>
+            <span className={styles.footVer}>v8.1.0 · April 2026</span>
             <span className={styles.footRights}>© Cycling Coach · Strava® is a registered trademark of Strava, Inc.</span>
           </div>
         </Container>
