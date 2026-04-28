@@ -112,8 +112,10 @@ function ChartBar({
   max: number;
   elevMax: number;
 }) {
-  const distPct = (bucket.distanceKm / max) * 100;
-  const elevPct = (bucket.elevationM / elevMax) * 100;
+  // Bars fill the column then scale from the bottom — GPU-cheap vs animating
+  // height (which forces layout each frame).
+  const distScale = Math.max(0.005, bucket.distanceKm / max);
+  const elevScale = Math.max(0.005, bucket.elevationM / elevMax);
   return (
     <div
       className={styles.barCol}
@@ -122,15 +124,15 @@ function ChartBar({
       <div className={styles.barStack}>
         <motion.div
           className={`${styles.bar} ${styles.barDistance}`}
-          initial={{ height: 0 }}
-          whileInView={{ height: `${distPct}%` }}
+          initial={{ scaleY: 0 }}
+          whileInView={{ scaleY: distScale }}
           viewport={{ once: true, margin: '-50px' }}
           transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
         />
         <motion.div
           className={`${styles.bar} ${styles.barElevation}`}
-          initial={{ height: 0 }}
-          whileInView={{ height: `${elevPct}%` }}
+          initial={{ scaleY: 0 }}
+          whileInView={{ scaleY: elevScale }}
           viewport={{ once: true, margin: '-50px' }}
           transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
         />
