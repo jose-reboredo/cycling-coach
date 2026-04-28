@@ -95,6 +95,7 @@ export function RoutesPicker({
                 onChange={(e) => onStartAddressChange(e.target.value)}
                 placeholder="Zürich, Switzerland"
                 className={styles.addressInput}
+                aria-label="Start address"
                 autoFocus
               />
               <Button size="sm" variant="primary" type="submit">

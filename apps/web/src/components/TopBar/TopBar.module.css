@@ -6,7 +6,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-4);
-  padding: var(--s-3) var(--s-5);
+  padding: calc(var(--s-3) + env(safe-area-inset-top, 0)) var(--s-5) var(--s-3);
   min-height: 56px;
   background: var(--c-surface-overlay);
   backdrop-filter: blur(20px) saturate(160%);
@@ -57,6 +57,6 @@
 
 @media (min-width: 768px) {
   .root {
-    padding: var(--s-3) var(--s-8);
+    padding: calc(var(--s-3) + env(safe-area-inset-top, 0)) var(--s-8) var(--s-3);
   }
 }

@@ -56,13 +56,12 @@ export function VolumeChart({ rides }: VolumeChartProps) {
             <span className={styles.totalsHint}>last {visible.length} {mode === 'weekly' ? 'weeks' : 'months'}</span>
           </p>
         </div>
-        <div className={styles.toggle} role="tablist" aria-label="Aggregation">
+        <div className={styles.toggle} role="group" aria-label="Aggregation">
           {MODES.map((m) => (
             <button
               key={m.id}
               type="button"
-              role="tab"
-              aria-selected={mode === m.id}
+              aria-pressed={mode === m.id}
               className={`${styles.toggleBtn} ${mode === m.id ? styles.toggleActive : ''}`}
               onClick={() => setMode(m.id)}
             >
@@ -72,7 +71,11 @@ export function VolumeChart({ rides }: VolumeChartProps) {
         </div>
       </header>
 
-      <div className={styles.chart}>
+      <div
+        className={styles.chart}
+        role="img"
+        aria-label={`Volume — last ${visible.length} ${mode === 'weekly' ? 'weeks' : 'months'}: ${total.toLocaleString()} km, ${totalElev.toLocaleString()} m elevation`}
+      >
         {visible.map((b) => (
           <ChartBar key={b.key} bucket={b} max={max} elevMax={elevMax} />
         ))}

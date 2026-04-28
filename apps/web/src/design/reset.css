@@ -70,6 +70,27 @@ table {
   border-radius: var(--r-sm);
 }
 
+/* Skip-to-main link — visible on focus only, jumps over TopBar + UserMenu. */
+.skip-link {
+  position: fixed;
+  top: var(--s-2);
+  left: var(--s-2);
+  z-index: var(--z-toast);
+  padding: var(--s-3) var(--s-4);
+  background: var(--c-accent);
+  color: var(--c-canvas);
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: var(--r-sm);
+  transform: translateY(-200%);
+  transition: transform var(--d-fast) var(--e-out);
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
 /* Scrollbars — slim, dark, themed. */
 ::-webkit-scrollbar {
   width: 8px;

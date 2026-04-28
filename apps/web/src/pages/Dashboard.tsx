@@ -276,7 +276,7 @@ function DashboardView({
         }
       />
 
-      <main className={styles.main}>
+      <main id="main" className={styles.main}>
         <Container width="wide">
           {/* HERO FOLD */}
           <section id="today" className={styles.foldHero}>
