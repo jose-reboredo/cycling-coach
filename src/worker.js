@@ -476,31 +476,6 @@ Respond ONLY with valid JSON, no markdown:
       }
     }
 
-    // ============= ADMIN: CLOSE TRIAGE ISSUES =============
-    // One-shot — closes v8.5.0 issues #21 + #23 (both already shipped).
-    // Idempotent — skips issues already closed. Remove this route handler
-    // after running, per the same convention as fileAuditIssues.
-    if (url.pathname === '/admin/close-issues' && request.method === 'POST') {
-      const adminCheck = requireAdmin(request, env);
-      if (adminCheck) return adminCheck;
-      if (!env.GITHUB_TOKEN) {
-        return new Response(
-          JSON.stringify({ error: 'GITHUB_TOKEN secret missing' }),
-          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-      try {
-        const result = await closeAuditTriageIssues(env);
-        return new Response(JSON.stringify(result, null, 2), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } catch (e) {
-        return new Response(JSON.stringify({ error: e.message }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
     // ============= ROADMAP =============
     // GitHub Issues are the source of truth for the public roadmap. The
     // /whats-next page in the React SPA fetches this endpoint, which proxies
