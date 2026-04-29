@@ -147,7 +147,7 @@ export const SPEC_PAGES = [
   <li><strong>Build:</strong> <code>npm run build:web</code> → Vite produces <code>apps/web/dist</code>.</li>
   <li><strong>Deploy:</strong> <code>wrangler deploy</code> → Worker code + the static-asset bundle uploaded as a single deployment unit (Workers Static Assets).</li>
   <li><strong>Doc-sync:</strong> <code>npm run docs:sync</code> POSTs to admin endpoint after the deploy succeeds.</li>
-  <li><strong>CI:</strong> Cloudflare Workers Builds; on push to <code>main</code> the same chain runs (issue #9 — set CI build command to <code>npm run build:web</code>).</li>
+  <li><strong>CI:</strong> GitHub Actions (<code>.github/workflows/test.yml</code>) runs unit + e2e + build in parallel on every push + PR. Production deploy is manual via <code>npm run deploy</code> from a developer's shell — Cloudflare Workers Builds auto-deploy is intentionally not wired (closed issue #9 as superseded in v8.5.1).</li>
 </ul>
 <p><strong>Run-worker-first paths</strong> (from <code>wrangler.jsonc → assets.run_worker_first</code>): <code>/api/*</code>, <code>/authorize</code>, <code>/callback</code>, <code>/refresh</code>, <code>/coach</code>, <code>/coach-ride</code>, <code>/webhook</code>, <code>/version</code>, <code>/roadmap</code>. Everything else falls through to static assets; unknown routes serve <code>index.html</code> via <code>not_found_handling: single-page-application</code> (so React Router handles client-side routing for <code>/dashboard</code>, <code>/privacy</code>, <code>/whats-next</code>).</p>
 
@@ -213,7 +213,7 @@ export const SPEC_PAGES = [
     <tr><td><code>/coach</code></td><td>POST</td><td>BYOK (Anthropic key in body)</td><td>Generate weekly plan via Claude</td></tr>
     <tr><td><code>/coach-ride</code></td><td>POST</td><td>BYOK (Anthropic key in body)</td><td>Generate per-ride coach verdict via Claude</td></tr>
     <tr><td><code>/webhook</code></td><td>GET</td><td>Strava verify token (env)</td><td>Webhook subscription verification</td></tr>
-    <tr><td><code>/webhook</code></td><td>POST</td><td>None (currently)</td><td>Strava webhook event delivery — logged only (issue #17)</td></tr>
+    <tr><td><code>/webhook/&lt;env.STRAVA_WEBHOOK_PATH_SECRET&gt;</code></td><td>GET / POST</td><td>Path-secret + STRAVA_VERIFY_TOKEN</td><td>Strava webhook subscription verification (GET) + event delivery (POST). Wrong path → 404 (closed issues #17, #19 in v8.5.2 / v8.5.1)</td></tr>
     <tr><td><code>/version</code></td><td>GET</td><td>None</td><td>Health + version JSON</td></tr>
     <tr><td><code>/roadmap</code></td><td>GET</td><td>None</td><td>GitHub Issues mirror, 5-min edge cache</td></tr>
     <tr><td><code>/admin/document-release</code></td><td>POST</td><td><code>Authorization: Bearer $ADMIN_SECRET</code></td><td>Confluence doc-sync</td></tr>
@@ -763,7 +763,7 @@ npm run deploy
 # → wrangler deploy      (Worker + assets uploaded)
 # → npm run docs:sync    (POST /admin/document-release)
 ]]></ac:plain-text-body></ac:structured-macro>
-<p>Cloudflare Workers Builds CI runs the same chain on push to <code>main</code> (issue #9 — set CI build command to <code>npm run build:web</code>).</p>
+<p>GitHub Actions (<code>.github/workflows/test.yml</code>) runs <code>unit</code> + <code>e2e</code> + <code>build</code> jobs in parallel on every PR + push to <code>main</code>. Production deploy is manual (<code>npm run deploy</code> from a developer's shell). Cloudflare Workers Builds auto-deploy is intentionally not wired (closed issue #9 as superseded in v8.5.1 — see README §Build &amp; deploy).</p>
 
 <h2>4. D1 data model</h2>
 <table>
@@ -888,7 +888,7 @@ npm run deploy
 <h2>2. Authentication flow</h2>
 <p>OAuth 2.0 authorization-code grant against Strava. See <strong>Systems &amp; Architecture · §4.1</strong> for the full sequence. Highlights:</p>
 <ul>
-  <li>State param round-trips PWA + origin metadata as base64-JSON. <strong>Issue #14</strong>: not yet a CSRF nonce; replay/CSRF risk exists today.</li>
+  <li>State param round-trips PWA + origin metadata as base64-JSON. <strong>Issue #14</strong> (milestone v8.6.0): not yet a CSRF nonce; replay/CSRF risk exists today.</li>
   <li>Tokens stored client-side in <code>localStorage</code> (XSS exposure — see §6).</li>
   <li>Tokens dual-written to D1 <code>user_connections</code> (Strangler-Fig migration toward server-side session).</li>
   <li>Refresh: <code>ensureValidToken()</code> in <code>auth.ts</code> auto-refreshes when token has &lt; 5 min remaining.</li>
@@ -901,7 +901,8 @@ npm run deploy
     <tr><th>Secret</th><th>Where</th><th>Used by</th><th>Rotation policy</th></tr>
     <tr><td><code>STRAVA_CLIENT_ID</code></td><td>CF Worker var (not secret)</td><td><code>/authorize</code></td><td>Never (public Strava app id)</td></tr>
     <tr><td><code>STRAVA_CLIENT_SECRET</code></td><td>CF Worker secret</td><td><code>/callback</code>, <code>/refresh</code></td><td>Per Strava advice; not on schedule</td></tr>
-    <tr><td><code>STRAVA_VERIFY_TOKEN</code></td><td>CF Worker secret (optional, with insecure fallback — <strong>issue #19</strong>)</td><td><code>/webhook</code> GET subscription verification</td><td>Rotate when leaked; today has hardcoded source-code fallback</td></tr>
+    <tr><td><code>STRAVA_VERIFY_TOKEN</code></td><td>CF Worker secret (required since v8.5.1 — fail-closed if missing, returns 503)</td><td><code>/webhook/&lt;path-secret&gt;</code> GET subscription verification</td><td>Rotate when leaked. <code>openssl rand -hex 32</code> when generating.</td></tr>
+    <tr><td><code>STRAVA_WEBHOOK_PATH_SECRET</code></td><td>CF Worker secret (required since v8.5.2)</td><td>Canonical webhook URL: <code>/webhook/&lt;secret&gt;</code></td><td>Rotate when leaked + re-register webhook URL with Strava. <code>openssl rand -hex 32</code> when generating.</td></tr>
     <tr><td><code>GITHUB_TOKEN</code></td><td>CF Worker secret</td><td><code>/roadmap</code>, <code>/admin/*</code> doc-sync, GitHub-API helpers</td><td>90-day Atlassian-style PAT — needs renewal alerting</td></tr>
     <tr><td><code>CONFLUENCE_API_TOKEN</code></td><td>CF Worker secret</td><td><code>/admin/document-release</code></td><td>Per Atlassian advice</td></tr>
     <tr><td><code>CONFLUENCE_USER_EMAIL</code></td><td>CF Worker secret (could be var)</td><td>Confluence Basic auth</td><td>n/a</td></tr>
@@ -916,14 +917,14 @@ npm run deploy
     <tr><th>Endpoint</th><th>Current</th><th>Risk</th><th>Status</th></tr>
     <tr><td><code>/api/*</code></td><td><code>*</code></td><td>Low — Authorization header is the gate</td><td>OK</td></tr>
     <tr><td><code>/roadmap</code>, <code>/version</code></td><td><code>*</code></td><td>None — public read</td><td>OK</td></tr>
-    <tr><td><code>/coach</code>, <code>/coach-ride</code></td><td><code>*</code></td><td>Medium — third-party page can POST with leaked api_key</td><td>Issue #16</td></tr>
-    <tr><td><code>/admin/*</code></td><td><code>*</code></td><td>Low — gated by ADMIN_SECRET regardless</td><td>OK (gate is in app, not browser)</td></tr>
+    <tr><td><code>/coach</code>, <code>/coach-ride</code></td><td><code>*</code></td><td>Medium — third-party page can POST with leaked api_key</td><td>Issue #16 (milestone v8.6.0)</td></tr>
+    <tr><td><code>/admin/*</code></td><td><code>*</code></td><td>Low — gated by ADMIN_SECRET regardless; <code>/admin/document-release</code> additionally rate-limited (5/min/IP, KV-based, since v8.5.2)</td><td>OK (gate is in app, not browser)</td></tr>
     <tr><td><code>/authorize</code>, <code>/callback</code>, <code>/refresh</code>, <code>/webhook</code></td><td><code>*</code></td><td>Various</td><td>Reviewed alongside #16</td></tr>
   </tbody>
 </table>
 
 <h2>5. Security headers</h2>
-<p>None currently set. <strong>Issue #15</strong> tracks adding:</p>
+<p>None currently set. <strong>Issue #15</strong> (milestone v8.6.0) tracks adding:</p>
 <ul>
   <li><code>Content-Security-Policy</code> — strict policy with allowlists for fonts.googleapis, Anthropic, Strava, GitHub</li>
   <li><code>Strict-Transport-Security</code> — HSTS with 1-year max-age</li>
@@ -941,37 +942,42 @@ npm run deploy
   <li><strong>Strict TypeScript</strong> — no <code>any</code> in component props (mostly).</li>
   <li><strong>Planned CSP</strong> (issue #15) — third defence layer on top.</li>
 </ul>
-<p>Documented as a known trade-off; <strong>issue #22</strong> tracks publishing a <code>SECURITY.md</code> with the full threat model.</p>
+<p>Documented as a known trade-off; <code>SECURITY.md</code> with full threat model + disclosure policy was published in v8.5.1 (closed issue #22).</p>
 
 <h2>7. Rate limiting</h2>
-<p>None currently applied to Worker endpoints. <strong>Issue #18</strong> tracks introducing Cloudflare's Workers Rate Limiting binding for <code>/coach</code> and <code>/coach-ride</code> (per-IP and per-athlete-id). <code>/roadmap</code> is naturally rate-limited by its 5-min edge cache.</p>
+<p><strong>v8.5.2:</strong> KV-based rate-limit on <code>/admin/document-release</code> — 5 attempts/min/IP, returns 429 with <code>Retry-After</code> header on threshold. Defense-in-depth against <code>ADMIN_SECRET</code> leak and runaway-loop bugs in CI. Closed issue #18 (scoped down from original). Threshold-hit attempts logged via <code>safeWarn()</code> with source IP for observability.</p>
+<p><code>/roadmap</code> is naturally rate-limited by its 5-min edge cache.</p>
+<p><code>/coach</code>, <code>/coach-ride</code>, <code>/api/*</code>: native Cloudflare Workers Rate Limiting binding requires Workers Paid plan (we're on Free), <strong>deferred indefinitely</strong>. Cost-runaway risk for <code>/coach</code> is mitigated only at the user side (BYOK Anthropic key safeguarded by the user). Documented in <code>SECURITY.md</code> "Deferred / out of scope".</p>
 
 <h2>8. /admin auth</h2>
 <p><code>requireAdmin()</code> verifies <code>Authorization: Bearer $ADMIN_SECRET</code> on every <code>/admin/*</code> endpoint. Without the env var set, returns 503; with wrong/missing header, 401. Length-checked compare (Worker runtime doesn't expose <code>timingSafeEqual</code>, but admin endpoints are low-traffic enough that timing attacks aren't the bar).</p>
-<p><strong>Issue #21</strong> tracks formalising this as a documented pattern (was previously dependent on developer discipline — temp endpoints could be left live by mistake). Now that <code>requireAdmin()</code> is in place, even a forgotten endpoint requires the secret.</p>
+<p>Pattern formalised in v8.3.0 (closed issue #21). All <code>/admin/*</code> handlers — current (<code>/admin/document-release</code>) and future — call <code>requireAdmin()</code> first. Temp/one-shot endpoints we add for ops tasks (<code>/admin/file-audit-issues</code>, <code>/admin/close-issues</code>, <code>/admin/reslot-issue-14</code>) inherit this guard automatically.</p>
+<p><strong>v8.5.1 process rule:</strong> avoid the temp <code>/admin/*</code> deploy-call-undeploy pattern for one-off developer tasks. Prefer <code>curl + GITHUB_TOKEN</code> from <code>.deploy.env</code> or standalone <code>scripts/</code> files. The temp endpoint pattern is reserved only for ops that genuinely need Worker-side bindings (KV, D1).</p>
 
 <h2>9. Webhook source verification</h2>
-<p>Currently no source verification on <code>POST /webhook</code> — anyone can hit it and we'll log it. Bounded impact (handler does not write to D1). <strong>Issue #17</strong> tracks IP-allowlist or path-secret defence before D1 actions get wired to webhook events.</p>
+<p><strong>v8.5.2:</strong> Path-secret defence shipped (closed issue #17). Canonical URL: <code>/webhook/&lt;env.STRAVA_WEBHOOK_PATH_SECRET&gt;</code>. Legacy <code>/webhook</code> and any <code>/webhook/&lt;wrong-secret&gt;</code> return <strong>404</strong> (OWASP — don't leak existence of the canonical path).</p>
+<p>Without <code>STRAVA_WEBHOOK_PATH_SECRET</code> set, the entire <code>/webhook*</code> surface is dormant (404 to everything) — by design. Single-user mode today, no active webhook subscription. Strava webhook re-registration deferred until multi-user API approval lands; ops runbook in <code>SECURITY.md</code>.</p>
 
 <h2>10. Logging hygiene</h2>
-<p><code>observability.logs.persist: true</code> in <code>wrangler.jsonc</code>. Currently no <code>api_key</code> redaction in error paths. <strong>Issue #20</strong> tracks adding a <code>redactSensitive()</code> helper that strips <code>api_key</code>, <code>access_token</code>, <code>refresh_token</code> from any logged message.</p>
+<p><code>observability.logs.persist: true</code> in <code>wrangler.jsonc</code> retains all <code>console.*</code> output. <strong>v8.5.1:</strong> <code>redactSensitive()</code> helper + <code>safeLog/Warn/Error</code> wrappers strip <code>api_key=</code>, <code>sk-ant-*</code>, <code>access_token=</code>, <code>refresh_token=</code> patterns from string + serialized-object args before they reach persistent logs (closed issue #20).</p>
+<p>Applied to 5 of 12 high-risk <code>console.*</code> sites: webhook event log, D1 parse-error warn, three D1 error catches in <code>persistUserAndTokens / persistActivities / updateConnectionTokens</code>. Status/count logs (e.g. <code>[D1] Persisted N activities</code>) are left raw — they don't interpolate untrusted data.</p>
 
 <h2>11. Open hardening backlog</h2>
 <table>
   <tbody>
-    <tr><th>#</th><th>Title</th><th>Priority</th><th>Milestone</th></tr>
-    <tr><td>14</td><td>OAuth state is predictable JSON, not a CSRF nonce</td><td>high</td><td>v8.4.0</td></tr>
-    <tr><td>15</td><td>Add security headers to all Worker responses</td><td>high</td><td>v8.4.0</td></tr>
-    <tr><td>16</td><td>Lock down CORS on /coach + /coach-ride</td><td>medium</td><td>v8.4.0</td></tr>
-    <tr><td>17</td><td>/webhook POST has no source verification</td><td>medium</td><td>v8.5.0</td></tr>
-    <tr><td>18</td><td>Rate-limit /coach + /coach-ride</td><td>medium</td><td>v8.5.0</td></tr>
-    <tr><td>19</td><td>STRAVA_VERIFY_TOKEN insecure fallback</td><td>low</td><td>v8.5.0</td></tr>
-    <tr><td>20</td><td>Redact api_key from logged errors</td><td>low</td><td>v8.5.0</td></tr>
-    <tr><td>21</td><td>/admin/* explicit auth (partially shipped via requireAdmin)</td><td>low</td><td>v8.5.0</td></tr>
-    <tr><td>22</td><td>Document threat model in SECURITY.md</td><td>low</td><td>v8.5.0</td></tr>
+    <tr><th>#</th><th>Title</th><th>Priority</th><th>Milestone</th><th>Status</th></tr>
+    <tr><td>14</td><td>OAuth state is predictable JSON, not a CSRF nonce</td><td>high</td><td>v8.6.0</td><td>open</td></tr>
+    <tr><td>15</td><td>Add security headers to all Worker responses</td><td>high</td><td>v8.6.0</td><td>open</td></tr>
+    <tr><td>16</td><td>Lock down CORS on /coach + /coach-ride</td><td>medium</td><td>v8.6.0</td><td>open</td></tr>
+    <tr><td>17</td><td>/webhook POST has no source verification</td><td>medium</td><td>v8.5.0</td><td>shipped v8.5.2</td></tr>
+    <tr><td>18</td><td>KV rate-limit on /admin/document-release (scoped down from /coach)</td><td>medium</td><td>v8.5.0</td><td>shipped v8.5.2</td></tr>
+    <tr><td>19</td><td>STRAVA_VERIFY_TOKEN insecure fallback</td><td>low</td><td>v8.5.0</td><td>shipped v8.5.1</td></tr>
+    <tr><td>20</td><td>Redact api_key from logged errors</td><td>low</td><td>v8.5.0</td><td>shipped v8.5.1</td></tr>
+    <tr><td>21</td><td>/admin/* explicit auth (requireAdmin)</td><td>low</td><td>—</td><td>shipped v8.3.0</td></tr>
+    <tr><td>22</td><td>Document threat model in SECURITY.md</td><td>low</td><td>v8.5.0</td><td>shipped v8.5.1</td></tr>
   </tbody>
 </table>
-<p>Live issue status: see the <strong>Roadmap</strong> page.</p>
+<p>Live issue status: see the <strong>Roadmap</strong> page (auto-regenerated on every <code>npm run deploy</code> from GitHub Issues).</p>
 
 <h2>12. Disclosure policy</h2>
 <p>This is a single-maintainer hobby project. To report a security issue confidentially: open a <a href="https://github.com/jose-reboredo/cycling-coach/security/advisories/new">GitHub Security Advisory</a> (preferred — private until resolved) or DM the maintainer on Strava. We don't run a bug-bounty program; please be patient with response times.</p>`,
