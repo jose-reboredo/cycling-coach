@@ -134,6 +134,45 @@ test.describe('Smoke — BottomNav scroll sync (/dashboard?demo=1)', () => {
   });
 });
 
+test.describe('Smoke — what\'s-new badge (/dashboard?demo=1)', () => {
+  test('badge appears, modal opens with version + date, dismiss persists', async ({ page }) => {
+    // Clear lastSeen once on first visit. We deliberately do NOT use
+    // addInitScript here because that would re-fire on the test's later
+    // page.reload(), undoing the dismissal we're trying to verify.
+    await page.goto('/dashboard?demo=1');
+    await page.evaluate(() => {
+      try { window.localStorage.removeItem('cc_lastSeenVersion'); } catch { /* ignore */ }
+    });
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    // Badge is in the TopBar trailing slot.
+    const badge = page.getByRole('button', { name: /what's new in v/i });
+    await expect(badge).toBeVisible();
+
+    // Click → modal opens with at least one entry.
+    await badge.scrollIntoViewIfNeeded();
+    await badge.click();
+    const dialog = page.getByRole('dialog', { name: /what's new/i });
+    await expect(dialog).toBeVisible();
+
+    // The first entry has a v-prefixed version and a YYYY-MM-DD date.
+    await expect(dialog.getByText(/^v\d+\.\d+\.\d+$/).first()).toBeVisible();
+    await expect(dialog.getByText(/^\d{4}-\d{2}-\d{2}$/).first()).toBeVisible();
+
+    // Click "Got it" → modal closes, lastSeen persisted.
+    await dialog.getByRole('button', { name: /got it/i }).click();
+    await expect(dialog).toBeHidden();
+    const stored = await page.evaluate(() => window.localStorage.getItem('cc_lastSeenVersion'));
+    expect(stored).toMatch(/^\d+\.\d+\.\d+$/);
+
+    // Reload — badge no longer visible (lastSeen matches current).
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('button', { name: /what's new in v/i })).toBeHidden();
+  });
+});
+
 test.describe('Smoke — UserMenu keyboard nav (/dashboard?demo=1)', () => {
   test('arrow keys move between menuitems, ESC closes + restores focus', async ({ page }) => {
     await page.goto('/dashboard?demo=1');

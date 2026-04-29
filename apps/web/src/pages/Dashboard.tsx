@@ -25,6 +25,7 @@ import { GoalEventCard } from '../components/GoalEventCard/GoalEventCard';
 import { UserMenu } from '../components/UserMenu/UserMenu';
 import { RideDetail } from '../components/RideDetail/RideDetail';
 import { OnboardingModal } from '../components/OnboardingModal/OnboardingModal';
+import { WhatsNewBadge } from '../components/WhatsNew/WhatsNewBadge';
 import { useGoalEvent } from '../hooks/useGoalEvent';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
 import { AnimatePresence } from 'motion/react';
@@ -253,27 +254,30 @@ function DashboardView({
       <TopBar
         variant="app"
         trailing={
-          <UserMenu
-            username={`${firstName}${lastName ? ' ' + lastName : ''}`}
-            onSync={onSync}
-            onDisconnect={onDisconnect}
-            onEditProfile={onEditProfile}
-          >
-            <span className={styles.userPill}>
-              {profilePhoto ? (
-                <img src={profilePhoto} alt="" className={styles.userPhoto} />
-              ) : (
-                <span className={styles.userAvatar}>{avatarInitials}</span>
-              )}
-              <span className={styles.userMeta}>
-                <span className={styles.userName}>
-                  {firstName} {lastName.charAt(0)}
-                  {lastName ? '.' : ''}
+          <>
+            <WhatsNewBadge />
+            <UserMenu
+              username={`${firstName}${lastName ? ' ' + lastName : ''}`}
+              onSync={onSync}
+              onDisconnect={onDisconnect}
+              onEditProfile={onEditProfile}
+            >
+              <span className={styles.userPill}>
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt="" className={styles.userPhoto} />
+                ) : (
+                  <span className={styles.userAvatar}>{avatarInitials}</span>
+                )}
+                <span className={styles.userMeta}>
+                  <span className={styles.userName}>
+                    {firstName} {lastName.charAt(0)}
+                    {lastName ? '.' : ''}
+                  </span>
+                  {city ? <span className={styles.userCity}>{city}</span> : null}
                 </span>
-                {city ? <span className={styles.userCity}>{city}</span> : null}
               </span>
-            </span>
-          </UserMenu>
+            </UserMenu>
+          </>
         }
       />
 

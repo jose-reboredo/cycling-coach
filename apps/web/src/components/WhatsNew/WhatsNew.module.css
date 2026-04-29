@@ -1,0 +1,106 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hit-min);
+  gap: var(--s-1-5);
+  padding: 0 var(--s-3);
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-canvas);
+  background: var(--c-accent-light);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--d-fast) var(--e-out);
+}
+.badge:hover {
+  background: var(--c-accent);
+}
+
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: currentColor;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: rgba(8, 9, 11, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-4);
+}
+
+.modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--c-surface-elev);
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-lg);
+  padding: var(--s-7);
+  box-shadow: var(--sh-lg);
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--s-5);
+  gap: var(--s-3);
+}
+.title {
+  font: 600 26px/1.1 var(--font-sans);
+  letter-spacing: -0.022em;
+  color: var(--c-text);
+}
+.title em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
+}
+
+.entry {
+  padding: var(--s-5) 0;
+  border-top: 1px solid var(--c-line);
+}
+.entry:first-of-type { border-top: none; padding-top: 0; }
+.entryHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+}
+.entryVersion {
+  font: 600 18px/1 var(--font-mono);
+  letter-spacing: -0.012em;
+  color: var(--c-text);
+}
+.entryDate {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+.entryBody {
+  font: 400 14px/1.6 var(--font-sans);
+  color: var(--c-text-muted);
+  white-space: pre-wrap;
+}
+
+.actions {
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--c-line);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-3);
+}
