@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { Eyebrow } from '../Eyebrow/Eyebrow';
 import { Pill } from '../Pill/Pill';
-import { useClubMembers } from '../../hooks/useClubs';
-import type { ClubMember } from '../../lib/clubsApi';
+import { useClubMembers, useClubs } from '../../hooks/useClubs';
+import type { Club, ClubMember } from '../../lib/clubsApi';
 import styles from './ClubDashboard.module.css';
 
 interface ClubDashboardProps {
@@ -26,6 +27,9 @@ interface ClubDashboardProps {
 export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
   const members = useClubMembers(clubId);
   const memberCount = members.data?.length ?? 0;
+  const clubs = useClubs();
+  const club: Club | undefined = clubs.data?.find((c) => c.id === clubId);
+  const isAdmin = role === 'admin';
 
   return (
     <div className={styles.root}>
@@ -38,6 +42,13 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
           <StatTile value="—" label="Collective load" />
         </div>
       </section>
+
+      {isAdmin && club?.invite_code && (
+        <section className={styles.section}>
+          <Eyebrow rule tone="accent">Invite</Eyebrow>
+          <InviteLinkCard code={club.invite_code} />
+        </section>
+      )}
 
       <section className={styles.section}>
         <Eyebrow rule>Members</Eyebrow>
@@ -150,6 +161,40 @@ function MemberRow({ member }: { member: ClubMember }) {
         <span className={styles.memberJoined}>Joined {joinedDate}</span>
       </div>
       <Pill dot tone={roleTone}>{member.role}</Pill>
+    </div>
+  );
+}
+
+function InviteLinkCard({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const link = typeof window !== 'undefined'
+    ? `${window.location.origin}/join/${code}`
+    : `/join/${code}`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Older browsers — fall back to selection prompt.
+      window.prompt('Copy this invite link', link);
+    }
+  }
+
+  return (
+    <div className={styles.inviteCard}>
+      <div className={styles.inviteBody}>
+        <span className={styles.inviteLabel}>Share with your circle</span>
+        <code className={styles.inviteUrl}>{link}</code>
+        <span className={styles.inviteHelp}>
+          Anyone with this link who connects via Strava joins the club. Admins
+          stay admins; everyone else joins as a member.
+        </span>
+      </div>
+      <button type="button" className={styles.copyBtn} onClick={copy} aria-live="polite">
+        {copied ? 'Copied' : 'Copy link'}
+      </button>
     </div>
   );
 }

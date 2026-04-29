@@ -54,6 +54,13 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+export interface JoinClubResponse {
+  id: number;
+  name: string;
+  description: string | null;
+  role: 'admin' | 'member' | string;
+}
+
 export const clubsApi = {
   list: () => call<{ clubs: Club[] }>('/api/clubs').then((r) => r.clubs),
   create: (input: CreateClubInput) =>
@@ -62,4 +69,6 @@ export const clubsApi = {
     call<{ club_id: number; members: ClubMember[] }>(`/api/clubs/${clubId}/members`).then(
       (r) => r.members,
     ),
+  join: (code: string) =>
+    call<JoinClubResponse>(`/api/clubs/join/${encodeURIComponent(code)}`, { method: 'POST', body: '{}' }),
 };

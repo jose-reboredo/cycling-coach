@@ -2,7 +2,18 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.6.0](./CHANGELOG.md#860--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+**Current release: [v9.0.0](./CHANGELOG.md#900--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+
+## What's new in v9.0.0
+
+**F4 invite-by-link + start of the Cadence Club product line.** Closes the v8.6.0 demo gap ("how does an admin add teammates?") and marks the major-version cutover. Subsequent v9.x patches land the brand swap, redesigned pages, and new auth per the v2.0 product redesign brief.
+
+- New `POST /api/clubs/join/:code` worker endpoint (Strava-auth, idempotent, 404 on unknown code per OWASP).
+- New `/join/$code` Tanstack route — auto-joins authed users, falls back to "Connect with Strava" CTA for new arrivals.
+- `<InviteLinkCard />` in the club Dashboard (admin-only) — shows the canonical join URL with a Copy button.
+- Mobile-first layout for both the JoinClub page and InviteLinkCard: stack by default, row layout at ≥768px, 44px touch targets.
+
+The `invite_code` column was populated on every `POST /api/clubs` since v8.6.0 — v9.0.0 only exposes it. No D1 migration.
 
 ## What's new in v8.6.0
 

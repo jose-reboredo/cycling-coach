@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v8.6.0';
+const WORKER_VERSION = 'v9.0.0';
 const BUILD_DATE = '2026-04-29';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -246,6 +246,62 @@ export default {
       return new Response(JSON.stringify({ clubs: results || [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // POST /api/clubs/join/:code — Strava-auth required. Looks up club by
+    // invite_code, INSERTs caller as 'member' (idempotent — composite PK on
+    // club_members blocks duplicates; we surface the existing membership
+    // gracefully). 404 for unknown codes (OWASP — don't leak which codes are valid).
+    const joinMatch = url.pathname.match(/^\/api\/clubs\/join\/([A-Za-z0-9_-]+)$/);
+    if (joinMatch && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const code = joinMatch[1];
+      const db = env.cycling_coach_db;
+      const club = await db
+        .prepare('SELECT id, name, description, owner_athlete_id FROM clubs WHERE invite_code = ? LIMIT 1')
+        .bind(code)
+        .first();
+      if (!club) {
+        return new Response(JSON.stringify({ error: 'invite link not found or expired' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // Idempotent join: try INSERT, swallow PK conflict (already member).
+      const now = Math.floor(Date.now() / 1000);
+      let role = 'member';
+      try {
+        await db
+          .prepare("INSERT INTO club_members (club_id, athlete_id, role, joined_at) VALUES (?, ?, 'member', ?)")
+          .bind(club.id, authResult.athleteId, now)
+          .run();
+      } catch (e) {
+        // Already a member — look up actual role (could be 'admin' if they're the owner).
+        const existing = await db
+          .prepare('SELECT role FROM club_members WHERE club_id = ? AND athlete_id = ? LIMIT 1')
+          .bind(club.id, authResult.athleteId)
+          .first();
+        if (existing?.role) {
+          role = existing.role;
+        } else {
+          // Genuinely unexpected error — log and 500.
+          safeWarn(`[clubs] join failed for athlete ${authResult.athleteId} club ${club.id}: ${e.message}`);
+          return new Response(JSON.stringify({ error: 'could not join club' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      return new Response(JSON.stringify({
+        id: club.id,
+        name: club.name,
+        description: club.description,
+        role,
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const membersMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/members$/);

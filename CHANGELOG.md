@@ -4,6 +4,41 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.0.0] — 2026-04-29
+
+**Clubs MVP — F4 invite-by-link, shipped as v9.0.0 per Jose's call.** Fills the demo-blocking gap from v8.6.0 ("how does an admin add teammates?"). The `clubs` table already had `invite_code TEXT UNIQUE` populated on every create from F1; this release exposes it. Also marks the start of the Cadence Club product line — subsequent v9.x releases land the brand swap, redesigned pages, email/password auth, and B2B layer per the v2.0 redesign brief.
+
+Mobile-first: the new `<InviteLinkCard />` and `/join/$code` page stack vertically by default and reflow to row layouts at ≥768px. All new touch targets meet 44px minimum. Existing v8.6.0 components remain at their v8.6.0 mobile fitness; comprehensive mobile-first audit lands in v9.1.0 brand-swap.
+
+### Added
+
+- **`POST /api/clubs/join/:code`** worker endpoint — Strava-auth required. Looks up the club by `invite_code`; on hit, INSERTs the caller as `member`. Idempotent (existing-member case returns the persisted role gracefully). Returns 404 for unknown codes (OWASP — consistent with the v8.6.0 membership-check pattern).
+- **`/join/$code` route** (Tanstack file-based) — landing page that auto-resolves the invite. Three branches: not authed → "Connect with Strava" CTA (and stashes the code in `cc_pendingInvite` localStorage so future flows can resume); authed → POSTs to the join endpoint, calls `setClub()` in AppContext on success, redirects to `/dashboard` after a brief beat; error → "invite link not valid or expired" with a link to dashboard.
+- **`<InviteLinkCard />` in ClubDashboard** — admin-only. Shows `${origin}/join/${invite_code}` in mono with a "Copy link" button (uses `navigator.clipboard.writeText` with a `window.prompt` fallback). Helper copy: "Anyone with this link who connects via Strava joins the club."
+- **`useJoinClub()`** Tanstack mutation + `clubsApi.join(code)` method — same shape as the existing `useCreateClub()` pair, invalidates `['clubs','mine']` on success.
+
+### Behavior
+
+- Non-admins do NOT see the invite link — `<InviteLinkCard />` only renders when `role === 'admin'`. Members see the same Dashboard as v8.6.0 (members list, stats, roadmap card, hint).
+- The first user to use a fresh invite link is added as `member` regardless of who created it. Founders / admins remain `admin` because they were inserted as such on club creation (F1).
+- `cc_pendingInvite` is removed from localStorage on successful join; failed joins keep it (so a retry from the same browser still works).
+
+### Verification
+
+- `npm run build:web` clean (vite + tsc -b)
+- `E2E_TARGET_PROD=1 npm run test` → expected to remain green; no test paths touch the new endpoint or route.
+- Smoke probes against deployed v8.6.1: routing (`/api/clubs/join/anything` returns Worker JSON, not SPA), no-auth → 401, valid auth + invalid code → 404, valid auth + valid code → 200 + role-mapped response.
+
+### Explicitly NOT in v9.0.0 (deferred to v9.x)
+
+- Per-code expiry, regeneration, or use-count cap. The code is permanent in v9.0.0; v9.2.0 introduces a richer invitation model with TTLs.
+- Email-based invitations (Resend not wired). Falls under v9.3.0 (auth + email).
+- Brand-rename to "Cadence Club" — lands as v9.1.0 brand swap (palette: Brass `#B8956A` + Forest Green `#2C5530`, name + copy voice).
+- Email/password authentication via Better Auth — v9.3.0.
+- Homepage three-column value prop, onboarding flow, settings page, B2B placeholder — v9.2.0.
+
+---
+
 ## [8.6.0] — 2026-04-29
 
 **Clubs MVP — vertical slice for stakeholder demo.** Demonstrates the "amateur cycling club as unit of use" thesis with a working end-to-end flow against production D1: create club → see context switcher → flip into club view → see members list. No auth changes, no D1 migrations — uses the existing `clubs` + `club_members` tables.
