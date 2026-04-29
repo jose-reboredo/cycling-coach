@@ -30,7 +30,7 @@ export function Privacy() {
           <article className={styles.body}>
             <Section num="01" title="The short version">
               <p>
-                Cycling Coach is a self-hosted hobby project. There's no marketing email list,
+                Cadence Club is a small product run by a single maintainer. There's no marketing email list,
                 no third-party analytics, no ads. Your Strava data lives in
                 <strong> your browser's localStorage</strong> — and, optionally, in our D1
                 database keyed by your Strava athlete ID.

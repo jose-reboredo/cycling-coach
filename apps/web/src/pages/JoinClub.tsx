@@ -87,8 +87,8 @@ export function JoinClub({ code }: JoinClubProps) {
               <>
                 <h1 className={styles.title}>Connect Strava to <em>join</em>.</h1>
                 <p className={styles.lede}>
-                  Cycling Coach uses your Strava account to authenticate. We'll add
-                  you to the club right after you connect.
+                  Cadence Club uses Strava to authenticate. You'll be added to the
+                  club after you connect.
                 </p>
                 <div className={styles.actions}>
                   <Button variant="primary" size="md" href={connectUrl()} withArrow>

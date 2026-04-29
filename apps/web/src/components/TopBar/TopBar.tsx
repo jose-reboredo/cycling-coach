@@ -20,8 +20,8 @@ export function TopBar({ variant = 'marketing', trailing }: TopBarProps) {
       <Link to="/" className={styles.brand}>
         <BikeMark size={24} className={styles.mark} />
         <span className={styles.brandName}>
-          Cycling Coach
-          <span className={styles.brandBadge}>v8</span>
+          Cadence Club
+          <span className={styles.brandBadge}>v9</span>
         </span>
       </Link>
       {trailing ? <div className={styles.trailing}>{trailing}</div> : null}

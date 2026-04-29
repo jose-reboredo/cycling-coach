@@ -13,7 +13,7 @@ export function AppFooter() {
           <div className={styles.footBrand}>
             <BikeMark size={28} />
             <div>
-              <p className={styles.footName}>Cycling Coach</p>
+              <p className={styles.footName}>Cadence Club</p>
               <p className={styles.footTag}>
                 A performance training brain. Built quietly,<br/>
                 for cycling friends, with no investors.
@@ -40,7 +40,7 @@ export function AppFooter() {
         </div>
         <div className={styles.footBottom}>
           <span>{APP_VERSION}</span>
-          <span>© Cycling Coach · Strava® is a registered trademark of Strava, Inc.</span>
+          <span>© Cadence Club · Strava® is a registered trademark of Strava, Inc.</span>
         </div>
       </Container>
     </footer>

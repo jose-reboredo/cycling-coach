@@ -40,7 +40,7 @@ export function Landing() {
         <Container width="base">
           <motion.div className={styles.heroInner} {...fade}>
             <Pill tone="accent" dot>
-              For the performance-driven amateur · v8
+              For the performance-driven amateur · v9
             </Pill>
 
             <h1 className={styles.heroH1}>
@@ -203,7 +203,7 @@ export function Landing() {
             num="03"
             title="Routes that match the plan"
             kicker="Saved Strava routes, ranked by today's target."
-            body="Picking the right route is half the workout. Cycling Coach reads your saved Strava routes, scores them against today's target zone and duration, and surfaces the top three."
+            body="Picking the right route is half the workout. Cadence Club reads your saved Strava routes, scores them against today's target zone and duration, and surfaces the top three."
             visual={<RoutePreview />}
           />
         </Container>
@@ -219,7 +219,7 @@ export function Landing() {
               Bring your own key.
             </h2>
             <p className={styles.sectionLede}>
-              Cycling Coach itself costs nothing. AI coaching uses your own Anthropic
+              Cadence Club itself costs nothing. AI coaching uses your own Anthropic
               API key — about $0.02 per report. Most users spend less than $0.50 a month total.
             </p>
           </div>

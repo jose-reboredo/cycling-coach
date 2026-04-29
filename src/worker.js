@@ -1,5 +1,5 @@
 // ============================================================
-// Cycling Coach - SaaS Worker
+// Cadence Club - SaaS Worker
 // Landing + Dashboard + Privacy + AI Coaching + Charts + Goals + Webhooks
 // ============================================================
 // Required environment variables in Cloudflare:
@@ -678,7 +678,7 @@ Respond ONLY with valid JSON, no markdown:
     // Version endpoint for quick health/version check
     if (url.pathname === '/version') {
       return new Response(JSON.stringify({
-        service: 'Cycling Coach',
+        service: 'Cadence Club',
         version: WORKER_VERSION,
         build_date: BUILD_DATE,
         status: 'ok',
@@ -1022,7 +1022,7 @@ async function generateDocs(env, ctx) {
     };
   }
 
-  const sharedContext = `Project: Cycling Coach
+  const sharedContext = `Project: Cadence Club
 Latest release: ${ctx.version} (${ctx.date})
 Roadmap: ${ctx.openIssues} open / ${ctx.shippedIssues} shipped (across milestones)
 
@@ -2063,7 +2063,7 @@ function callbackPage(tokenData, origin, fromPwa) {
   if (fromPwa) {
     return `<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Connected · Cycling Coach</title>
+<title>Connected · Cadence Club</title>
 <style>
 html,body{background:#08090b;color:#f0f1f3;font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:24px;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .card{max-width:480px;background:#16181d;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:32px;box-shadow:0 24px 64px rgba(0,0,0,.5)}
@@ -2083,8 +2083,8 @@ p{color:#7d8290;line-height:1.5;margin:0 0 16px}
 <p>Copy your tokens, then paste them in the home-screen app.</p>
 <div class="step"><b>1.</b> Tap "Copy tokens" below.</div>
 <button id="copyBtn" class="btn">Copy tokens</button>
-<div class="ok" id="okMsg">✓ Copied — switch back to Cycling Coach.</div>
-<div class="step"><b>2.</b> Open Cycling Coach from your home screen.</div>
+<div class="ok" id="okMsg">✓ Copied — switch back to Cadence Club.</div>
+<div class="step"><b>2.</b> Open Cadence Club from your home screen.</div>
 <div class="step"><b>3.</b> On the connect screen, paste the tokens.</div>
 <details style="margin-top:16px"><summary style="color:#7d8290;cursor:pointer;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase">Show raw tokens</summary>
 <div class="tokens" id="rawTokens"></div></details>
@@ -2115,7 +2115,7 @@ function errorPage(message) {
   const safe = String(message).replace(/[<>&"']/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;' }[c]));
   return `<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Error · Cycling Coach</title>
+<title>Error · Cadence Club</title>
 <style>
 html,body{background:#08090b;color:#f0f1f3;font-family:-apple-system,sans-serif;margin:0;padding:24px;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .card{max-width:440px;background:#16181d;border:1px solid rgba(255,255,255,.1);border-left:2px solid #ef4444;border-radius:10px;padding:32px}
