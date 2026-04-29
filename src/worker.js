@@ -1556,11 +1556,11 @@ async function fileAuditIssues(env) {
         '## Audit deferral — H6b\n2026-04-28 dashboard audit (`docs/superpowers/specs/2026-04-28-dashboard-design-audit.md`).\n\n### Problem\n`RideDetail` expand animation uses `initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: \'auto\' }}`. Animating to `height: auto` forces Motion to measure target height each frame and triggers layout — it\'s the explicit anti-pattern called out in the ui-ux-pro-max react-performance.csv: \'Use transform and opacity for animations\'.\n\n`VolumeChart` bars were already swapped to `scaleY` in commit `426f24e`; this issue tracks the trickier RideDetail case.\n\n### Options\n- (a) Drop the height animation entirely, keep opacity-fade. Layout snap is OK for an expand panel; Strava does the same.\n- (b) Use `<details>` element with CSS `interpolate-size: allow-keywords` (Chromium-only, recent — would need fallback).\n- (c) Measure with `ResizeObserver` on first open, cache the height per-rideId, animate to a number.\n\nRecommendation: (a) — simplest, removes the anti-pattern entirely. The opacity fade alone reads as \'expand\'.\n\n### Acceptance\n- [ ] RideDetail.tsx initial/animate/exit no longer reference `height`\n- [ ] Visual smoke test: expand a ride at 375px, confirm content reveals smoothly\n- [ ] React DevTools Profiler shows no layout passes during expand',
     },
     {
-      title: 'Accent #b8956a fails AA contrast for small text — introduce --c-accent-light',
+      title: 'Accent #ff4d00 fails AA contrast for small text — introduce --c-accent-light',
       labels: ['priority:medium', 'area:design-system', 'type:a11y'],
       milestone: 'v8.5.0',
       body:
-        '## Audit deferral — H8\n2026-04-28 dashboard audit. Touches the design system, deferred for a deliberate pass.\n\n### Problem\nMolten orange `#b8956a` on canvas `#0a0a0c` is approximately 3.9:1 — fails WCAG AA for normal text (<24px / <19px bold), passes for large text. PARS uses the accent for some small mono labels:\n\n- `Pill.accent` (10px mono uppercase)\n- `.brandBadge` \'v8\' (9px mono)\n- `.surfaceEm` icon 12px\n- `.matchHigh` 22px is borderline (large-text threshold 19px bold / 24px regular)\n- `.bulletGood::before` decorative line — not text, exempt\n\n### Proposal\nIntroduce a sibling token `--c-accent-light: #ff7a3d` (≈ 5.2:1 on canvas), specifically for ≤14px usage. Don\'t change `--c-accent` itself — the brand call-to-action color stays. Audit the call-sites and swap the accent token for accent-light only on small-text instances.\n\n### Open question\nDoes the accent-light shift the brand feel? If so, alternative: brighten `--c-accent` itself slightly (e.g. `#ff5e1a`) to lift the whole system above 4.5:1. Single-source change, but every accent surface gets warmer.\n\n### Acceptance\n- [ ] Decision logged: introduce token vs. shift the existing one\n- [ ] All accent-on-canvas text ≤14px audited and brought to 4.5:1\n- [ ] Confluence "User Interfaces" page updated with the contrast rule\n- [ ] No regressions in PARS "feel" — review with design eye after change',
+        '## Audit deferral — H8\n2026-04-28 dashboard audit. Touches the design system, deferred for a deliberate pass.\n\n### Problem\nMolten orange `#ff4d00` on canvas `#0a0a0c` is approximately 3.9:1 — fails WCAG AA for normal text (<24px / <19px bold), passes for large text. PARS uses the accent for some small mono labels:\n\n- `Pill.accent` (10px mono uppercase)\n- `.brandBadge` \'v8\' (9px mono)\n- `.surfaceEm` icon 12px\n- `.matchHigh` 22px is borderline (large-text threshold 19px bold / 24px regular)\n- `.bulletGood::before` decorative line — not text, exempt\n\n### Proposal\nIntroduce a sibling token `--c-accent-light: #ff7a3d` (≈ 5.2:1 on canvas), specifically for ≤14px usage. Don\'t change `--c-accent` itself — the brand call-to-action color stays. Audit the call-sites and swap the accent token for accent-light only on small-text instances.\n\n### Open question\nDoes the accent-light shift the brand feel? If so, alternative: brighten `--c-accent` itself slightly (e.g. `#ff5e1a`) to lift the whole system above 4.5:1. Single-source change, but every accent surface gets warmer.\n\n### Acceptance\n- [ ] Decision logged: introduce token vs. shift the existing one\n- [ ] All accent-on-canvas text ≤14px audited and brought to 4.5:1\n- [ ] Confluence "User Interfaces" page updated with the contrast rule\n- [ ] No regressions in PARS "feel" — review with design eye after change',
     },
     {
       title: 'BottomNav active tab should sync to scroll position, not last click',
@@ -2068,10 +2068,10 @@ function callbackPage(tokenData, origin, fromPwa) {
 html,body{background:#08090b;color:#f0f1f3;font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:24px;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .card{max-width:480px;background:#16181d;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:32px;box-shadow:0 24px 64px rgba(0,0,0,.5)}
 h1{font-weight:700;font-size:28px;letter-spacing:-.025em;margin:0 0 12px}
-em{font-style:italic;color:#b8956a}
+em{font-style:italic;color:#ff4d00}
 p{color:#7d8290;line-height:1.5;margin:0 0 16px}
-.tokens{font-family:ui-monospace,monospace;background:#000;border:1px solid rgba(184,149,106,.3);border-radius:8px;padding:14px;font-size:11px;color:#d4b98c;word-break:break-all;max-height:120px;overflow:auto;margin:12px 0}
-.btn{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:14px;border-radius:6px;background:#b8956a;color:#000;font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;border:none;cursor:pointer;text-decoration:none;font-family:inherit}
+.tokens{font-family:ui-monospace,monospace;background:#000;border:1px solid rgba(255,77,0,.3);border-radius:8px;padding:14px;font-size:11px;color:#ff8c44;word-break:break-all;max-height:120px;overflow:auto;margin:12px 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:14px;border-radius:6px;background:#ff4d00;color:#000;font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;border:none;cursor:pointer;text-decoration:none;font-family:inherit}
 .btn:hover{filter:brightness(1.1)}
 .ok{display:none;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#4ade80;padding:10px;border-radius:6px;margin-top:12px;font-size:13px}
 .ok.shown{display:block}
@@ -2104,7 +2104,7 @@ document.getElementById('copyBtn').addEventListener('click',async()=>{
   // Standard browser flow: drop tokens into localStorage and bounce to /dashboard.
   return `<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><title>Connecting…</title>
-<style>html,body{background:#08090b;color:#f0f1f3;font-family:-apple-system,sans-serif;margin:0;height:100vh;display:flex;align-items:center;justify-content:center}.dot{width:8px;height:8px;background:#b8956a;border-radius:50%;animation:p 1.2s ease-in-out infinite;margin-right:10px}@keyframes p{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}</style>
+<style>html,body{background:#08090b;color:#f0f1f3;font-family:-apple-system,sans-serif;margin:0;height:100vh;display:flex;align-items:center;justify-content:center}.dot{width:8px;height:8px;background:#ff4d00;border-radius:50%;animation:p 1.2s ease-in-out infinite;margin-right:10px}@keyframes p{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}</style>
 </head><body>
 <div style="display:flex;align-items:center"><span class="dot"></span><span style="color:#7d8290;font-size:14px">Loading dashboard…</span></div>
 <script>try{localStorage.setItem('cc_tokens','${escaped}');}catch(e){}setTimeout(()=>{window.location.href='${origin}/dashboard';},400);</script>
@@ -2121,7 +2121,7 @@ html,body{background:#08090b;color:#f0f1f3;font-family:-apple-system,sans-serif;
 .card{max-width:440px;background:#16181d;border:1px solid rgba(255,255,255,.1);border-left:2px solid #ef4444;border-radius:10px;padding:32px}
 h1{font-weight:700;font-size:24px;letter-spacing:-.02em;margin:0 0 16px}em{font-style:italic;color:#ef4444}
 .msg{font-family:ui-monospace,monospace;background:#1f232a;border-left:2px solid #ef4444;padding:12px;border-radius:0 6px 6px 0;font-size:13px;color:#b8bcc4;word-break:break-word;margin:16px 0}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;background:#b8956a;color:#000;font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;border-radius:6px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;background:#ff4d00;color:#000;font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;border-radius:6px}
 </style></head><body>
 <div class="card">
 <h1>Authorization <em>failed</em>.</h1>

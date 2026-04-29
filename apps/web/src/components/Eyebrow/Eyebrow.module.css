@@ -18,10 +18,6 @@
   color: var(--c-accent);
 }
 
-.success {
-  color: var(--c-success);
-}
-
 .rule {
   display: inline-block;
   width: 28px;

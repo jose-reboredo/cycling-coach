@@ -69,7 +69,7 @@ export function ProgressRing({
           animate={{ strokeDashoffset: dashOffset }}
           transition={{ duration: 1.2, ease: [0.34, 1.56, 0.64, 1] }}
           style={{
-            filter: `drop-shadow(0 0 8px ${color === 'var(--c-accent)' ? 'rgba(184, 149, 106,.45)' : 'transparent'})`,
+            filter: `drop-shadow(0 0 8px ${color === 'var(--c-accent)' ? 'rgba(255,77,0,.45)' : 'transparent'})`,
           }}
         />
       </svg>

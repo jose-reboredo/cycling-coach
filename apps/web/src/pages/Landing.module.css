@@ -577,7 +577,7 @@
   margin: 0 calc(-1 * var(--s-5));
   padding: var(--s-5);
   border-radius: var(--r-md);
-  border-bottom: 1px solid rgba(184, 149, 106,.22);
+  border-bottom: 1px solid rgba(255,77,0,.22);
   margin-top: var(--s-3);
 }
 .priceRowEmph .pricePrice {

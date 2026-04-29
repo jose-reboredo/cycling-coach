@@ -115,7 +115,7 @@
 
 .barDistance {
   background: var(--c-accent);
-  box-shadow: 0 0 6px rgba(184, 149, 106, 0.3);
+  box-shadow: 0 0 6px rgba(255, 77, 0, 0.3);
 }
 
 .barElevation {

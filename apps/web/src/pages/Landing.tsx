@@ -387,11 +387,11 @@ function ClimbProfile({ dense = false }: { dense?: boolean }) {
     <svg className={styles.climb} viewBox="0 0 1600 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <defs>
         <linearGradient id="climbGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(184, 149, 106,.10)" />
-          <stop offset="100%" stopColor="rgba(184, 149, 106,0)" />
+          <stop offset="0%" stopColor="rgba(255,77,0,.10)" />
+          <stop offset="100%" stopColor="rgba(255,77,0,0)" />
         </linearGradient>
       </defs>
-      <g fill="none" stroke="rgba(184, 149, 106,.10)" strokeWidth={1}>
+      <g fill="none" stroke="rgba(255,77,0,.10)" strokeWidth={1}>
         {Array.from({ length: dense ? 9 : 7 }).map((_, i) => {
           const y = 700 - i * (dense ? 50 : 70);
           return (

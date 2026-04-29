@@ -98,14 +98,12 @@ function ClubHeader({
   role: string;
   memberCount: number;
 }) {
-  // v9.1.0 semantics: admin = Brass (active power); member = neutral
-  // (baseline state, not an achievement). No `success` (Forest Green) here.
-  const isAdmin = role === 'admin';
+  const roleTone: 'accent' | 'success' = role === 'admin' ? 'accent' : 'success';
   return (
     <header className={styles.header}>
       <div className={styles.headerRow}>
         <Eyebrow rule tone="accent">Club</Eyebrow>
-        {isAdmin ? <Pill dot tone="accent">{role}</Pill> : <Pill dot>{role}</Pill>}
+        <Pill dot tone={roleTone}>{role}</Pill>
       </div>
       <h1 className={styles.title}>
         <em>{name}</em>
@@ -150,7 +148,7 @@ function MemberRow({ member }: { member: ClubMember }) {
     month: 'short',
     year: 'numeric',
   });
-  const isAdmin = member.role === 'admin';
+  const roleTone: 'accent' | 'success' = member.role === 'admin' ? 'accent' : 'success';
   return (
     <div className={styles.member}>
       {member.profile_url ? (
@@ -162,7 +160,7 @@ function MemberRow({ member }: { member: ClubMember }) {
         <span className={styles.memberName}>{fullName}</span>
         <span className={styles.memberJoined}>Joined {joinedDate}</span>
       </div>
-      {isAdmin ? <Pill dot tone="accent">{member.role}</Pill> : <Pill dot>{member.role}</Pill>}
+      <Pill dot tone={roleTone}>{member.role}</Pill>
     </div>
   );
 }
