@@ -428,10 +428,23 @@ Respond ONLY with valid JSON, no markdown:
     }
  
     // ============= STRAVA WEBHOOK =============
-    // Strava webhook subscription verification (GET)
+    // Path-secret defence (#17): canonical URL is /webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>.
+    // Worker registers only the secret URL with Strava when multi-user approval lands.
+    // Legacy /webhook and any /webhook/<wrong-secret> return 404 (OWASP — don't leak
+    // existence of the canonical path to attackers).
+    //
+    // Without STRAVA_WEBHOOK_PATH_SECRET set, the entire /webhook* surface is dormant
+    // (returns 404 to everything). That's intentional — single-user mode today, no
+    // active webhook subscription. See SECURITY.md "Deploy runbook".
+    const webhookPathOk =
+      typeof env.STRAVA_WEBHOOK_PATH_SECRET === 'string' &&
+      env.STRAVA_WEBHOOK_PATH_SECRET.length > 0 &&
+      url.pathname === `/webhook/${env.STRAVA_WEBHOOK_PATH_SECRET}`;
+
+    // Strava webhook subscription verification (GET).
     // Fail-closed: if STRAVA_VERIFY_TOKEN isn't set, return 503 rather than
     // accepting any guess that matches a hardcoded fallback (#19).
-    if (url.pathname === '/webhook' && request.method === 'GET') {
+    if (webhookPathOk && request.method === 'GET') {
       if (!env.STRAVA_VERIFY_TOKEN) {
         return new Response('Webhook verification not configured', { status: 503 });
       }
@@ -445,18 +458,23 @@ Respond ONLY with valid JSON, no markdown:
       }
       return new Response('Forbidden', { status: 403 });
     }
-    // Strava webhook event delivery (POST)
+    // Strava webhook event delivery (POST).
     // Note: We can't auto-sync tokens here because webhook events have no user context
     // beyond athlete_id. Without persistent token storage (KV/D1), we just log.
     // Browser-side polling on dashboard load handles the actual sync.
-    if (url.pathname === '/webhook' && request.method === 'POST') {
+    if (webhookPathOk && request.method === 'POST') {
       try {
         const event = await request.json();
         // Strava expects fast 200 response. Logging only since architecture is browser-storage.
         // safeLog redacts any sensitive patterns before they hit persistent logs (#20).
         safeLog('Webhook event:', event);
-      } catch {}
+      } catch { /* malformed body — Strava expects 200 anyway */ }
       return new Response('OK', { status: 200 });
+    }
+    // Catch-all for /webhook* paths that don't match the secret path.
+    // Returns 404 (not 403) per OWASP — don't leak existence of the canonical path.
+    if (url.pathname === '/webhook' || url.pathname.startsWith('/webhook/')) {
+      return new Response('Not Found', { status: 404 });
     }
  
     // Version endpoint for quick health/version check
