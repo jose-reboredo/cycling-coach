@@ -3,7 +3,6 @@ import { Container } from '../components/Container/Container';
 import { Button } from '../components/Button/Button';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
 import { Pill } from '../components/Pill/Pill';
-import { BikeMark } from '../components/BikeMark/BikeMark';
 import { GrainOverlay } from '../components/GrainOverlay/GrainOverlay';
 import { ZonePill } from '../components/ZonePill/ZonePill';
 import { PmcStrip } from '../components/PmcStrip/PmcStrip';
@@ -263,44 +262,6 @@ export function Landing() {
         </Container>
       </section>
 
-      {/* FOOTER */}
-      <footer className={styles.foot}>
-        <Container width="base">
-          <div className={styles.footTop}>
-            <div className={styles.footBrand}>
-              <BikeMark size={28} />
-              <div>
-                <p className={styles.footName}>Cycling Coach</p>
-                <p className={styles.footTag}>
-                  A performance training brain. Built quietly,<br/>
-                  for cycling friends, with no investors.
-                </p>
-              </div>
-            </div>
-            <div className={styles.footCols}>
-              <FootCol title="Product" links={[
-                { href: '/dashboard', label: 'Dashboard' },
-                { href: connectUrl(), label: 'Connect Strava' },
-                { href: '#what', label: 'What you get' },
-                { href: '/whats-next', label: "What's next" },
-              ]} />
-              <FootCol title="Trust" links={[
-                { href: '/privacy', label: 'Privacy' },
-                { href: 'https://www.strava.com/settings/apps', label: 'Revoke access', external: true },
-              ]} />
-              <FootCol title="Powered by" links={[
-                { href: 'https://www.strava.com', label: 'Strava API', external: true },
-                { href: 'https://www.anthropic.com', label: 'Anthropic Claude', external: true },
-                { href: 'https://workers.cloudflare.com', label: 'Cloudflare Workers', external: true },
-              ]} />
-            </div>
-          </div>
-          <div className={styles.footBottom}>
-            <span className={styles.footVer}>v8.5.2 · April 2026</span>
-            <span className={styles.footRights}>© Cycling Coach · Strava® is a registered trademark of Strava, Inc.</span>
-          </div>
-        </Container>
-      </footer>
     </div>
   );
 }
@@ -412,25 +373,6 @@ function PriceRow({ label, price, detail, emphasis }: { label: string; price: st
       <span className={styles.priceLabel}>{label}</span>
       <span className={styles.pricePrice}>{price}</span>
       <span className={styles.priceDetail}>{detail}</span>
-    </div>
-  );
-}
-
-function FootCol({ title, links }: { title: string; links: { href: string; label: string; external?: boolean }[] }) {
-  return (
-    <div>
-      <Eyebrow>{title}</Eyebrow>
-      <ul className={styles.footColList}>
-        {links.map((l) => (
-          <li key={l.label}>
-            {l.external ? (
-              <a href={l.href} target="_blank" rel="noopener noreferrer">{l.label}</a>
-            ) : (
-              <a href={l.href}>{l.label}</a>
-            )}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

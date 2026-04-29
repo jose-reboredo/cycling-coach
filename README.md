@@ -2,7 +2,7 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.5.2](./CHANGELOG.md#852--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+**Current release: [v8.5.3](./CHANGELOG.md#853--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
 
 ## What's new in v8.5.2
 

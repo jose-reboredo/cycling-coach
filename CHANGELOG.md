@@ -4,6 +4,21 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [8.5.3] — 2026-04-29
+
+UX hotfix on top of v8.5.2. The global site footer (brand block + Product / Trust / Powered-by columns + version + © line) was rendered only on the Landing page because its JSX lived inside `Landing.tsx`. Every other route — Dashboard, /whats-next, /privacy, etc. — shipped without it. Founder caught the regression visually post-deploy of v8.5.2.
+
+### Fixed
+
+- **Global footer now renders on every route.** Extracted the footer JSX + the `FootCol` subcomponent + the `.foot*` CSS rules out of `apps/web/src/pages/Landing.tsx` into a new shared component `apps/web/src/components/AppFooter/AppFooter.tsx` (+ `.module.css`). Mounted once in `apps/web/src/routes/__root.tsx` after `<Outlet />` so the Tanstack Router root layout renders it on all routes. Visual + content unchanged from v8.5.2 — pure structural relocation.
+- **Single source of truth for the user-facing version string.** New `apps/web/src/lib/version.ts` exports `APP_VERSION` (`v8.5.3 · April 2026`). The footer reads from this constant instead of hardcoding the version on each release. Future bumps = one edit instead of one-per-page (de-risks the regression that allowed this hotfix).
+
+### Process
+
+- Lesson: the v8.5.2 release-cut commit bumped the version *string* in Landing.tsx without verifying the footer rendered elsewhere. Visual smoke on a single page passed; cross-route check would have caught it. Adding to release checklist: after every version bump, click through Landing → Dashboard → /whats-next → /privacy and confirm header + footer render on each.
+
+---
+
 ## [8.5.2] — 2026-04-29
 
 Phase 2 tail — closes the remaining Phase 2 security issues (#17, #18) plus a docs-integrity pass on the Confluence spec pages and a new per-page deploy-audit footer feature requested by the CTO during v8.5.1 sign-off.

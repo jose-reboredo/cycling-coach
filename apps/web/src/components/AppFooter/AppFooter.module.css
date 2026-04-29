@@ -1,0 +1,69 @@
+.foot {
+  padding: var(--s-12) 0 var(--s-10);
+}
+
+.footTop {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-10);
+  padding-bottom: var(--s-8);
+  border-bottom: 1px solid var(--c-line);
+}
+@media (min-width: 768px) {
+  .footTop {
+    grid-template-columns: 1.4fr 2fr;
+    gap: var(--s-12);
+  }
+}
+
+.footBrand {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+}
+
+.footName {
+  font: italic 400 22px/1 var(--font-sans);
+  letter-spacing: -0.012em;
+  color: var(--c-text);
+  margin-bottom: var(--s-2);
+}
+
+.footTag {
+  font: italic 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+}
+
+.footCols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-6);
+}
+
+.footColList {
+  margin-top: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.footColList a {
+  color: var(--c-text-muted);
+  font: 400 14px/1.5 var(--font-sans);
+  transition: color var(--d-fast) var(--e-out);
+}
+.footColList a:hover {
+  color: var(--c-accent);
+}
+
+.footBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding-top: var(--s-6);
+  font: 500 10px/1.4 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
