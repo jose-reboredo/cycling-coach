@@ -2,7 +2,21 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.5.1](./CHANGELOG.md#851--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+**Current release: [v8.5.2](./CHANGELOG.md#852--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+
+## What's new in v8.5.2
+
+Phase 2 tail of the v8.5.x backlog burn. Two security features (#17, #18) plus a docs-integrity pass on the 6 Confluence spec pages and a new per-page deploy-audit footer.
+
+- **`/webhook/<secret>` path-secret source verification** (#17) — canonical webhook URL is now `/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>`. Legacy `/webhook` and any wrong-secret path return **404** (OWASP — don't leak existence). Without the secret set, the entire `/webhook*` surface is dormant by design (single-user mode today, no active subscription).
+- **KV rate-limit on `/admin/document-release`** (#18) — defense-in-depth even though admin-auth-gated. **5 attempts/min/IP**, returns 429 with `Retry-After` on threshold; failed attempts logged via `safeWarn()` with source IP. Uses `DOCS_KV` namespace (Free-plan-compatible). Native Cloudflare rate-limit binding for `/api/*` and `/coach/*` deferred indefinitely (Workers Paid plan only).
+- **Per-page deploy footer on Confluence spec pages** — every spec page now carries a "Last touched by deploy vX.Y.Z on YYYY-MM-DD" footer at the bottom, rendered fresh on every `npm run deploy`. Body hash check still skips body rewrites when content unchanged; the footer is overlaid on every deploy so the audit trail "this page was reviewed during deploy v8.5.2" stays current. Six Confluence writes per deploy now (was zero on no-op deploys) — acceptable given the weekly cadence.
+- **Spec pages content sync** — Security page substantially updated to reflect v8.5.1 + v8.5.2 reality (issue references now show shipped status, milestones reflect housekeeping reslots). Systems & Architecture + Technical Spec pages updated to describe GitHub Actions CI accurately (Cloudflare Workers Builds intentionally not wired). API endpoints table now shows `/webhook/<secret>` instead of `/webhook` legacy.
+
+Operator action required for #17 to activate (zero-impact today since no webhook subscription exists). The secret value is format-validated at runtime — it must match `/^[0-9a-f]{32,}$/i`, which `openssl rand -hex 16` produces:
+```bash
+echo -n "$(openssl rand -hex 16)" | npx wrangler secret put STRAVA_WEBHOOK_PATH_SECRET
+```
 
 ## What's new in v8.5.1
 
