@@ -30,30 +30,45 @@ Cycling Coach is a single-user-per-browser web app deployed on Cloudflare Worker
 6. **Webhook verify-token leak in source** — pre-v8.5.1 the Worker had a hardcoded fallback `'cycling-coach-verify'`. Anyone reading the source on GitHub knew it. Mitigation: webhook GET is now fail-closed — returns 503 if `STRAVA_VERIFY_TOKEN` is missing from Worker secrets.
 7. **Admin endpoint exposure** — `/admin/*` routes (`document-release`, formerly `file-audit-issues`, etc.) handle high-impact operations. Mitigation: `requireAdmin()` checks `Authorization: Bearer ${ADMIN_SECRET}` on every call.
 
-## Shipped defences (live on `main` today)
+## Shipped defences (live on `main`)
 
-This section reflects what is shipped to production as of v8.5.1. Items in flight (planned for v8.5.2) live under "Planned defences" below.
+Each item carries the version-stamp in which it landed. "On `main`" is the git state — production gets these via `npm run deploy` (manual gate).
 
-- **Worker-side**
-  - `requireAdmin` (`Authorization: Bearer ${ADMIN_SECRET}`) on every `/admin/*` route — since v8.3.0.
-  - `redactSensitive` wraps high-risk `console.*` call sites (5 of 12 sites — webhook event log + 4 D1 error/parse paths). Patterns redacted: `api_key=`, `sk-ant-*`, `access_token=`, `refresh_token=`. Status/count logs like `[D1] Persisted N activities` are left as raw `console.log` because they don't interpolate untrusted data. Commit `16fff43`.
-  - Fail-closed `STRAVA_VERIFY_TOKEN` check — webhook GET returns 503 if the secret is not configured. No hardcoded fallback in source. Commit `16fff43`.
-- **Browser-side**
-  - React's default escaping (zero `dangerouslySetInnerHTML` usage).
-  - `localStorage` reads / writes wrapped in `try / catch` so corrupt entries can't crash the app.
-  - PWA service worker `NEVER_CACHE` excludes `/api/*`, `/authorize`, `/callback`, `/refresh`, `/coach*`, `/webhook`, `/version`, `/admin/*`, `/roadmap` from caching.
-- **Transport**
-  - HTTPS-only via Cloudflare. PWA `manifest.webmanifest` declares `start_url: /` over the workers.dev origin.
+### v8.3.0
+- `requireAdmin` (`Authorization: Bearer ${ADMIN_SECRET}`) on every `/admin/*` route.
 
-## Planned defences (v8.5.2 release, not yet started)
+### v8.5.1
+- **`redactSensitive` log helper** — wraps 5 of 12 high-risk `console.*` call sites (webhook event log + 4 D1 error/parse paths). Patterns redacted: `api_key=`, `sk-ant-*`, `access_token=`, `refresh_token=`. Status/count logs like `[D1] Persisted N activities` are left as raw `console.log` because they don't interpolate untrusted data. Commit `16fff43`.
+- **Fail-closed `STRAVA_VERIFY_TOKEN` check** — webhook GET returns 503 if the secret is not configured. No hardcoded fallback in source. Commit `16fff43`.
 
-- **Webhook path-secret** (#17) — `/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>` becomes the canonical webhook URL. Legacy `/webhook` and any `/webhook/<wrong-secret>` return **404** (OWASP — no info leak about path existence). Code path will land in v8.5.2; **webhook re-registration with Strava is deferred** until multi-user API approval (single-user mode today, no active webhook to migrate).
-- **KV-based rate-limit on `/admin/document-release`** (#18) — 5 attempts per minute per IP. Returns 429 with `Retry-After` header on threshold; failed attempts logged with source IP for monitoring. Uses `DOCS_KV` namespace (Free-plan-compatible). Defends against `ADMIN_SECRET` leak and runaway-loop bugs in CI.
+### v8.5.2 (cycle in progress — landing this release)
+- **Webhook path-secret** (#17) — `/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>` is the canonical webhook URL. Legacy `/webhook` and any `/webhook/<wrong-secret>` return **404** (OWASP — no info leak about path existence). The path-secret value is **validated at request time**: must match `/^[0-9a-f]{32,}$/i` (32+ lowercase hex chars). Malformed values cause all `/webhook*` requests to return 404 + a `safeWarn` log entry (server-side only). When the verify-token mismatches even though the path-secret was correct, also returns 404 (not 403) — preserves opacity throughout the verification chain. **Webhook re-registration with Strava is deferred** until multi-user API approval (single-user mode today, no active webhook to migrate).
+- **KV-based rate-limit on `/admin/document-release`** (#18) — defense-in-depth on the highest-risk admin endpoint. **Threshold semantics:** allows 5 successful requests within a 60-second window per source IP. The 6th request returns 429 with `Retry-After` set to the remaining seconds in the current minute bucket. Counter resets at next minute boundary. Failed attempts logged with source IP via `safeWarn()` for observability. Uses `DOCS_KV` namespace (Free-plan-compatible — no Workers Paid native rate-limit binding needed).
+
+### Browser-side
+- React's default escaping (zero `dangerouslySetInnerHTML` usage).
+- `localStorage` reads / writes wrapped in `try / catch` so corrupt entries can't crash the app.
+- PWA service worker `NEVER_CACHE` excludes `/api/*`, `/authorize`, `/callback`, `/refresh`, `/coach*`, `/webhook`, `/version`, `/admin/*`, `/roadmap` from caching.
+
+### Transport
+- HTTPS-only via Cloudflare. PWA `manifest.webmanifest` declares `start_url: /` over the workers.dev origin.
+
+## Configuration — secrets format
+
+Worker secrets that have format requirements enforced at runtime:
+
+| Secret | Format | Generation | Validation |
+|---|---|---|---|
+| `STRAVA_WEBHOOK_PATH_SECRET` | 32+ hex chars (lowercase) | `openssl rand -hex 16` (or larger) | Validated at request time via `/^[0-9a-f]{32,}$/i`. Malformed values cause all `/webhook*` requests to return 404 + a `safeWarn` log entry. |
+| `STRAVA_VERIFY_TOKEN` | Any non-empty string (Strava treats as opaque) | `openssl rand -hex 16` recommended | Required for webhook GET to function — without it, returns 503. |
+| `ADMIN_SECRET` | Any non-empty string | `openssl rand -hex 32` recommended | Required for `/admin/*` — without it, returns 503; with wrong value, 401. |
+| `GITHUB_TOKEN` | Classic PAT (`ghp_...` 40 chars) or fine-grained PAT (`github_pat_...` ~93 chars) — must have `Issues: Read and Write` for fine-grained, or `public_repo` for classic | https://github.com/settings/tokens | Used by `/roadmap` + admin GitHub helpers. Scope verified by external API; no runtime format check. |
+| `CONFLUENCE_API_TOKEN`, `CONFLUENCE_USER_EMAIL` | Per Atlassian | https://id.atlassian.com/manage-profile/security/api-tokens | Required pair for `/admin/document-release`; without either, returns 503. |
 
 ## Deferred / out of scope
 
 - **Cloudflare-native rate-limit binding for `/api/*` and `/coach` + `/coach-ride`** — requires Workers Paid plan; **deferred indefinitely** while on Free. The cost-runaway risk for `/coach` (#4 above) is therefore mitigated **only at the user side** (the user safeguards their BYOK Anthropic key); Worker-side enforcement is not on the roadmap.
-- **OAuth state nonce** — replace deterministic JSON state with `crypto.randomUUID()` + KV-backed single-use nonce (mitigates attack vector #2). Tracked in issue #14 ("OAuth state parameter is predictable JSON, not a CSRF nonce") — currently milestoned to v8.4.0 (already shipped); needs to be moved to a future milestone.
+- **OAuth state nonce** — replace deterministic JSON state with `crypto.randomUUID()` + KV-backed single-use nonce (mitigates attack vector #2). Tracked in issue #14 ("OAuth state parameter is predictable JSON, not a CSRF nonce") — milestoned to v8.6.0 since the 2026-04-29 housekeeping pass.
 - **Strict CSP, HSTS, `X-Frame-Options`, `Referrer-Policy`** on all Worker responses — see issue #15 ("Add security headers to all Worker responses").
 - **CORS lockdown** on `/coach` + `/coach-ride` (replace `Access-Control-Allow-Origin: *` with allowlist) — see issue #16 ("Lock down CORS on /coach + /coach-ride").
 - **httpOnly cookie storage** for Strava tokens — longer-term refactor, requires session-cookie story in the Worker.
@@ -61,12 +76,14 @@ This section reflects what is shipped to production as of v8.5.1. Items in fligh
 
 ## Deploy runbook (operator actions before each release)
 
-The shipped defences above require Worker secrets to be set before they're load-bearing. Setting `STRAVA_VERIFY_TOKEN` is required to activate the webhook GET path (returns 503 without it — by design, fail-closed). `STRAVA_WEBHOOK_PATH_SECRET` is only needed once #17 ships in v8.5.2:
+The shipped defences above require Worker secrets to be set before they're load-bearing. See § "Configuration — secrets format" above for the validation rules each secret must satisfy.
+
+Setting `STRAVA_VERIFY_TOKEN` is required to activate the webhook GET path (returns 503 without it — by design, fail-closed). `STRAVA_WEBHOOK_PATH_SECRET` activates the canonical `/webhook/<secret>` path; any value not matching `/^[0-9a-f]{32,}$/i` is rejected at runtime (every `/webhook*` returns 404 + a `safeWarn` log entry).
 
 ```bash
-# Generate strong random values
-echo -n "$(openssl rand -hex 32)" | npx wrangler secret put STRAVA_VERIFY_TOKEN
-echo -n "$(openssl rand -hex 32)" | npx wrangler secret put STRAVA_WEBHOOK_PATH_SECRET
+# Generate strong random values matching the format requirements (see § Configuration)
+echo -n "$(openssl rand -hex 16)" | npx wrangler secret put STRAVA_WEBHOOK_PATH_SECRET   # ≥32 hex chars
+echo -n "$(openssl rand -hex 16)" | npx wrangler secret put STRAVA_VERIFY_TOKEN
 ```
 
 After multi-user Strava API approval lands, register the webhook with the new path:

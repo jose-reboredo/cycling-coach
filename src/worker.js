@@ -433,12 +433,29 @@ Respond ONLY with valid JSON, no markdown:
     // Legacy /webhook and any /webhook/<wrong-secret> return 404 (OWASP — don't leak
     // existence of the canonical path to attackers).
     //
-    // Without STRAVA_WEBHOOK_PATH_SECRET set, the entire /webhook* surface is dormant
-    // (returns 404 to everything). That's intentional — single-user mode today, no
-    // active webhook subscription. See SECURITY.md "Deploy runbook".
+    // v8.5.2 hardening: STRAVA_WEBHOOK_PATH_SECRET must match /^[0-9a-f]{32,}$/i — i.e.
+    // 32+ lowercase hex chars (matches `openssl rand -hex 16+`). Whitespace, too-short,
+    // or non-hex values are rejected at runtime (entire /webhook* surface returns 404).
+    //
+    // Without STRAVA_WEBHOOK_PATH_SECRET set, the surface is also dormant (404). That's
+    // intentional — single-user mode today, no active webhook subscription. See
+    // SECURITY.md "Deploy runbook".
+    const SECRET_PATTERN = /^[0-9a-f]{32,}$/i;
+
+    // Server-side warning if a secret is set but malformed — visible only in Cloudflare
+    // logs (not surfaced to attackers). Gate behind /webhook* path check to limit noise
+    // (we'd otherwise log on every request to /, /dashboard, etc.).
+    if (
+      (url.pathname === '/webhook' || url.pathname.startsWith('/webhook/')) &&
+      env.STRAVA_WEBHOOK_PATH_SECRET &&
+      !SECRET_PATTERN.test(env.STRAVA_WEBHOOK_PATH_SECRET)
+    ) {
+      safeWarn('[webhook] STRAVA_WEBHOOK_PATH_SECRET set but format invalid; expected /^[0-9a-f]{32,}$/i');
+    }
+
     const webhookPathOk =
       typeof env.STRAVA_WEBHOOK_PATH_SECRET === 'string' &&
-      env.STRAVA_WEBHOOK_PATH_SECRET.length > 0 &&
+      SECRET_PATTERN.test(env.STRAVA_WEBHOOK_PATH_SECRET) &&
       url.pathname === `/webhook/${env.STRAVA_WEBHOOK_PATH_SECRET}`;
 
     // Strava webhook subscription verification (GET).
@@ -456,7 +473,14 @@ Respond ONLY with valid JSON, no markdown:
           headers: { 'Content-Type': 'application/json' },
         });
       }
-      return new Response('Forbidden', { status: 403 });
+      // v8.5.2 hardening: return 404 (not 403) when verify_token mismatches even though
+      // the path-secret was correct. Returning 403 here would leak that the path-secret
+      // is valid (attacker probes /webhook/<random> → 404, then /webhook/<guessed> with
+      // any token → 403 confirms the guess). 404 keeps opacity throughout.
+      // Log server-side for our own debugging (env var drift between Worker + Strava).
+      const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+      safeWarn(`[webhook] path matched but verify_token mismatch from IP ${ip}`);
+      return new Response('Not Found', { status: 404 });
     }
     // Strava webhook event delivery (POST).
     // Note: We can't auto-sync tokens here because webhook events have no user context
