@@ -493,9 +493,22 @@ Respond ONLY with valid JSON, no markdown:
     // Fulfils issue #23 — auto-updates Confluence project docs on every deploy.
     // Admin-gated. Returns 503 if Confluence secrets aren't configured (so the
     // endpoint is safe to ship before the user adds the API token).
+    // Also rate-limited (#18) — KV-based, 5 attempts/min/IP, defends against
+    // ADMIN_SECRET leak and runaway-loop bugs in CI.
     if (url.pathname === '/admin/document-release' && request.method === 'POST') {
       const adminCheck = requireAdmin(request, env);
       if (adminCheck) return adminCheck;
+      const rl = await checkAdminRateLimit(env, 'document-release', request, 5, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'Retry-After': String(rl.retryAfter),
+          },
+        });
+      }
       if (!env.CONFLUENCE_API_TOKEN || !env.CONFLUENCE_USER_EMAIL) {
         return new Response(
           JSON.stringify({
@@ -609,6 +622,48 @@ function requireAdmin(request, env) {
       headers: { 'Content-Type': 'application/json' },
     });
   }
+  return null;
+}
+
+/**
+ * Defense-in-depth rate-limit for admin endpoints (#18).
+ *
+ * Even though /admin/* is admin-auth-gated by requireAdmin(), an ADMIN_SECRET
+ * leak or a runaway-loop bug in CI could burn external API quota (Confluence,
+ * GitHub) and cost real money. This adds a per-IP counter in DOCS_KV with a
+ * sliding minute-bucket window: if more than `limit` requests arrive in the
+ * current minute, returns a 429 sentinel that the caller surfaces as a real
+ * 429 response with Retry-After header.
+ *
+ * Uses DOCS_KV (already bound for Confluence hash-skip, Free-plan-compatible).
+ * Logs every threshold-hit attempt with source IP via safeWarn() so abuse
+ * shows up in observability without leaking secrets.
+ *
+ * Returns:
+ *   null                 — under threshold, request proceeds
+ *   { retryAfter: N }    — over threshold, caller returns 429 with Retry-After: N
+ */
+async function checkAdminRateLimit(env, scope, request, limit, windowSeconds) {
+  if (!env.DOCS_KV) {
+    // KV not bound — fail-open with a warning. Better to lose the rate-limit
+    // than to break the admin endpoint entirely.
+    safeWarn(`[ratelimit] DOCS_KV not bound; skipping rate-limit on ${scope}`);
+    return null;
+  }
+  const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+  const now = Math.floor(Date.now() / 1000);
+  const bucket = Math.floor(now / windowSeconds);
+  const kvKey = `ratelimit:${scope}:${ip}:${bucket}`;
+  const current = parseInt((await env.DOCS_KV.get(kvKey)) || '0', 10);
+  if (current >= limit) {
+    const retryAfter = windowSeconds - (now % windowSeconds);
+    safeWarn(`[ratelimit] threshold-hit: scope=${scope} ip=${ip} count=${current} limit=${limit} retry_after=${retryAfter}s`);
+    return { retryAfter };
+  }
+  // Best-effort increment. KV doesn't support atomic ops, but this is a
+  // defense-in-depth check — strict precision isn't required. The TTL gives
+  // the bucket a natural cleanup window.
+  await env.DOCS_KV.put(kvKey, String(current + 1), { expirationTtl: windowSeconds * 2 });
   return null;
 }
 
