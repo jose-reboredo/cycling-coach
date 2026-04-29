@@ -19,7 +19,7 @@ export function WinsTimeline({ wins, limit = 6 }: WinsTimelineProps) {
     <section className={styles.root}>
       <header className={styles.head}>
         <Eyebrow rule>Wins · last 90 days</Eyebrow>
-        <Pill tone="accent">{wins.length} PR{wins.length === 1 ? '' : 's'}</Pill>
+        <Pill tone="success">{wins.length} PR{wins.length === 1 ? '' : 's'}</Pill>
       </header>
 
       {visible.length === 0 ? (

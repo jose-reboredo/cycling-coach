@@ -1,23 +1,25 @@
-// PARS — Performance Dark · v1.0
+// PARS — Cadence Club · v2.0 (v9.1.0)
 // ---------------------------------------------------------------
-// Single source of truth for the cycling-coach design system.
-// Reject: AI-slop aesthetic. Pure black canvas, molten orange,
-// mono numerals. Two families. Square-ish radii. Earned shadows.
+// Single source of truth for the Cadence Club design system.
+// Reject: AI-slop aesthetic. Pure black canvas, warm brass accent,
+// forest-green completion, mono numerals. Two families. Square-ish
+// radii. Earned shadows.
 //
-// Why these choices over the ui-ux-pro-max sports-fitness preset
-// (Vibrant + Block-based · Barlow Condensed · green CTA)?
+// Palette pivot from v1.0 (v9.1.0):
+//   accent:  #ff4d00 molten orange  →  #b8956a warm brass
+//   success: #22c55e lime           →  #4a8e54 forest (lifted from
+//                                      brief's #2C5530 for AA body
+//                                      contrast; #2C5530 reserved
+//                                      as --c-success-deep for
+//                                      non-text decoration)
 //
-// PARS targets the "Marco" persona — Pas Normal Studios audience,
-// 30s, native digital, pro-rider aesthetic. The cockpit / instrument-
-// panel feel (Geist Mono numerals on dark canvas) is the brand;
-// athletic-condensed type would push the surface toward gym-app
-// territory. Molten orange #ff4d00 keeps the Strava-adjacent
-// association without copying their primary. Restraint is the point.
+// Brass is "now / next / active / interactive". Forest is "done /
+// earned / past". Anything ambiguous → neutral muted gray.
 //
-// This divergence is intentional and approved (see
-// docs/superpowers/specs/2026-04-28-dashboard-design-audit.md).
-// Future passes: don't regress to the preset; if a finding from the
-// skill's catalog conflicts with PARS, audit-first, fix-second.
+// PARS still targets the urban-cyclist taste persona (Marco / Sofia /
+// James). Brass + forest signals "Soho House cycling watch" not
+// "fitness tracker". The cockpit / instrument-panel feel survives
+// the palette pivot — only the accent hue changes.
 // ---------------------------------------------------------------
 
 export const tokens = {
@@ -42,11 +44,11 @@ export const tokens = {
     line: 'rgba(255,255,255,.06)',
     lineStrong: 'rgba(255,255,255,.14)',
 
-    accent: '#ff4d00', // molten orange — earned, not Strava
-    accentDeep: '#cc3e00',
-    accentSoft: 'rgba(255,77,0,.10)',
-    accentGlow: 'rgba(255,77,0,.22)',
-    accentLight: '#ff7a3d', // AA-passing accent for ≤14px text on canvas (~5.2:1)
+    accent: '#b8956a', // warm brass — Cadence Club v2.0
+    accentDeep: '#9c7c56',
+    accentSoft: 'rgba(184,149,106,.10)',
+    accentGlow: 'rgba(184,149,106,.22)',
+    accentLight: '#d4b98c', // AA-passing brass for ≤14px text on canvas (~10.5:1)
 
     /** Strava 7-zone power model (Z1–Z6 = Coggan + Z7 = Neuromuscular).
      *  Z1 recovery · Z2 endurance · Z3 tempo
@@ -63,8 +65,9 @@ export const tokens = {
     },
 
     status: {
-      success: '#22c55e',
-      successSoft: 'rgba(34,197,94,.12)',
+      success: '#4a8e54', // forest green — Cadence Club v2.0
+      successSoft: 'rgba(74,142,84,.14)',
+      successDeep: '#2c5530', // brief-spec value, decoration only (fails AA body at 2.31:1)
       warn: '#f59e0b',
       warnSoft: 'rgba(245,158,11,.12)',
       danger: '#ef4444',
@@ -106,7 +109,7 @@ export const tokens = {
     sm: '0 1px 2px rgba(0,0,0,.4)',
     md: '0 8px 24px rgba(0,0,0,.45)',
     lg: '0 24px 64px rgba(0,0,0,.55)',
-    glow: '0 0 0 1px rgba(255,77,0,.25), 0 8px 28px rgba(255,77,0,.18)',
+    glow: '0 0 0 1px rgba(184,149,106,.25), 0 8px 28px rgba(184,149,106,.18)',
     inner: 'inset 0 1px 0 rgba(255,255,255,.04)',
   },
 

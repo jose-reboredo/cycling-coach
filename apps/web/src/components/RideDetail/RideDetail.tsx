@@ -85,7 +85,7 @@ function RealBody({ data }: { data: NonNullable<ReturnType<typeof useActivityDet
               strokeWidth={2.5}
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ filter: 'drop-shadow(0 0 6px rgba(255,77,0,.4))' }}
+              style={{ filter: 'drop-shadow(0 0 6px rgba(184, 149, 106,.4))' }}
             />
             <circle cx={poly.start.x} cy={poly.start.y} r={4} fill="var(--c-text)" />
             <circle cx={poly.end.x} cy={poly.end.y} r={4} fill="var(--c-accent)" />
@@ -145,7 +145,7 @@ function RealBody({ data }: { data: NonNullable<ReturnType<typeof useActivityDet
               <li key={i} className={styles.listItem}>
                 <span className={styles.listLabel}>{b.name}</span>
                 <span className={styles.listValue}>{fmtDurationShort(b.elapsed_time)}</span>
-                {b.pr_rank ? <Pill tone="accent">PR #{b.pr_rank}</Pill> : null}
+                {b.pr_rank ? <Pill tone="success">PR #{b.pr_rank}</Pill> : null}
               </li>
             ))}
           </ul>
@@ -163,7 +163,7 @@ function RealBody({ data }: { data: NonNullable<ReturnType<typeof useActivityDet
                   {fmtKm(s.distance)} km · {fmtDurationShort(s.elapsed_time)}
                 </span>
                 {s.achievement_count > 0 ? (
-                  <Pill tone="accent">★ {s.achievement_count}</Pill>
+                  <Pill tone="success">★ {s.achievement_count}</Pill>
                 ) : null}
               </li>
             ))}

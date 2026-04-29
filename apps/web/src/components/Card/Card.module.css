@@ -19,7 +19,7 @@
 
 .accent {
   background: var(--c-surface);
-  border-color: rgba(255, 77, 0, 0.22);
+  border-color: rgba(184, 149, 106, 0.22);
   box-shadow: var(--sh-glow);
 }
 

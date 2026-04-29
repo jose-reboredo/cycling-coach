@@ -42,13 +42,13 @@
 .accent {
   color: var(--c-accent-light);
   background: var(--c-accent-soft);
-  border-color: rgba(255, 77, 0, 0.22);
+  border-color: rgba(184, 149, 106, 0.22);
 }
 
 .success {
   color: var(--c-success);
   background: var(--c-success-soft);
-  border-color: rgba(34, 197, 94, 0.22);
+  border-color: rgba(74, 142, 84, 0.22);
 }
 
 .warn {

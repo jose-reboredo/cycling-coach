@@ -321,9 +321,11 @@ function DashboardView({
                     month: 'long',
                   })}
                 </Eyebrow>
-                <Pill dot tone="success">
-                  {usingMock ? 'Demo data' : 'In sync'}
-                </Pill>
+                {usingMock ? (
+                  <Pill dot>Demo data</Pill>
+                ) : (
+                  <Pill dot tone="success">In sync</Pill>
+                )}
               </div>
               <h1 className={styles.greet}>
                 {greeting}, <em>{firstName}</em>.

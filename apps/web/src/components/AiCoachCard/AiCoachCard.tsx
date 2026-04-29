@@ -182,7 +182,7 @@ function ReportState({
 
       <div className={styles.lists}>
         <div>
-          <Eyebrow tone="accent">Strengths</Eyebrow>
+          <Eyebrow tone="success">Strengths</Eyebrow>
           <ul className={styles.bullets}>
             {report.strengths.map((s, i) => (
               <li key={i} className={`${styles.bullet} ${styles.bulletGood}`}>{s}</li>

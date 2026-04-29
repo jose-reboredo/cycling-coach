@@ -5,7 +5,7 @@ interface EyebrowProps {
   children: ReactNode;
   /** prefix dash + width (visual section marker) */
   rule?: boolean;
-  tone?: 'muted' | 'accent';
+  tone?: 'muted' | 'accent' | 'success';
 }
 
 /**
