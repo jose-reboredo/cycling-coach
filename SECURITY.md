@@ -22,11 +22,11 @@ Cycling Coach is a single-user-per-browser web app deployed on Cloudflare Worker
 
 ### Attack vectors considered
 
-1. **XSS** — anyone exfiltrates localStorage tokens. Mitigated by React's default escaping (zero `dangerouslySetInnerHTML` usage today) + planned strict CSP (issue #16 Phase 2 follow-up).
-2. **OAuth state CSRF** — attacker tricks user into completing OAuth with attacker's `code`, victim's browser stores attacker's tokens. Mitigation: replace deterministic JSON state with `crypto.randomUUID()` + KV-stored nonce (issue #15, deferred).
+1. **XSS** — anyone exfiltrates localStorage tokens. Mitigated by React's default escaping (zero `dangerouslySetInnerHTML` usage today) + planned strict CSP (issue #15 — "Add security headers to all Worker responses").
+2. **OAuth state CSRF** — attacker tricks user into completing OAuth with attacker's `code`, victim's browser stores attacker's tokens. Mitigation: replace deterministic JSON state with `crypto.randomUUID()` + KV-stored nonce — issue #14 ("OAuth state parameter is predictable JSON, not a CSRF nonce"). Currently milestoned to v8.4.0 (already shipped); needs reslot to a future milestone before this attack vector becomes load-bearing.
 3. **Webhook spoofing** — third party POSTs fake events to `/webhook`. Mitigation (planned for v8.5.1, see #17): path-based shared secret (`/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>`); the Worker registers only the secret URL with Strava when multi-user approval lands. Wrong path returns **404** (OWASP guidance — don't leak existence of the canonical path to attackers). Not yet shipped on `main`.
 4. **Cost runaway via /coach proxy** — script obtains user's `api_key` and spams Claude. Mitigation: Cloudflare Rate Limiting binding gates `/coach` and `/coach-ride` per IP + per athlete-id.
-5. **Log exfiltration** — `observability.logs.persist: true` retains all `console.*` output. If a request handler logs body content, secrets land in persistent logs. Mitigation: every `console.*` call in the Worker is wrapped via `safeLog/Warn/Error`, which runs `redactSensitive()` over string + serialized-object args. Patterns redacted: `api_key=`, `sk-ant-*`, `access_token=`, `refresh_token=`.
+5. **Log exfiltration** — `observability.logs.persist: true` retains all `console.*` output. If a request handler logs body content, secrets land in persistent logs. Mitigation: **5 of 12 high-risk `console.*` call sites** in the Worker are wrapped via `safeLog/Warn/Error`, which runs `redactSensitive()` over string + serialized-object args (status / count logs like `[D1] Persisted N activities` are left as raw `console.log` by design — they don't interpolate untrusted data). Patterns redacted: `api_key=`, `sk-ant-*`, `access_token=`, `refresh_token=`.
 6. **Webhook verify-token leak in source** — pre-v8.5.1 the Worker had a hardcoded fallback `'cycling-coach-verify'`. Anyone reading the source on GitHub knew it. Mitigation: webhook GET is now fail-closed — returns 503 if `STRAVA_VERIFY_TOKEN` is missing from Worker secrets.
 7. **Admin endpoint exposure** — `/admin/*` routes (`document-release`, formerly `file-audit-issues`, etc.) handle high-impact operations. Mitigation: `requireAdmin()` checks `Authorization: Bearer ${ADMIN_SECRET}` on every call.
 
@@ -53,9 +53,9 @@ This section reflects only what is currently in the `main` branch. Items in flig
 ## Deferred / out of scope
 
 - **Cloudflare-native rate-limit binding for `/api/*` and `/coach` + `/coach-ride`** — requires Workers Paid plan; **deferred indefinitely** while on Free. The cost-runaway risk for `/coach` (#4 above) is therefore mitigated **only at the user side** (the user safeguards their BYOK Anthropic key); Worker-side enforcement is not on the roadmap.
-- **OAuth state nonce** — replace deterministic JSON state with `crypto.randomUUID()` + KV-backed single-use nonce (mitigates attack vector #2). Not yet filed as a tracked issue.
-- **Strict CSP, HSTS, `X-Frame-Options`, `Referrer-Policy`** on all Worker responses — see issue #15.
-- **CORS lockdown** on `/coach` + `/coach-ride` (replace `Access-Control-Allow-Origin: *` with allowlist) — see issue #16.
+- **OAuth state nonce** — replace deterministic JSON state with `crypto.randomUUID()` + KV-backed single-use nonce (mitigates attack vector #2). Tracked in issue #14 ("OAuth state parameter is predictable JSON, not a CSRF nonce") — currently milestoned to v8.4.0 (already shipped); needs to be moved to a future milestone.
+- **Strict CSP, HSTS, `X-Frame-Options`, `Referrer-Policy`** on all Worker responses — see issue #15 ("Add security headers to all Worker responses").
+- **CORS lockdown** on `/coach` + `/coach-ride` (replace `Access-Control-Allow-Origin: *` with allowlist) — see issue #16 ("Lock down CORS on /coach + /coach-ride").
 - **httpOnly cookie storage** for Strava tokens — longer-term refactor, requires session-cookie story in the Worker.
 - **D1-backed audit log for `/admin/*`** — write each call (caller IP, route, result) for after-the-fact incident response.
 

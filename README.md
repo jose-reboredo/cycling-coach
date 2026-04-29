@@ -97,6 +97,19 @@ Status: single-user during Strava multi-user approval.
 - **Storage**: Cloudflare D1 (SQLite at edge), localStorage on client (Strangler Fig dual-write)
 - **Deploy**: Workers Static Assets (replaces legacy CF Pages). Single Worker serves SPA + API.
 
+<!--
+TODO (release-time README sweep): the "Repo layout" component tree, the "Routes" frontend list,
+and the "Worker routes" table below all date from v8.0.0 and have drifted as features shipped.
+Reconcile with apps/web/src/components/ (current set: AiCoachCard, BikeMark, BottomNav, Button,
+Card, Container, Eyebrow, GoalEventCard, GrainOverlay, OnboardingModal, Pill, PmcStrip,
+ProgressRing, RideDetail, RideFeedback, RoutesPicker, StatTile, StreakHeatmap, TopBar,
+UserMenu, VolumeChart, WhatsNew, WinsTimeline, WorkoutCard, ZonePill), the Tanstack Router
+files in apps/web/src/routes/ (currently: __root, index, dashboard, privacy, whats-next),
+and wrangler.jsonc → assets.run_worker_first for the Worker route inventory. Per the
+"release checklist" rule (planned for CONTRIBUTING.md after v8.5.1), these get reviewed at
+every chore(release) commit.
+-->
+
 ## Repo layout
 
 ```
@@ -156,7 +169,7 @@ cycling-coach/
 
 ### Tokens (single source of truth)
 - **Type**: Geist (UI) + Geist Mono (numerals). Two families. Mono carries every metric.
-- **Color**: dark canvas (`#0a0a0c`), molten orange (`#ff4d00`), Coggan zones Z1–Z6 (cool→hot ramp), three status colors, Strava brand reserved for Strava-specific UI.
+- **Color**: dark canvas (`#0a0a0c`), molten orange (`#ff4d00`), Strava 7-zone power model Z1–Z7 (cool→hot ramp; Z7 = Neuromuscular >150% FTP), three status colors, Strava brand reserved for Strava-specific UI. Small-text accent uses `--c-accent-light` (`#ff7a3d`) for AA contrast.
 - **Spacing**: 4 px base scale, mobile-first.
 - **Radius**: square-ish (max 16 px). No bubble shapes.
 - **Shadow**: 1 px lines preferred over shadows. `--sh-glow` reserved for accent moments.
@@ -166,7 +179,7 @@ Tokens live in `apps/web/src/design/tokens.ts` (typed) and are mirrored to `apps
 
 ### Component grammar
 - **Container** — single horizontal-rhythm primitive (4 widths)
-- **Button** — primary (lime glow), secondary, ghost, strava
+- **Button** — primary (molten-orange glow), secondary, ghost, strava
 - **Card** — surface primitive, optional accent rule
 - **Eyebrow** — mono uppercase tracked, optional `rule` line
 - **Pill** — small status chip, optional pulsing dot
@@ -210,32 +223,30 @@ Open http://localhost:5173 — landing, dashboard (with seeded Marco demo data),
 
 ```bash
 npm run build                    # builds apps/web → apps/web/dist
-npm run deploy                   # build then wrangler deploy
+npm run deploy                   # build:web → wrangler deploy → docs:sync (Confluence)
 ```
 
-CI/CD on push to `main`: Cloudflare Workers Builds runs `npm run build:web && npx wrangler deploy`. Configure in CF dashboard → Workers → cycling-coach → Settings → Builds.
+CI on `pull_request` and `push` to `main`: GitHub Actions workflow `.github/workflows/test.yml` runs three parallel jobs — `unit` (Vitest), `e2e` (Playwright at mobile-375 + desktop-1280), and `build` (TS strict + Vite production build). Failing tests block merge.
+
+Production **deploy is manual** today (`npm run deploy` from a developer's shell, requires `wrangler login` + `ADMIN_SECRET` from `.deploy.env`). Cloudflare Workers Builds auto-deploy is **not** wired — by design, until we want push-to-main to ship.
 
 ## Schema migration (v1 → v2)
 
-Apply `migrations/0001_pmc_and_events.sql` once via wrangler:
+**Migration applied 2026-04-29 to remote D1 — informational only for new contributors.**
+
+The migration at `migrations/0001_pmc_and_events.sql` adds: FTP / weight / HR max on `users`; TSS / NP / IF / duration columns on `activities`; the `daily_load` PMC rollup table; `training_prefs` table; goal-event fields on `goals`.
+
+For local D1 development, apply once:
 
 ```bash
 npx wrangler d1 execute cycling_coach_db --file migrations/0001_pmc_and_events.sql
-npx wrangler d1 execute cycling_coach_db --file migrations/0001_pmc_and_events.sql --remote
 ```
 
-Adds: FTP/weight/HR max on users; TSS/NP/IF/duration columns on activities; `daily_load` PMC rollup table; goal-event fields.
-
-After the migration: ask Marco for his FTP via a one-time settings flow (TODO in Phase 5). With that one input, all PMC math becomes real, not mocked.
+After the migration: FTP / weight / HR max are captured via the OnboardingModal (shipped v8.2.0). With those three numbers, all PMC math (CTL · ATL · TSB) becomes real instead of duration-proxy.
 
 ## Open issues / next up
 
-- `[zones]` Strava uses 7 power zones (Z7 = Neuromuscular Power); we use Coggan's 6. When we ingest Strava-side power-zone metadata for activities, extend `Zone` to 1..7 and add `--c-z7` token. See `apps/web/src/lib/zones.ts`.
-- `[backfill]` Compute TSS retroactively from existing `activities.strava_raw_json` once `users.ftp_w` is set. Migration is in place; backfill script not yet written.
-- `[auth-replace]` `Dashboard.tsx` currently always renders mock Marco data. Wire `useAthlete()` + `useActivities()` Tanstack Query hooks to swap in real Strava data when tokens present.
-- `[worker-prune]` `src/worker.js` still has dead `landingPage()` / `dashboardPage()` / `privacyPage()` HTML. Workers Static Assets makes them unreachable but they bloat the bundle. Prune in a cleanup pass.
-- `[ftp-onboarding]` First-run flow asking Marco for FTP, weight, HR max, goal event.
-- `[pwa]` Existing `apple-mobile-web-app-*` meta lives on the React `index.html`. Add a service worker + manifest for true PWA install.
+See the live roadmap at [`/whats-next`](https://cycling-coach.josem-reboredo.workers.dev/whats-next) — driven by GitHub Issues with milestones (`vX.Y.Z`) and labels (`priority:*`, `area:*`, `type:*`). The page proxies `https://api.github.com/repos/jose-reboredo/cycling-coach/issues` via the Worker `/roadmap` endpoint and is edge-cached for 5 minutes.
 
 ## License
 
