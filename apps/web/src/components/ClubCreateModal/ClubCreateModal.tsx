@@ -3,12 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { Button } from '../Button/Button';
 import { useCreateClub } from '../../hooks/useClubs';
+import type { CreateClubResponse } from '../../lib/clubsApi';
 import styles from './ClubCreateModal.module.css';
 
 interface ClubCreateModalProps {
   open: boolean;
   onClose: () => void;
-  onCreated?: (clubId: number) => void;
+  onCreated?: (club: CreateClubResponse) => void;
 }
 
 export function ClubCreateModal({ open, onClose, onCreated }: ClubCreateModalProps) {
@@ -53,7 +54,7 @@ export function ClubCreateModal({ open, onClose, onCreated }: ClubCreateModalPro
         description: description.trim() || undefined,
       });
       onClose();
-      onCreated?.(club.id);
+      onCreated?.(club);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create club.');
     }

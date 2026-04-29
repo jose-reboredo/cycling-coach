@@ -26,6 +26,7 @@ import { UserMenu } from '../components/UserMenu/UserMenu';
 import { RideDetail } from '../components/RideDetail/RideDetail';
 import { OnboardingModal } from '../components/OnboardingModal/OnboardingModal';
 import { ClubCreateCard } from '../components/ClubCreateCard/ClubCreateCard';
+import { ContextSwitcher } from '../components/ContextSwitcher/ContextSwitcher';
 import { WhatsNewBadge } from '../components/WhatsNew/WhatsNewBadge';
 import { useGoalEvent } from '../hooks/useGoalEvent';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
@@ -256,6 +257,7 @@ function DashboardView({
         variant="app"
         trailing={
           <>
+            <ContextSwitcher />
             <WhatsNewBadge />
             <UserMenu
               username={`${firstName}${lastName ? ' ' + lastName : ''}`}
