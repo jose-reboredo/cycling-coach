@@ -154,3 +154,7 @@ echo -n "ghp_xxxxxxxx" | npx wrangler secret put GITHUB_TOKEN
 ```
 
 The Worker auto-detects it.
+
+## Security
+
+For threat model, defences in place, and how to report a vulnerability, see [`SECURITY.md`](./SECURITY.md).

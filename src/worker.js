@@ -17,6 +17,27 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 // version is live by looking at the footer of any page.
 const WORKER_VERSION = 'v8.5.0';
 const BUILD_DATE = '2026-04-28';
+
+// Defensive log redaction — strips api_key, access_token, refresh_token,
+// and Anthropic key prefixes from anything that would otherwise hit
+// Cloudflare's persistent log store. Wrapped console.* helpers below.
+function redactSensitive(s) {
+  return String(s)
+    .replace(/api_key["\s:]*"?[a-zA-Z0-9_-]+/g, 'api_key="[redacted]"')
+    .replace(/sk-ant-[a-zA-Z0-9_-]+/g, '[redacted-anthropic-key]')
+    .replace(/access_token["\s:]*"?[a-zA-Z0-9_-]+/g, 'access_token="[redacted]"')
+    .replace(/refresh_token["\s:]*"?[a-zA-Z0-9_-]+/g, 'refresh_token="[redacted]"');
+}
+function safeArg(a) {
+  if (typeof a === 'string') return redactSensitive(a);
+  if (typeof a === 'object' && a !== null) {
+    try { return redactSensitive(JSON.stringify(a)); } catch { return a; }
+  }
+  return a;
+}
+function safeLog(...args) { console.log(...args.map(safeArg)); }
+function safeWarn(...args) { console.warn(...args.map(safeArg)); }
+function safeError(...args) { console.error(...args.map(safeArg)); }
  
 // Resolve the user-facing origin so OAuth redirect_uri lands where the user
 // actually is.
@@ -158,7 +179,7 @@ try {
               await persistActivities(env.cycling_coach_db, parsed);
             }
           } catch (parseErr) {
-            console.warn('[D1] Could not parse activities response for persist:', parseErr.message);
+            safeWarn('[D1] Could not parse activities response for persist:', parseErr.message);
           }
         }
         return new Response(body, {
@@ -408,11 +429,16 @@ Respond ONLY with valid JSON, no markdown:
  
     // ============= STRAVA WEBHOOK =============
     // Strava webhook subscription verification (GET)
+    // Fail-closed: if STRAVA_VERIFY_TOKEN isn't set, return 503 rather than
+    // accepting any guess that matches a hardcoded fallback (#19).
     if (url.pathname === '/webhook' && request.method === 'GET') {
+      if (!env.STRAVA_VERIFY_TOKEN) {
+        return new Response('Webhook verification not configured', { status: 503 });
+      }
       const mode = url.searchParams.get('hub.mode');
       const token = url.searchParams.get('hub.verify_token');
       const challenge = url.searchParams.get('hub.challenge');
-      if (mode === 'subscribe' && token === (env.STRAVA_VERIFY_TOKEN || 'cycling-coach-verify')) {
+      if (mode === 'subscribe' && token === env.STRAVA_VERIFY_TOKEN) {
         return new Response(JSON.stringify({ 'hub.challenge': challenge }), {
           headers: { 'Content-Type': 'application/json' },
         });
@@ -427,7 +453,8 @@ Respond ONLY with valid JSON, no markdown:
       try {
         const event = await request.json();
         // Strava expects fast 200 response. Logging only since architecture is browser-storage.
-        console.log('Webhook event:', event);
+        // safeLog redacts any sensitive patterns before they hit persistent logs (#20).
+        safeLog('Webhook event:', event);
       } catch {}
       return new Response('OK', { status: 200 });
     }
@@ -1593,7 +1620,7 @@ async function persistUserAndTokens(db, tokenData) {
 
     console.log(`[D1] Persisted user ${a.id} (${a.firstname || ''}) and Strava tokens`);
   } catch (e) {
-    console.error('[D1] persistUserAndTokens failed:', e.message);
+    safeError('[D1] persistUserAndTokens failed:', e.message);
   }
 }
 
@@ -1663,7 +1690,7 @@ async function persistActivities(db, activities) {
 
     console.log(`[D1] Persisted ${persisted} activities for athlete ${athleteId}`);
   } catch (e) {
-    console.error('[D1] persistActivities failed:', e.message);
+    safeError('[D1] persistActivities failed:', e.message);
   }
 }
 
@@ -1687,7 +1714,7 @@ async function updateConnectionTokens(db, athleteId, tokenData) {
     `).bind(credentials, now, athleteId).run();
     console.log(`[D1] Refreshed Strava tokens for athlete ${athleteId}`);
   } catch (e) {
-    console.error('[D1] updateConnectionTokens failed:', e.message);
+    safeError('[D1] updateConnectionTokens failed:', e.message);
   }
 
 }function htmlResponse(body) {
