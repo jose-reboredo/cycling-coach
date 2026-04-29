@@ -4,6 +4,47 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [8.5.1] — 2026-04-29
+
+Security hygiene batch — Phase 2 of the v8.5.0–v8.5.3 backlog burn (spec `cf3e786`). Closes 3 security chores from the original Phase 2 plan; the remaining 2 (#17 webhook path-secret, #18 KV rate-limit) reslot to v8.5.2.
+
+### Added — Threat model + defences
+
+- **Top-level `SECURITY.md`** (#22) — documents threat model (assets at risk, attack vectors considered, mitigations), shipped vs planned defences, deferred / out-of-scope items, deploy runbook for required Worker secrets, disclosure policy. Linked from README and CONTRIBUTING.
+
+### Changed — Worker hardening
+
+- **`STRAVA_VERIFY_TOKEN` fail-closed** (#19) — webhook GET handler no longer accepts a hardcoded fallback (`'cycling-coach-verify'`). Returns **503 Webhook verification not configured** when the Worker secret is missing. No change to behavior when secret is set. Operator action: `wrangler secret put STRAVA_VERIFY_TOKEN <random-32-hex>` before activating webhook subscriptions (single-user mode today, no impact). Audit finding from the v8.4.0 security batch.
+- **`redactSensitive()` log helper + `safeLog/Warn/Error` wrappers** (#20) — defensive log redaction strips `api_key=`, `sk-ant-*`, `access_token=`, `refresh_token=` patterns before they hit Cloudflare's persistent log store. Applied to **5 of 12 high-risk `console.*` call sites**: webhook event log, D1 parse-error warn, three D1 error catches in `persistUserAndTokens` / `persistActivities` / `updateConnectionTokens`. Status / count logs (e.g. `[D1] Persisted N activities`) left as raw `console.log` because they don't interpolate untrusted data.
+
+### Documentation
+
+- **`docs(security): correct SECURITY.md to reflect actual shipped state`** (commit `257290c`) — replaced the original optimistic "Defences in place" section with an honest split: "Shipped defences" lists only what's currently on `main`; "Planned defences" lists what's in flight for v8.5.2. Web-spoofing wrong-path response code corrected from 403 → 404 per OWASP.
+- **`docs(cleanup): sync README and SECURITY.md to actual shipped state`** (commit `fce03cf`) — fixes plan-vs-reality drift across both files: zones Z1-Z6 → Z1-Z7, lime glow → molten-orange glow, `npm run deploy` includes `docs:sync`, GitHub Actions described accurately (not Cloudflare Workers Builds), schema migration marked as applied 2026-04-29, FTP TODO removed (shipped v8.2.0), entire stale "Open issues / next up" section replaced with one-line `/whats-next` pointer. Issue `#15` (CSP) and `#16` (CORS) cited correctly. Issue `#14` (OAuth state CSRF) referenced and reslotted to v8.6.0 milestone.
+
+### Deferred to v8.5.2
+
+- **#17 Webhook path-secret** — `/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>` canonical URL with 404 fail-closed for legacy / wrong-secret paths.
+- **#18 KV-based rate-limit on `/admin/document-release`** — 5 attempts/min/IP, defends against `ADMIN_SECRET` leak. Uses `DOCS_KV` namespace (Free-plan-compatible).
+
+### Deferred indefinitely
+
+- **Cloudflare-native rate-limit binding for `/api/*` and `/coach`** — requires Workers Paid plan, not on roadmap. Cost-runaway risk for `/coach` is mitigated only at the user side (BYOK Anthropic key safeguarded by the user). Documented in SECURITY.md "Deferred / out of scope".
+
+### Process notes (durable rules adopted this release)
+
+- **Scope-vs-ceremony exercise** is now mandatory before any release plan — light / medium / full ceremony picked based on scope, user approves.
+- **Release-time README sweep** mandatory in every `chore(release)` commit — reconcile Open Issues, Routes, Components, Build, Schema sections with shipped state. To be filed into CONTRIBUTING.md after this release.
+- **No temp `/admin/*` endpoints for one-shot ops** — prefer `curl + GITHUB_TOKEN` from `.deploy.env` or standalone scripts in `scripts/`. Two-deploy roundtrip pattern reserved only for ops that genuinely need Worker bindings.
+
+### Verification
+
+- `npm run build:web` clean (TS strict).
+- `E2E_TARGET_PROD=1 npm run test` passes locally and in CI on `fce03cf`.
+- Manual smoke deferred — this is a Worker-only release with no React UI changes.
+
+---
+
 ## [8.5.0] — 2026-04-29
 
 Polish release — Phase 1 of the v8.5.0–v8.5.3 backlog burn (spec `cf3e786`). Closes 5 v8.5.0 issues identified by the 2026-04-28 dashboard design audit. First release on the regression-test harness shipped in Phase 0.

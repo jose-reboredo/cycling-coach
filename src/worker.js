@@ -15,8 +15,8 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v8.5.0';
-const BUILD_DATE = '2026-04-28';
+const WORKER_VERSION = 'v8.5.1';
+const BUILD_DATE = '2026-04-29';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
 // and Anthropic key prefixes from anything that would otherwise hit

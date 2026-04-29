@@ -2,7 +2,20 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.5.0](./CHANGELOG.md#850--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+**Current release: [v8.5.1](./CHANGELOG.md#851--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+
+## What's new in v8.5.1
+
+Security hygiene batch — 3 chores from the v8.5.x burn shipped without the larger #17/#18 work, which reslots to v8.5.2.
+
+- **`STRAVA_VERIFY_TOKEN` fail-closed** (#19) — webhook GET drops the hardcoded fallback; returns 503 if the secret isn't configured. Operator must `wrangler secret put STRAVA_VERIFY_TOKEN` before activating webhook subscriptions.
+- **Defensive log redaction** (#20) — `redactSensitive()` + `safeLog/Warn/Error` wrappers strip `api_key=`, `sk-ant-*`, `access_token=`, `refresh_token=` patterns from 5 high-risk `console.*` sites in the Worker.
+- **`SECURITY.md`** (#22) — top-level threat model + shipped/planned defences split + deploy runbook + disclosure policy via GitHub Security Advisory.
+
+Two doc-cleanup commits also landed (`257290c`, `fce03cf`) — fixed plan-vs-reality drift in SECURITY.md ("rate-limit gate on /coach" was never planned, removed; webhook 403 → 404 per OWASP) and in README (zones Z1-Z7 not Z1-Z6, molten orange not lime, GitHub Actions not Workers Builds, etc.). See [`SECURITY.md`](./SECURITY.md) for the full security posture.
+
+Deferred to **v8.5.2**: #17 webhook path-secret + #18 KV rate-limit on `/admin/document-release`.
+Deferred indefinitely: native Cloudflare rate-limit binding (Workers Free plan limitation).
 
 ## What's new in v8.5.0
 

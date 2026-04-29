@@ -24,7 +24,7 @@ Cycling Coach is a single-user-per-browser web app deployed on Cloudflare Worker
 
 1. **XSS** — anyone exfiltrates localStorage tokens. Mitigated by React's default escaping (zero `dangerouslySetInnerHTML` usage today) + planned strict CSP (issue #15 — "Add security headers to all Worker responses").
 2. **OAuth state CSRF** — attacker tricks user into completing OAuth with attacker's `code`, victim's browser stores attacker's tokens. Mitigation: replace deterministic JSON state with `crypto.randomUUID()` + KV-stored nonce — issue #14 ("OAuth state parameter is predictable JSON, not a CSRF nonce"). Currently milestoned to v8.4.0 (already shipped); needs reslot to a future milestone before this attack vector becomes load-bearing.
-3. **Webhook spoofing** — third party POSTs fake events to `/webhook`. Mitigation (planned for v8.5.1, see #17): path-based shared secret (`/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>`); the Worker registers only the secret URL with Strava when multi-user approval lands. Wrong path returns **404** (OWASP guidance — don't leak existence of the canonical path to attackers). Not yet shipped on `main`.
+3. **Webhook spoofing** — third party POSTs fake events to `/webhook`. Mitigation (planned for v8.5.2, see #17): path-based shared secret (`/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>`); the Worker registers only the secret URL with Strava when multi-user approval lands. Wrong path returns **404** (OWASP guidance — don't leak existence of the canonical path to attackers). Not yet shipped on `main`.
 4. **Cost runaway via /coach proxy** — script obtains user's `api_key` and spams Claude. Mitigation: Cloudflare Rate Limiting binding gates `/coach` and `/coach-ride` per IP + per athlete-id.
 5. **Log exfiltration** — `observability.logs.persist: true` retains all `console.*` output. If a request handler logs body content, secrets land in persistent logs. Mitigation: **5 of 12 high-risk `console.*` call sites** in the Worker are wrapped via `safeLog/Warn/Error`, which runs `redactSensitive()` over string + serialized-object args (status / count logs like `[D1] Persisted N activities` are left as raw `console.log` by design — they don't interpolate untrusted data). Patterns redacted: `api_key=`, `sk-ant-*`, `access_token=`, `refresh_token=`.
 6. **Webhook verify-token leak in source** — pre-v8.5.1 the Worker had a hardcoded fallback `'cycling-coach-verify'`. Anyone reading the source on GitHub knew it. Mitigation: webhook GET is now fail-closed — returns 503 if `STRAVA_VERIFY_TOKEN` is missing from Worker secrets.
@@ -32,7 +32,7 @@ Cycling Coach is a single-user-per-browser web app deployed on Cloudflare Worker
 
 ## Shipped defences (live on `main` today)
 
-This section reflects only what is currently in the `main` branch. Items in flight (post-`main`-merge, pre-v8.5.1-deploy) live under "Planned defences" below.
+This section reflects what is shipped to production as of v8.5.1. Items in flight (planned for v8.5.2) live under "Planned defences" below.
 
 - **Worker-side**
   - `requireAdmin` (`Authorization: Bearer ${ADMIN_SECRET}`) on every `/admin/*` route — since v8.3.0.
@@ -45,9 +45,9 @@ This section reflects only what is currently in the `main` branch. Items in flig
 - **Transport**
   - HTTPS-only via Cloudflare. PWA `manifest.webmanifest` declares `start_url: /` over the workers.dev origin.
 
-## Planned defences (v8.5.1 release, not yet on `main`)
+## Planned defences (v8.5.2 release, not yet started)
 
-- **Webhook path-secret** (#17) — `/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>` becomes the canonical webhook URL. Legacy `/webhook` and any `/webhook/<wrong-secret>` return **404** (OWASP — no info leak about path existence). Code path will land in v8.5.1; **webhook re-registration with Strava is deferred** until multi-user API approval (single-user mode today, no active webhook to migrate).
+- **Webhook path-secret** (#17) — `/webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>` becomes the canonical webhook URL. Legacy `/webhook` and any `/webhook/<wrong-secret>` return **404** (OWASP — no info leak about path existence). Code path will land in v8.5.2; **webhook re-registration with Strava is deferred** until multi-user API approval (single-user mode today, no active webhook to migrate).
 - **KV-based rate-limit on `/admin/document-release`** (#18) — 5 attempts per minute per IP. Returns 429 with `Retry-After` header on threshold; failed attempts logged with source IP for monitoring. Uses `DOCS_KV` namespace (Free-plan-compatible). Defends against `ADMIN_SECRET` leak and runaway-loop bugs in CI.
 
 ## Deferred / out of scope
@@ -61,7 +61,7 @@ This section reflects only what is currently in the `main` branch. Items in flig
 
 ## Deploy runbook (operator actions before each release)
 
-The shipped defences above require Worker secrets to be set before the v8.5.1 deploy:
+The shipped defences above require Worker secrets to be set before they're load-bearing. Setting `STRAVA_VERIFY_TOKEN` is required to activate the webhook GET path (returns 503 without it — by design, fail-closed). `STRAVA_WEBHOOK_PATH_SECRET` is only needed once #17 ships in v8.5.2:
 
 ```bash
 # Generate strong random values
