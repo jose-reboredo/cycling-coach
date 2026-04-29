@@ -161,6 +161,124 @@ export default {
       }
     }
  
+    // ============= CLUBS =============
+    // /api/clubs* endpoints — D1-backed. Identity resolved server-side via Strava
+    // /athlete round-trip (resolveAthleteId helper). Membership-gated reads return
+    // 404 (OWASP — don't leak existence of clubs the caller doesn't belong to).
+    // Must be matched BEFORE the generic /api/* Strava proxy fall-through below.
+    if (url.pathname === '/api/clubs' && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const athleteId = authResult.athleteId;
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const name = (body?.name || '').toString().trim();
+      const description = body?.description ? body.description.toString().trim().slice(0, 500) : null;
+      if (!name || name.length > 100) {
+        return new Response(JSON.stringify({ error: 'name required (1-100 chars)' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const db = env.cycling_coach_db;
+      const now = Math.floor(Date.now() / 1000);
+      let clubId;
+      try {
+        const insertClub = await db
+          .prepare('INSERT INTO clubs (name, description, owner_athlete_id, created_at) VALUES (?, ?, ?, ?) RETURNING id')
+          .bind(name, description, athleteId, now)
+          .first();
+        clubId = insertClub?.id;
+        if (!clubId) throw new Error('club insert returned no id');
+        await db
+          .prepare("INSERT INTO club_members (club_id, athlete_id, role, joined_at) VALUES (?, ?, 'admin', ?)")
+          .bind(clubId, athleteId, now)
+          .run();
+      } catch (e) {
+        if (clubId) {
+          try {
+            await db.prepare('DELETE FROM clubs WHERE id = ?').bind(clubId).run();
+            safeWarn(`[clubs] member insert failed, cleaned up orphan club ${clubId}: ${e.message}`);
+          } catch (cleanupErr) {
+            safeError(`[clubs] FAILED to clean up orphan club ${clubId}: ${cleanupErr.message}`);
+          }
+        } else {
+          safeWarn(`[clubs] club creation failed before any insert: ${e.message}`);
+        }
+        return new Response(JSON.stringify({ error: 'club creation failed' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({
+        id: clubId,
+        name,
+        description,
+        role: 'admin',
+      }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (url.pathname === '/api/clubs' && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { results } = await env.cycling_coach_db
+        .prepare(`
+          SELECT c.id, c.name, c.description, c.owner_athlete_id, c.invite_code, c.created_at, m.role
+          FROM clubs c
+          INNER JOIN club_members m ON m.club_id = c.id
+          WHERE m.athlete_id = ?
+          ORDER BY c.created_at DESC
+        `)
+        .bind(authResult.athleteId)
+        .all();
+      return new Response(JSON.stringify({ clubs: results || [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const membersMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/members$/);
+    if (membersMatch && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const clubId = parseInt(membersMatch[1], 10);
+      const db = env.cycling_coach_db;
+      const [membershipRow, membersResult] = await db.batch([
+        db.prepare('SELECT 1 AS member FROM club_members WHERE club_id = ? AND athlete_id = ? LIMIT 1').bind(clubId, authResult.athleteId),
+        db.prepare(`
+          SELECT u.athlete_id, u.firstname, u.lastname, u.profile_url, m.role, m.joined_at
+          FROM club_members m
+          INNER JOIN users u ON u.athlete_id = m.athlete_id
+          WHERE m.club_id = ?
+          ORDER BY m.role DESC, m.joined_at ASC
+        `).bind(clubId),
+      ]);
+      if (!membershipRow.results || membershipRow.results.length === 0) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ club_id: clubId, members: membersResult.results || [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (url.pathname.startsWith('/api/')) {
       const stravaPath = url.pathname.replace(/^\/api\//, '');
       const stravaUrl = `https://www.strava.com/api/v3/${stravaPath}${url.search}`;
@@ -1691,6 +1809,37 @@ function normalizeGhIssue(i) {
  
 // Persist user and Strava tokens to D1.
 // Failures are logged but do not block the auth flow (graceful degradation).
+// resolveAthleteId — derives the calling user's athlete_id from the Authorization
+// bearer by round-tripping to Strava's /athlete endpoint (the canonical identity
+// oracle). Used by /api/clubs* endpoints. Returns { athleteId } on success or
+// { error, body } on failure (always 401 — the user's session is invalid and they
+// need to re-auth, regardless of whether the underlying issue is expired token,
+// network error, or malformed Strava response).
+async function resolveAthleteId(request) {
+  const auth = request.headers.get('Authorization');
+  if (!auth) {
+    return { error: 401, body: { error: 'authentication required' } };
+  }
+  try {
+    const stravaResp = await fetch('https://www.strava.com/api/v3/athlete', {
+      headers: { Authorization: auth },
+    });
+    if (!stravaResp.ok) {
+      safeWarn(`[clubs] resolveAthleteId: Strava /athlete returned ${stravaResp.status}`);
+      return { error: 401, body: { error: 'authentication required' } };
+    }
+    const stravaUser = await stravaResp.json();
+    if (!stravaUser?.id) {
+      safeWarn('[clubs] resolveAthleteId: Strava response missing athlete.id');
+      return { error: 401, body: { error: 'authentication required' } };
+    }
+    return { athleteId: stravaUser.id };
+  } catch (e) {
+    safeWarn(`[clubs] resolveAthleteId: network error: ${e.message}`);
+    return { error: 401, body: { error: 'authentication required' } };
+  }
+}
+
 async function persistUserAndTokens(db, tokenData) {
   if (!db) {
     console.warn('[D1] cycling_coach_db binding missing, skipping persist');
