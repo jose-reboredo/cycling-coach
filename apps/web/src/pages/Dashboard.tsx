@@ -25,6 +25,7 @@ import { GoalEventCard } from '../components/GoalEventCard/GoalEventCard';
 import { UserMenu } from '../components/UserMenu/UserMenu';
 import { RideDetail } from '../components/RideDetail/RideDetail';
 import { OnboardingModal } from '../components/OnboardingModal/OnboardingModal';
+import { ClubCreateCard } from '../components/ClubCreateCard/ClubCreateCard';
 import { WhatsNewBadge } from '../components/WhatsNew/WhatsNewBadge';
 import { useGoalEvent } from '../hooks/useGoalEvent';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
@@ -283,6 +284,7 @@ function DashboardView({
 
       <main id="main" className={styles.main}>
         <Container width="wide">
+          <ClubCreateCard />
           {/* HERO FOLD */}
           <section id="today" className={styles.foldHero}>
             <motion.div
