@@ -296,7 +296,7 @@ export function Landing() {
             </div>
           </div>
           <div className={styles.footBottom}>
-            <span className={styles.footVer}>v8.4.1 · April 2026</span>
+            <span className={styles.footVer}>v8.5.0 · April 2026</span>
             <span className={styles.footRights}>© Cycling Coach · Strava® is a registered trademark of Strava, Inc.</span>
           </div>
         </Container>

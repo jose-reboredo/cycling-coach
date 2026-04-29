@@ -4,6 +4,41 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [8.5.0] — 2026-04-29
+
+Polish release — Phase 1 of the v8.5.0–v8.5.3 backlog burn (spec `cf3e786`). Closes 5 v8.5.0 issues identified by the 2026-04-28 dashboard design audit. First release on the regression-test harness shipped in Phase 0.
+
+### Added — Accessibility
+
+- **`--c-accent-light: #ff7a3d` token** (`tokens.css` + `tokens.ts`) — AA-passing accent (~5.2:1 on canvas) for small-text usages flagged by audit H8. Applied to `Pill.accent` text (10px), `TopBar.brandBadge` (9px), `RoutesPicker.surfaceEm` (12px). PARS `--c-accent` (#ff4d00) stays the brand CTA color. Closes #25.
+- **`useFocusTrap` shared hook** at `apps/web/src/hooks/useFocusTrap.ts` — extracted from `OnboardingModal.tsx` (commit `0e168a1`). Used by both `OnboardingModal` and `UserMenu`. Public API: `useFocusTrap<T>(active, { restore })` returns a `RefObject<T>`. Closes the inline-trap duplication called out in audit H3.
+- **UserMenu keyboard navigation** (#27) — focus moves into the menu on open, `↑/↓` cycles between menuitems, `Home`/`End` jump to first/last, `ESC` closes and restores focus to the trigger. Closes #27.
+
+### Changed — Performance
+
+- **RideDetail expand drops `height: auto` animation** (#24) — opacity-only fade, GPU-composited, no layout pass per frame. Audit finding H6b. Animation duration trims 0.32s → 0.18s. Closes #24.
+
+### Changed — Navigation
+
+- **BottomNav active tab syncs to scroll position** (#26) — `IntersectionObserver` over the four section IDs (`#today`, `#train`, `#stats`, `#you`) with `rootMargin: -30% 0px -30% 0px` so a tab activates only when its section dominates the middle of the viewport. Click handler retained — tapping a tab still scrolls + sets active. New 1px `<div id="you" />` anchor at the end of `<main>` so the "You" tab has a real scroll target. Closes #26.
+
+### Added — In-app updates
+
+- **What's-new badge + modal** (#13) — Vite plugin reads repo-root `CHANGELOG.md` at build time, parses via `apps/web/src/lib/changelogParser.ts`, exposes through a `virtual:changelog` module. Components import the parsed entries synchronously. `WhatsNewBadge` in the TopBar trailing slot appears when `cc_lastSeenVersion` < the current release; clicking opens a modal with the latest 3 entries. Dismiss persists the seen version. Closes #13.
+
+### Tests
+
+- **11 Vitest unit tests** — 4 for `useFocusTrap`, 5 for `changelogParser`, 2 sentinel.
+- **13 Playwright e2e tests** at mobile-375 + desktop-1280 — added coverage for ride-expand, UserMenu kbd nav, BottomNav scroll-sync, what's-new badge round-trip.
+
+### Verification
+
+- `npm run build:web` clean (TS strict).
+- `E2E_TARGET_PROD=1 npm run test` passes locally and in GitHub Actions on every push to main.
+- Manual smoke at 375 + 1280 px before the release cut.
+
+---
+
 ## [8.4.1] — 2026-04-28
 
 Hotfix: `/whats-next` showed a stale issue count in PWA mode.

@@ -2,7 +2,19 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.4.1](./CHANGELOG.md#841--2026-04-28)** · 2026-04-28
+**Current release: [v8.5.0](./CHANGELOG.md#850--2026-04-29)** · 2026-04-29
+
+## What's new in v8.5.0
+
+Polish release — closes 5 v8.5.0 issues identified by the dashboard design audit + ships the regression-test harness's first real coverage.
+
+- **Accent contrast for small text** (#25) — new `--c-accent-light: #ff7a3d` token (~5.2:1 on canvas) for ≤14px text. Pill `.accent`, TopBar `v8` badge, RoutesPicker surface icons swap. PARS `--c-accent` stays the brand CTA color.
+- **RideDetail expand: pure opacity** (#24) — drops the `height: auto` animation; opacity-only fade, GPU-composited, no layout per frame.
+- **`useFocusTrap` hook + UserMenu keyboard nav** (#27) — extracted from OnboardingModal into a shared hook (`apps/web/src/hooks/useFocusTrap.ts`). UserMenu now: focuses first menuitem on open, ↑/↓/Home/End move between items, ESC closes + restores focus to trigger.
+- **BottomNav scroll sync** (#26) — `IntersectionObserver` over the four section IDs; active orange dot follows the section currently in view, not just the last-clicked tab.
+- **In-app "What's new" modal** (#13) — TopBar badge appears when the user hasn't seen the current release; opens a modal with the latest 3 CHANGELOG entries. Dismiss persists `cc_lastSeenVersion` in localStorage.
+
+Tests: 11 Vitest unit + 13 Playwright e2e at mobile-375 and desktop-1280.
 
 ## What's new in v8.4.0
 

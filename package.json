@@ -1,6 +1,6 @@
 {
   "name": "cycling-coach",
-  "version": "8.4.1",
+  "version": "8.5.0",
   "private": true,
   "scripts": {
     "dev:web": "cd apps/web && npm run dev",
