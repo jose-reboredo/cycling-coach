@@ -2,7 +2,13 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.1.1](./CHANGELOG.md#911--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.1.2](./CHANGELOG.md#912--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.1.2
+
+**Club view restructured to Saturday Crew Wireframes IA + Coach AI for the captain.** ClubDashboard reorganised per the design-bundle wireframes (cover hero, tabs row, hero invite CTA, 4 stat tiles, members list, circle note, coming-next). New `<ClubCoachCard />` lets the captain (admin) connect an Anthropic API key for the club; key stays in `localStorage` keyed by club id. Feedback rendering waits on a club-rides aggregate table; the card explains the current state.
+
+Schedule / Members / Metrics tabs render placeholders — calendar, sortable roster, collective load all wait on backend tables not yet built.
 
 ## What's new in v9.1.1
 

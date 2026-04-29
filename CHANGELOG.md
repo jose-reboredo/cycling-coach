@@ -4,6 +4,47 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.1.2] — 2026-04-30
+
+**Club view restructure to Saturday Crew Wireframes IA + Coach AI for the captain.** Implements the information architecture from the design-bundle wireframes (`claude.ai/design` handoff: 5 low-fi artboards for the Saturday Crew detail page) and adds a captain-managed Anthropic API key for club-scoped Coach AI feedback per BA spec.
+
+### Changed — ClubDashboard structure
+
+Restructured per Saturday Crew Wireframes 01 (Overview tab):
+
+- **Cover hero** — striped placeholder background, italic-em club name with trailing punctuation (`Saturday Morning Crew.`), metadata strip (`Est. <year> · N members · Private`) and role pill in the top-right.
+- **Tabs row** — Overview / Schedule / Members / Metrics. Only Overview is implemented; the rest render a "Coming soon" placeholder (calendar, sortable roster, collective load chart per the wireframes — all wait on backend tables that don't exist yet). Tabs are keyboard-accessible buttons with brass underline on active.
+- **Hero invite CTA** — promoted from a buried card to a wireframe-style two-column treatment: full-width URL on the left + brass `↗ Share Invite Link` button on the right. Annotation under the card matches the wireframe's `★ share is the primary feature` callout. Mobile stacks vertically.
+- **Stat tiles** — re-labelled per wireframe: *Hours collective · Distance · Group rides · Members*. Values are `—` / `0` placeholders today; real numbers wait on the rides aggregate path.
+- **Members list** — kept the existing avatar + name + joined date + role pill row. Eyebrow now reads `Members · 0N` (zero-padded count) per wireframe.
+- **Circle note** — admin-only placeholder card explaining the future post mechanism. Signed `— Cadence · Circle Layer` per wireframe.
+- **Coming next** — replaces the prior bullet list with the wireframe's accent-tinted left-rule list.
+
+### Added — Coach AI for the captain
+
+Per BA spec: *"as business analyst add Coach AI feedback into the club, for the moment the captain can add manually anthropic api key"*. Ships the key-entry UX so the captain can be onboarded ahead of the data-aggregate path.
+
+- **`<ClubCoachCard />`** in ClubDashboard Overview tab. Three states:
+  1. **Non-admin, no key set** — *"Captain has not yet set up Coach AI."* read-only.
+  2. **Non-admin, key set** — *"The captain has connected an Anthropic API key. Coach AI feedback will surface here once the club-rides aggregate data path ships."* + a connected-status indicator.
+  3. **Admin** — full management UI: connect (sk-ant-… password input), masked-preview when set (`sk-ant-…ABCD`), replace, disconnect. Same UX language as the existing personal AiCoachCard for consistency.
+- **Storage**: `localStorage` under `cc_clubAiKey:${clubId}`. NOT synced to D1 — matches the existing personal-Anthropic-key pattern (also localStorage-only). Decision documented inline: adding a clubs.api_key column means migration + admin-only edit endpoint + server-side encryption story; we don't have that today for personal keys either, and matching keeps the security posture consistent.
+- **Feedback rendering itself is deferred** — without aggregated club-rides data we can't usefully call `/coach` for the club. The card surfaces "feedback ships once a club-rides aggregate table exists in D1" so the captain understands the current state.
+
+### Process
+
+- Read the design bundle's README + chat transcript before implementing per the bundle's instructions ("read the chat transcripts first").
+- Wireframes are LOW-FI (cream + black ink) — applied the **information architecture** to the existing PARS dark + molten orange palette (v9.1.1 revert), not the wireframe's literal colors.
+- Schedule tab calendar + Members tab sortable roster + Mobile share-sheet flow (artboards 02, 03, 05 from the bundle) deferred to v9.2.x — they're all backend-blocked (rides table, RSVP store, share-sheet OS integration).
+
+### Verified
+
+- `npm run build:web` clean (vite + tsc -b)
+- `E2E_TARGET_PROD=1 npm run test` → 13 passed / 1 skipped, zero regressions vs v9.1.1
+- Both branches (no-club + club-mode) render correctly under the new IA
+
+---
+
 ## [9.1.1] — 2026-04-30
 
 **Palette revert.** Restores the molten orange `#ff4d00` accent + lime `#22c55e` success of v9.0.0 era. The brass `#b8956a` + forest green `#4a8e54` palette shipped in v9.1.0 is rolled back; brand rename to "Cadence Club" stays. Effectively the v9.0.0 visual identity wearing the v9.1.0 brand name.
