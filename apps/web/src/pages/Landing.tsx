@@ -85,7 +85,7 @@ export function Landing() {
             <PmcStrip ctl={78} atl={82} tsb={-4} ctlDelta={2.4} atlDelta={-1.1} tsbDelta={3.5} />
             <div className={styles.previewBody}>
               <div className={styles.previewMain}>
-                <Eyebrow>Today's workout</Eyebrow>
+                <Eyebrow>Today's session</Eyebrow>
                 <h3 className={styles.previewTitle}>Sweet-spot intervals · 3×12</h3>
                 <div className={styles.previewZones}>
                   <ZonePill zone={1} size="sm" label="Z1 · 10m" />

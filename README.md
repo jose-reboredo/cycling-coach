@@ -2,7 +2,17 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.0.0](./CHANGELOG.md#900--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+**Current release: [v9.1.0](./CHANGELOG.md#910--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.1.0
+
+**Brand swap to Cadence Club.** The accent palette pivots from molten orange to warm brass `#B8956A` + forest green `#4A8E54`; the user-facing name flips from "Cycling Coach" to "Cadence Club"; the OnboardingModal gets a mobile-first padding fix. No new pages, no auth changes, no D1 migrations. Strava OAuth remains the only auth path.
+
+- Tokens: brass + forest green (AA-contrast verified — brief's `#2C5530` failed at 2.31:1, lifted to `#4A8E54` for body text; `#2C5530` reserved as `--c-success-deep` for non-text decoration).
+- Semantics locked in: **Brass = active / next**, **Forest Green = completed / earned**. PR pills, "Strengths" eyebrow, and "{n} PRs" tally moved from accent → success accordingly. Dashboard "Demo data" pill dropped its (incorrect) success tone to neutral.
+- Domain stays at `cycling-coach.josem-reboredo.workers.dev` — migration tracked as [#32](https://github.com/jose-reboredo/cycling-coach/issues/32). Internal identifiers (Worker name, D1 db, npm packages) unchanged.
+
+Strava + Anthropic + Cloudflare Workers under the hood, same as v9.0.0. Existing v8.x and v9.0.0 features (clubs MVP + invite-by-link) all carry over with the new palette.
 
 ## What's new in v9.0.0
 

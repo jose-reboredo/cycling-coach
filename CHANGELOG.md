@@ -4,6 +4,66 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.1.0] — 2026-04-30
+
+**Brand swap to Cadence Club.** The accent palette pivots from molten orange to warm brass + forest green; the user-facing brand string flips from "Cycling Coach" to "Cadence Club"; the OnboardingModal gets a mobile-first padding fix. No new pages, no auth changes, no D1 migrations. Strava OAuth remains the only auth path. Implemented per `docs/superpowers/specs/2026-04-30-v9.1.0-brand-swap-spec.md` in 3 staged commits with AA-contrast verification before merge.
+
+### Changed — design tokens
+
+- `--c-accent: #ff4d00` → `#b8956a` (warm brass, 7.11:1 AA on canvas)
+- `--c-accent-deep` → `#9c7c56` (5.12:1)
+- `--c-accent-light` → `#d4b98c` (10.47:1, ≤14px text)
+- `--c-success: #22c55e` → `#4a8e54` (forest green, 4.98:1; lifted from the brief's #2C5530 which fails AA at 2.31:1)
+- New `--c-success-deep: #2c5530` for non-text decoration only (borders, left-rules)
+- `--sh-glow` migrated to brass RGBA values
+- All hardcoded `rgba(255, 77, 0, ...)` and `rgba(34, 197, 94, ...)` literals across components (Card, StreakHeatmap, Pill, Button, VolumeChart, LoadingScreen, WhatsNext, Landing) and the worker's OAuth callback HTML pages swept to brass / forest equivalents.
+
+### Changed — semantics
+
+The "Brass = active, Forest Green = completed" rule applied where prior tone= usage didn't match:
+- `RideDetail` PR + achievement pills: `accent` → `success` (PRs are completed)
+- `AiCoachCard` "Strengths" eyebrow: `accent` → `success` (positive past assessment) — required adding `success` to Eyebrow's `tone` prop type + a CSS class
+- `WinsTimeline` "{n} PRs" pill: `accent` → `success`
+- `Dashboard` Pill: `success` → no tone for "Demo data" (mode, not completion); kept Forest Green for "In sync" (completion)
+- `ClubDashboard` role pills: admin = Brass; member = neutral (baseline state, not an achievement)
+
+### Changed — brand string
+
+User-facing "Cycling Coach" → "Cadence Club" in `TopBar`, `AppFooter`, `Landing` body copy, `JoinClub` invite landing, `Privacy` (with the "self-hosted hobby project" line reframed to "small product run by a single maintainer"), `index.html` `<title>` + meta tags, and the worker's `/version` `service` field, Confluence sync prompt, and OAuth callback HTML pages. TopBar version badge: `v8` → `v9`. Pill on Landing: `For the performance-driven amateur · v9`.
+
+### Kept unchanged (intentionally)
+
+- `wrangler.jsonc` Worker `name: "cycling-coach"` and D1 `database_name: "cycling-coach-db"` — renaming these = new prod URL + Strava OAuth callback re-registration. Tracked separately as **issue #32** (`Migrate Cadence Club to cadenceclub.cc canonical domain`).
+- `package.json` / `apps/web/package.json` `name` fields — internal npm identifiers.
+- `docs:sync` script URL — same domain as Worker config.
+- CHANGELOG.md historical entries (v8.5.x and earlier) — no rewriting history.
+
+### Mobile-first
+
+`OnboardingModal` now tightens padding + border-radius at ≤600px to avoid crowding the screen edge on small phones. The other 3 components flagged by the spec audit (`GoalEventCard`, `RideFeedback`, `WinsTimeline`) reviewed but deferred to v9.2.0's comprehensive mobile-first pass — they adapt acceptably via existing `1fr` / `min-width: 0` rules at narrow viewports.
+
+### Copy voice
+
+Surgical: only "Today's workout" → "Today's session" in Landing.tsx. The rest of the spec's vocabulary substitution table (training plan, community, achievement, sign up, get faster) returned zero matches against current copy — the codebase was already close to the v2.0 voice.
+
+### Verified
+
+- AA contrast verified for every text-bearing token via Node script before commit
+- Hardcoded color literal sweep returns zero `rgba(255,77,0)` / `rgba(34,197,94)` / `#ff4d00` / `#22c55e` outside `tokens.css` / `tokens.ts`
+- `npm run build:web` clean (vite + tsc -b)
+- 13 e2e tests + 1 skipped (zero regressions vs v9.0.0)
+
+### Explicitly NOT in v9.1.0
+
+- New pages (homepage 3-col, onboarding flow, settings, B2B placeholder) — **v9.2.0**
+- Email/password auth via Better Auth — **excluded entirely**, not a future version
+- Domain migration to `cadenceclub.cc` — **issue #32**
+- Worker rename from `cycling-coach` to `cadence-club` — combined with #32
+- Comprehensive mobile-first audit of all components — incremental in v9.2.0 alongside new pages
+- Per-code expiry / regeneration of invite codes — v9.2.0+
+
+---
+
 ## [9.0.0] — 2026-04-29
 
 **Clubs MVP — F4 invite-by-link, shipped as v9.0.0 per Jose's call.** Fills the demo-blocking gap from v8.6.0 ("how does an admin add teammates?"). The `clubs` table already had `invite_code TEXT UNIQUE` populated on every create from F1; this release exposes it. Also marks the start of the Cadence Club product line — subsequent v9.x releases land the brand swap, redesigned pages, email/password auth, and B2B layer per the v2.0 redesign brief.

@@ -23,6 +23,16 @@
   box-shadow: var(--sh-lg);
 }
 
+/* Mobile-first audit (v9.1.0): tighten padding + radius at narrow viewports
+ * so the modal doesn't crowd the screen edge on phones below ~552px. */
+@media (max-width: 600px) {
+  .modal {
+    max-width: calc(100vw - 24px);
+    padding: var(--s-5);
+    border-radius: var(--r-md);
+  }
+}
+
 .head {
   display: flex;
   gap: var(--s-3);

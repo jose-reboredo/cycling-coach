@@ -26,8 +26,8 @@ test.describe('Smoke — landing page (/)', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // BikeMark + brand text in TopBar
-    await expect(page.getByText('Cycling Coach').first()).toBeVisible();
+    // BikeMark + brand text in TopBar (renamed Cycling Coach → Cadence Club in v9.1.0)
+    await expect(page.getByText('Cadence Club').first()).toBeVisible();
 
     // Primary CTA — "Connect with Strava" button anchored to the Strava OAuth flow
     const cta = page.getByRole('link', { name: /Connect with Strava/i }).first();
