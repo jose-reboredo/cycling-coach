@@ -287,6 +287,140 @@
   color: var(--c-text-faint);
 }
 
+/* SECTION HEADER WITH ACTION (Upcoming + Post event button) */
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.sectionAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  background: transparent;
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-sm);
+  color: var(--c-text);
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out);
+}
+.sectionAction:hover {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+
+/* EVENTS LIST */
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.eventRow {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+}
+
+@media (max-width: 540px) {
+  .eventRow {
+    grid-template-columns: 64px 1fr;
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+  }
+}
+
+.eventDate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.eventDateDay {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.eventDateNum {
+  font: 600 28px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.024em;
+  color: var(--c-text);
+}
+
+.eventDateMon {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+}
+
+.eventBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.eventTitle {
+  font: 600 17px/1.25 var(--font-sans);
+  letter-spacing: -0.01em;
+  color: var(--c-text);
+}
+
+.eventMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--c-text-muted);
+}
+
+.eventMetaTime {
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.eventMetaDot {
+  color: var(--c-text-faint);
+}
+
+.eventMetaLoc {
+  font-style: normal;
+}
+
+.eventMetaCreator {
+  font-style: italic;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: -0.005em;
+}
+
+.eventDesc {
+  font: 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  letter-spacing: -0.005em;
+  margin-top: var(--s-1);
+}
+
 /* MEMBERS LIST */
 .members {
   display: flex;

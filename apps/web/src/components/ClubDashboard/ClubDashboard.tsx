@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Eyebrow } from '../Eyebrow/Eyebrow';
 import { Pill } from '../Pill/Pill';
-import { useClubMembers, useClubs } from '../../hooks/useClubs';
-import type { Club, ClubMember } from '../../lib/clubsApi';
+import { useClubMembers, useClubs, useClubEvents } from '../../hooks/useClubs';
+import { ClubEventModal } from '../ClubEventModal/ClubEventModal';
+import type { Club, ClubEvent, ClubMember } from '../../lib/clubsApi';
 import styles from './ClubDashboard.module.css';
 
 interface ClubDashboardProps {
@@ -35,8 +36,10 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
   const memberCount = members.data?.length ?? 0;
   const clubs = useClubs();
   const club: Club | undefined = clubs.data?.find((c) => c.id === clubId);
+  const events = useClubEvents(clubId);
   const isAdmin = role === 'admin';
   const [tab, setTab] = useState<Tab>('overview');
+  const [eventModalOpen, setEventModalOpen] = useState(false);
 
   const createdYear = club?.created_at
     ? new Date(club.created_at * 1000).getFullYear()
@@ -93,6 +96,21 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
             </div>
           </section>
 
+          {/* UPCOMING EVENTS — any member can create. v9.1.3 spec. */}
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>
+              <Eyebrow rule>Upcoming</Eyebrow>
+              <button
+                type="button"
+                className={styles.sectionAction}
+                onClick={() => setEventModalOpen(true)}
+              >
+                + Post event
+              </button>
+            </div>
+            <EventsList state={events} />
+          </section>
+
           {/* CIRCLE NOTE — admin-only, placeholder while no posts table exists */}
           {isAdmin && (
             <section className={styles.section}>
@@ -144,12 +162,17 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
           <Eyebrow rule tone="accent">Coming soon</Eyebrow>
           <p className={styles.tabPlaceholderBody}>
             The <strong>{tab}</strong> tab is wireframed. Schedule lays out a calendar
-            view with filters; Members renders a sortable roster with FTP / hours /
-            attendance; Metrics surfaces collective load and form trends. None ship in
-            v9.1.2 — they wait on backend tables (rides, attendance, aggregated load).
+            view of events + filters; Members renders a sortable roster with FTP /
+            hours / attendance; Metrics surfaces collective load and form trends.
           </p>
         </div>
       )}
+
+      <ClubEventModal
+        open={eventModalOpen}
+        clubId={clubId}
+        onClose={() => setEventModalOpen(false)}
+      />
     </div>
   );
 }
@@ -178,6 +201,73 @@ function TabBtn({
       {label}
       {disabled && !active && <span className={styles.tabSoon}>Soon</span>}
     </button>
+  );
+}
+
+function EventsList({ state }: {
+  state: ReturnType<typeof useClubEvents>;
+}) {
+  if (state.isLoading) {
+    return <div className={styles.empty}>Loading events…</div>;
+  }
+  if (state.isError) {
+    return <div className={styles.error}>Could not load events.</div>;
+  }
+  const events = state.data ?? [];
+  if (events.length === 0) {
+    return (
+      <div className={styles.empty}>
+        No upcoming events. Post one to get the circle moving.
+      </div>
+    );
+  }
+  return (
+    <div className={styles.events}>
+      {events.map((e) => <EventRow key={e.id} event={e} />)}
+    </div>
+  );
+}
+
+function EventRow({ event }: { event: ClubEvent }) {
+  const dt = new Date(event.event_date * 1000);
+  const dayShort = dt.toLocaleDateString('en-GB', { weekday: 'short' }); // Sat
+  const dayNum = dt.toLocaleDateString('en-GB', { day: '2-digit' });     // 03
+  const monShort = dt.toLocaleDateString('en-GB', { month: 'short' });   // May
+  const timeShort = dt.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const creator = [event.creator_firstname, event.creator_lastname].filter(Boolean).join(' ').trim();
+  return (
+    <article className={styles.eventRow}>
+      <div className={styles.eventDate} aria-hidden="true">
+        <span className={styles.eventDateDay}>{dayShort}</span>
+        <span className={styles.eventDateNum}>{dayNum}</span>
+        <span className={styles.eventDateMon}>{monShort}</span>
+      </div>
+      <div className={styles.eventBody}>
+        <h3 className={styles.eventTitle}>{event.title}</h3>
+        <div className={styles.eventMeta}>
+          <span className={styles.eventMetaTime}>{timeShort}</span>
+          {event.location && (
+            <>
+              <span className={styles.eventMetaDot} aria-hidden="true">·</span>
+              <span className={styles.eventMetaLoc}>{event.location}</span>
+            </>
+          )}
+          {creator && (
+            <>
+              <span className={styles.eventMetaDot} aria-hidden="true">·</span>
+              <span className={styles.eventMetaCreator}>posted by {creator}</span>
+            </>
+          )}
+        </div>
+        {event.description && (
+          <p className={styles.eventDesc}>{event.description}</p>
+        )}
+      </div>
+    </article>
   );
 }
 

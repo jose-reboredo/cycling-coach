@@ -4,6 +4,64 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.1.3] — 2026-04-30
+
+**Club events — D1 table + create flow + Upcoming list (Phase A).** Any member can post a ride; admins are not gatekeepers per the BA spec. RSVPs deferred to Phase B (separate `event_rsvps` table, separate release).
+
+### Added — D1
+
+- **Migration 0002 — `club_events` table** (applied to remote D1 before this release shipped).
+  ```sql
+  CREATE TABLE club_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    club_id INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+    created_by INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    event_date INTEGER NOT NULL,    -- unix epoch seconds
+    location TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX idx_club_events_club_date ON club_events (club_id, event_date);
+  CREATE INDEX idx_club_events_creator ON club_events (created_by, event_date);
+  ```
+- The `(club_id, event_date)` index covers the primary read path: `WHERE club_id = ? AND event_date >= now ORDER BY event_date ASC LIMIT 50`.
+
+### Added — Worker endpoints
+
+- **`POST /api/clubs/:id/events`** — Strava-auth required (resolveAthleteId). Membership-gated (any role; admins aren't special). Body: `{ title (required, ≤200), description? (≤2000), location? (≤200), event_date (ISO string OR unix seconds, ±5 years from now sanity-bound) }`. INSERT…RETURNING id; returns the full event row on 201.
+- **`GET /api/clubs/:id/events`** — Strava-auth + membership required. Returns upcoming events (`event_date >= now`) joined with `users.firstname / lastname` so the UI can render "posted by Marco V." without a second round-trip. `?include=past` widens to all events. Capped at 50 rows. ORDER BY event_date ASC.
+- Both endpoints sit before the generic `/api/*` Strava-proxy fallthrough; corsHeaders applied to every response.
+
+### Added — Frontend
+
+- **`<ClubEventModal />`** — modal-style form (mirrors ClubCreateModal pattern) with title + location + date + time + notes. Default date is next Saturday at 09:00 (matches the wireframe's "Saturday Morning Crew" mental model and the most common group-ride slot). useFocusTrap, ESC dismiss, scroll lock, mobile-first padding.
+- **Upcoming section** in ClubDashboard Overview tab — section header has `+ Post event` button (visible to all members, not just admin per BA spec). Below: events list with date-block left-rail (e.g., `Sat 03 May`), title, time + location + creator-attribution row, optional description body. Empty state: "No upcoming events. Post one to get the circle moving."
+- **`useClubEvents()`** + **`useCreateClubEvent()`** Tanstack hooks (`useClubs.ts`). Cache settings: 1 min stale, 10 min gc — events are time-sensitive; refetch is more aggressive than the 5/30 min defaults used for the clubs list.
+- **`clubsApi.events()`** + **`clubsApi.createEvent()`** in `clubsApi.ts`. Types: `ClubEvent`, `CreateClubEventInput`.
+
+### Behavior
+
+- Dates flow through the API as **unix epoch seconds** (the column type). Frontend collects local date + time inputs, combines them into an ISO string, and ships either the ISO string or the integer seconds — the backend accepts both.
+- Past events are not returned by default (saves the UI from filtering). `?include=past` available for future "history" views.
+- Create + list are independent of the existing tabs structure (Overview only); when Schedule/Members/Metrics tabs ship, they'll consume the same endpoints.
+
+### Explicitly NOT in v9.1.3 (deferred to Phase B / future)
+
+- **`event_rsvps` table** — going / maybe / no per member. Separate migration, separate UI.
+- **Edit/delete event** — original poster + admin can edit, others 403. Future endpoint.
+- **Recurring events (RRULE)** — every-Saturday patterns.
+- **Max attendees + waitlist**, route URL, cover image — fields exist as `null` only.
+- **Calendar view** — the Schedule tab placeholder. v9.2.x.
+
+### Verified
+
+- Migration applied to remote D1 with `wrangler d1 execute --remote --file=migrations/0002_club_events.sql` before deploy. Verified `SELECT sql FROM sqlite_master WHERE name='club_events'` returns the expected schema.
+- `npm run build:web` clean (vite + tsc -b)
+- `E2E_TARGET_PROD=1 npm run test` → 13 passed / 1 skipped, zero regressions vs v9.1.2
+
+---
+
 ## [9.1.2] — 2026-04-30
 
 **Club view restructure to Saturday Crew Wireframes IA + Coach AI for the captain.** Implements the information architecture from the design-bundle wireframes (`claude.ai/design` handoff: 5 low-fi artboards for the Saturday Crew detail page) and adds a captain-managed Anthropic API key for club-scoped Coach AI feedback per BA spec.

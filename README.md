@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.1.2](./CHANGELOG.md#912--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.1.3](./CHANGELOG.md#913--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.1.3
+
+**Club events — D1 table + create flow.** New `club_events` table (migration `0002`), two endpoints (`POST` + `GET /api/clubs/:id/events`), modal-style create form, Upcoming section in ClubDashboard. Any member can post a ride — admins are not gatekeepers per the BA spec. Membership-gated reads (404 if not a member, OWASP). RSVPs deferred to a Phase B release.
 
 ## What's new in v9.1.2
 

@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.1.2';
+const WORKER_VERSION = 'v9.1.3';
 const BUILD_DATE = '2026-04-29';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -302,6 +302,109 @@ export default {
         description: club.description,
         role,
       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // /api/clubs/:id/events — list upcoming + create. Membership-gated reads
+    // (404 if not a member, OWASP). v9.1.3 spec: ANY member can create events,
+    // not just admins. Past events optionally returned via ?include=past.
+    const eventsMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/events$/);
+    if (eventsMatch && (request.method === 'GET' || request.method === 'POST')) {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const clubId = parseInt(eventsMatch[1], 10);
+      const db = env.cycling_coach_db;
+
+      // Membership check (any role qualifies — not admin-only per spec)
+      const membership = await db
+        .prepare('SELECT 1 AS member FROM club_members WHERE club_id = ? AND athlete_id = ? LIMIT 1')
+        .bind(clubId, authResult.athleteId)
+        .first();
+      if (!membership) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (request.method === 'POST') {
+        let body;
+        try { body = await request.json(); } catch {
+          return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const title = (body?.title || '').toString().trim();
+        const description = body?.description ? body.description.toString().trim().slice(0, 2000) : null;
+        const location = body?.location ? body.location.toString().trim().slice(0, 200) : null;
+        const eventDateRaw = body?.event_date;
+        const eventDate = typeof eventDateRaw === 'number'
+          ? Math.floor(eventDateRaw)
+          : eventDateRaw ? Math.floor(new Date(eventDateRaw).getTime() / 1000) : NaN;
+
+        if (!title || title.length > 200) {
+          return new Response(JSON.stringify({ error: 'title required (1-200 chars)' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        if (!Number.isFinite(eventDate) || eventDate < 0) {
+          return new Response(JSON.stringify({ error: 'event_date required (ISO string or unix seconds)' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const now = Math.floor(Date.now() / 1000);
+        // Sanity guard: ±5 years
+        const fiveYears = 5 * 365 * 24 * 3600;
+        if (eventDate < now - fiveYears || eventDate > now + fiveYears) {
+          return new Response(JSON.stringify({ error: 'event_date out of range (±5 years)' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const inserted = await db
+          .prepare(
+            'INSERT INTO club_events (club_id, created_by, title, description, event_date, location, created_at) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
+          )
+          .bind(clubId, authResult.athleteId, title, description, eventDate, location, now)
+          .first();
+        if (!inserted?.id) {
+          safeWarn(`[clubs] event insert returned no id for club ${clubId}`);
+          return new Response(JSON.stringify({ error: 'event creation failed' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({
+          id: inserted.id,
+          club_id: clubId,
+          created_by: authResult.athleteId,
+          title,
+          description,
+          location,
+          event_date: eventDate,
+          created_at: now,
+        }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // GET — upcoming first (event_date >= now); cap at 50 rows.
+      const includePast = url.searchParams.get('include') === 'past';
+      const now = Math.floor(Date.now() / 1000);
+      const sql = includePast
+        ? 'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, e.event_date, e.created_at, ' +
+          '       u.firstname AS creator_firstname, u.lastname AS creator_lastname ' +
+          'FROM club_events e LEFT JOIN users u ON u.athlete_id = e.created_by ' +
+          'WHERE e.club_id = ? ORDER BY e.event_date DESC LIMIT 50'
+        : 'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, e.event_date, e.created_at, ' +
+          '       u.firstname AS creator_firstname, u.lastname AS creator_lastname ' +
+          'FROM club_events e LEFT JOIN users u ON u.athlete_id = e.created_by ' +
+          'WHERE e.club_id = ? AND e.event_date >= ? ORDER BY e.event_date ASC LIMIT 50';
+      const stmt = includePast ? db.prepare(sql).bind(clubId) : db.prepare(sql).bind(clubId, now);
+      const { results } = await stmt.all();
+      return new Response(JSON.stringify({ club_id: clubId, events: results || [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const membersMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/members$/);

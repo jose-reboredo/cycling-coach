@@ -61,6 +61,27 @@ export interface JoinClubResponse {
   role: 'admin' | 'member' | string;
 }
 
+export interface ClubEvent {
+  id: number;
+  club_id: number;
+  created_by: number;
+  title: string;
+  description: string | null;
+  location: string | null;
+  event_date: number; // unix epoch seconds
+  created_at: number;
+  creator_firstname?: string | null;
+  creator_lastname?: string | null;
+}
+
+export interface CreateClubEventInput {
+  title: string;
+  description?: string;
+  location?: string;
+  /** ISO 8601 string OR unix epoch seconds. */
+  event_date: string | number;
+}
+
 export const clubsApi = {
   list: () => call<{ clubs: Club[] }>('/api/clubs').then((r) => r.clubs),
   create: (input: CreateClubInput) =>
@@ -71,4 +92,13 @@ export const clubsApi = {
     ),
   join: (code: string) =>
     call<JoinClubResponse>(`/api/clubs/join/${encodeURIComponent(code)}`, { method: 'POST', body: '{}' }),
+  events: (clubId: number, opts: { includePast?: boolean } = {}) =>
+    call<{ club_id: number; events: ClubEvent[] }>(
+      `/api/clubs/${clubId}/events${opts.includePast ? '?include=past' : ''}`,
+    ).then((r) => r.events),
+  createEvent: (clubId: number, input: CreateClubEventInput) =>
+    call<ClubEvent>(`/api/clubs/${clubId}/events`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };
