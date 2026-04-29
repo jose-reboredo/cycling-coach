@@ -27,6 +27,9 @@ import { RideDetail } from '../components/RideDetail/RideDetail';
 import { OnboardingModal } from '../components/OnboardingModal/OnboardingModal';
 import { ClubCreateCard } from '../components/ClubCreateCard/ClubCreateCard';
 import { ContextSwitcher } from '../components/ContextSwitcher/ContextSwitcher';
+import { ClubDashboard } from '../components/ClubDashboard/ClubDashboard';
+import { useAppContext } from '../lib/AppContext';
+import { useClubsEnabled } from '../lib/featureFlags';
 import { WhatsNewBadge } from '../components/WhatsNew/WhatsNewBadge';
 import { useGoalEvent } from '../hooks/useGoalEvent';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
@@ -159,6 +162,12 @@ function DashboardView({
   onDisconnect,
   onEditProfile,
 }: DashboardViewProps) {
+  const { scope } = useAppContext();
+  const clubsEnabled = useClubsEnabled();
+  // Kill-switch override: even if persisted scope says 'club', when the flag is
+  // off we render the individual dashboard EXACTLY as today (CTO NOTE 5).
+  const isClubMode = clubsEnabled && scope.mode === 'club' && scope.clubId != null;
+
   // Derived from the active activity set (mock or real)
   const pmc = useMemo(() => computePmcDelta(activities), [activities]);
   const recents = useMemo(
@@ -287,6 +296,14 @@ function DashboardView({
       <main id="main" className={styles.main}>
         <Container width="wide">
           <ClubCreateCard />
+          {isClubMode ? (
+            <ClubDashboard
+              clubId={scope.clubId as number}
+              clubName={scope.clubName ?? 'Club'}
+              role={scope.role ?? 'member'}
+            />
+          ) : (
+          <>
           {/* HERO FOLD */}
           <section id="today" className={styles.foldHero}>
             <motion.div
@@ -641,6 +658,8 @@ function DashboardView({
 
           {/* BottomNav scroll-anchor for the "You" tab — empty marker, no UI. */}
           <div id="you" aria-hidden="true" style={{ height: 1 }} />
+          </>
+          )}
         </Container>
       </main>
 

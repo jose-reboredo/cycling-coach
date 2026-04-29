@@ -1,0 +1,220 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: var(--s-6) 0;
+}
+
+/* HEADER */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font: 600 56px/1 var(--font-sans);
+  letter-spacing: -0.032em;
+  color: var(--c-text);
+}
+.title em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
+}
+
+.metaRow {
+  display: flex;
+  gap: var(--s-4);
+  align-items: baseline;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.metaCount strong {
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  margin-right: 4px;
+}
+
+@media (max-width: 600px) {
+  .title {
+    font-size: 36px;
+  }
+}
+
+/* SECTIONS */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+/* MEMBERS LIST */
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--c-surface-elev);
+  border: 1px solid var(--c-line-strong);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatarFallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--c-surface-elev);
+  border: 1px solid var(--c-line-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 14px/1 var(--font-mono);
+  color: var(--c-text-muted);
+  flex-shrink: 0;
+}
+
+.memberBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.memberName {
+  font: 500 15px/1.2 var(--font-sans);
+  color: var(--c-text);
+  letter-spacing: -0.005em;
+}
+
+.memberJoined {
+  font: 500 10px/1.2 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.empty,
+.error {
+  padding: var(--s-5);
+  background: var(--c-surface);
+  border: 1px dashed var(--c-line-strong);
+  border-radius: var(--r-md);
+  font: italic 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  text-align: center;
+}
+
+/* PLACEHOLDER STAT TILES */
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-4);
+}
+
+@media (min-width: 768px) {
+  .statRow {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.statTile {
+  padding: var(--s-5);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.statValue {
+  font: 600 32px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.024em;
+  color: var(--c-text);
+}
+
+.statLabel {
+  font: 500 10px/1.2 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+/* COMING SOON */
+.comingSoon {
+  padding: var(--s-6);
+  background: var(--c-accent-soft);
+  border-left: 2px solid var(--c-accent);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.comingSoonTitle {
+  font: 600 18px/1.2 var(--font-sans);
+  letter-spacing: -0.012em;
+  color: var(--c-text);
+}
+
+.comingSoonList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.comingSoonItem {
+  font: 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  display: flex;
+  gap: var(--s-2);
+  align-items: baseline;
+}
+
+.comingSoonItem::before {
+  content: '·';
+  color: var(--c-accent);
+  font-weight: 700;
+}
+
+/* HINT BANNER (switch back) */
+.hint {
+  margin-top: var(--s-4);
+  padding: var(--s-4);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  font: italic 400 13px/1.4 var(--font-sans);
+  color: var(--c-text-muted);
+  text-align: center;
+}
