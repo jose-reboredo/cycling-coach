@@ -4,6 +4,51 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [8.6.0] — 2026-04-29
+
+**Clubs MVP — vertical slice for stakeholder demo.** Demonstrates the "amateur cycling club as unit of use" thesis with a working end-to-end flow against production D1: create club → see context switcher → flip into club view → see members list. No auth changes, no D1 migrations — uses the existing `clubs` + `club_members` tables.
+
+### Added — Worker
+
+- **`POST /api/clubs`** — creates a club, atomically inserts caller as `admin` member. INSERT…RETURNING + try/catch DELETE cleanup if the member-insert fails (`safeWarn('[clubs] member insert failed, cleaned up orphan club {id}')`). Validates name 1–100 chars, description ≤500.
+- **`GET /api/clubs`** — lists clubs the caller belongs to. JOIN `clubs` + `club_members` filtered by caller's `athlete_id`.
+- **`GET /api/clubs/:id/members`** — membership-gated. Returns 404 if caller isn't a member of the club (OWASP — don't leak existence). Single batch round-trip: `SELECT 1` membership check + `SELECT users JOIN club_members` member list.
+- **`resolveAthleteId(request)` helper** — rounds-trips Strava `/athlete` once per club operation to validate the bearer token AND derive the canonical `athlete_id`. All failure modes (no auth, expired token, network error, malformed Strava response) return **401** with body `{"error":"authentication required"}` and `safeWarn` server-side. Never 500.
+- All `/api/clubs*` responses carry the existing `corsHeaders` (success, 4xx, 5xx, OPTIONS preflight). Verified via OPTIONS smoke probe.
+- Endpoints inserted **before** the generic `/api/*` Strava proxy fall-through. `/api/*` glob in `wrangler.jsonc → assets.run_worker_first` already covers the new paths — no wrangler.jsonc change needed.
+
+### Added — Frontend
+
+- **`<ContextSwitcher />` in TopBar** — compact pill showing current scope. Dropdown lists "My account" + each club from `useClubs()` + "Create new club". Selection updates AppContext + persists to `cc_activeContext`. Keyboard-accessible (arrow keys, ESC, click-outside, focus trap, focus restore) — same a11y pattern as the existing UserMenu. Compacts to dot+chevron-only at ≤640px to avoid TopBar overflow on mobile.
+- **`<ClubCreateCard />`** — small CTA on Dashboard for users with zero clubs. Auto-hides once they have ≥1 (the ContextSwitcher's "Create new club" item takes over from there).
+- **`<ClubCreateModal />`** — PARS-styled modal: name (1–100 chars, required) + description (≤500, optional). Submits via `useCreateClub()` mutation, invalidates the `['clubs','mine']` query on success. ESC dismiss, scroll lock, focus trap (matches OnboardingModal pattern).
+- **`<ClubDashboard />`** — full club-mode dashboard body. Renders: club header (italic-em name + role pill + member count) → 3 placeholder stat tiles → members list (avatars + names + join dates) → "Coming next" accent-tinted roadmap card → switch-back hint. Replaces the entire individual layout when in club mode.
+- **`AppContextProvider` + `useAppContext()`** in `lib/AppContext.tsx` — React Context exposing `{ scope: { mode, clubId, clubName, role }, setIndividual, setClub }`. Persisted to `cc_activeContext` localStorage with defensive parse on read. Mounted in `routes/__root.tsx` so every route can call the hook.
+- **Tanstack Query hooks** in `hooks/useClubs.ts` — `useClubs()`, `useClubMembers(clubId)`, `useCreateClub()` with 5-min stale / 30-min gc, matching the existing `useStravaData` pattern.
+- **`useClubsEnabled()` kill-switch** in `lib/featureFlags.ts` — reads `cc_clubsEnabled` from localStorage, defaults `true`. Gates ContextSwitcher, ClubCreateCard, AND the Dashboard club-mode branch. Setting to `'false'` and refreshing renders Dashboard exactly as v8.5.3 (CTO NOTE 5 — kill-switch regression hardening).
+
+### Process
+
+- Plan-first execution per CTO directive: 4-commit slice (F1 backend, F1 frontend, F2, F3) with CI green-gate between commits and full diff at each step before proceeding.
+- All five CTO review notes addressed: (1) `resolveAthleteId` always 401 never 500, (2) corsHeaders on every error path, (3) routing verified pre-smoke, (4) atomic cleanup with safeWarn on orphan, (5) kill-switch hardened to override stale persisted scope.
+
+### Verification
+
+- All commits green in CI: `95adb35` (F1 backend), `561486a` (F1 frontend), `b66a94e` (F2), `60c46ce` (F3), and this release-cut.
+- `E2E_TARGET_PROD=1 npm run test` — 13 passed, 1 skipped, **zero regressions** vs v8.5.3 across all 4 commits.
+- Bundle inspection: ships both club markers (`Coming next`, `Personal training stats are hidden`) AND individual markers (`Today's workout`, `PMC`, `Volume`, `Streak`); runtime selects the branch.
+- Backend smoke (7 probes against `wrangler dev --remote`): routing, no-auth 401 across all 3 endpoints, invalid-token cascade, OPTIONS preflight, `/api/athlete` proxy regression — all green.
+
+### Explicitly NOT in v8.6.0 (deferred)
+
+- **Better Auth, email verification, password reset** (F6/F7/F8) — Strava OAuth stays as-is.
+- **Email invitations to clubs** (F4) — `club_invitations` table not created tonight.
+- **BYOK hybrid routing in `/coach`** (F5) — clubs don't yet pay for the AI proxy.
+- **Granular roles beyond `admin`/`member`** (F9) — coach / member separation comes later.
+- **Cross-route club affordances** — only Dashboard branches on context today; Routes / What's-next remain in individual mode.
+
+---
+
 ## [8.5.3] — 2026-04-29
 
 UX hotfix on top of v8.5.2. The global site footer (brand block + Product / Trust / Powered-by columns + version + © line) was rendered only on the Landing page because its JSX lived inside `Landing.tsx`. Every other route — Dashboard, /whats-next, /privacy, etc. — shipped without it. Founder caught the regression visually post-deploy of v8.5.2.

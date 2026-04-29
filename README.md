@@ -2,7 +2,21 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v8.5.3](./CHANGELOG.md#853--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+**Current release: [v8.6.0](./CHANGELOG.md#860--2026-04-29)** · 2026-04-29 · [Security](./SECURITY.md)
+
+## What's new in v8.6.0
+
+**Clubs MVP — vertical slice for stakeholder demo.** The defensible angle is amateur cycling clubs as the unit of use, not individual AI coach (saturated market). v8.6.0 ships the minimum surface needed to demonstrate the model end-to-end against real production D1.
+
+- **`POST /api/clubs`** — create a club, caller auto-added as `admin`. Atomic-ish via INSERT…RETURNING + try/catch DELETE cleanup with `safeWarn` on the orphan path.
+- **`GET /api/clubs`** — list clubs the caller belongs to (joined with `club_members.role`).
+- **`GET /api/clubs/:id/members`** — membership-gated (404 if not a member, OWASP). Returns `firstname`, `lastname`, `profile_url`, `role`, `joined_at` for each member.
+- **`resolveAthleteId(request)` helper** — rounds-trips Strava `/athlete` once per club operation to validate the bearer token AND derive `athlete_id`. All failure modes return 401 with `{"error":"authentication required"}`.
+- **`<ContextSwitcher />` in TopBar** — compact pill, dropdown lists "My account" + each club + "Create new club". Selection persists in `cc_activeContext` localStorage. Mobile-compact (≤640px).
+- **`<ClubDashboard />`** — when in club mode: italic-em club name, role pill, member count, members list with avatars, placeholder stat tiles, "Coming next" roadmap card, "switch back to My Account" hint.
+- **Kill-switch `cc_clubsEnabled`** (defaults `true`) — set to `'false'` and reload to render Dashboard exactly as v8.5.3 (zero regression). Gates ContextSwitcher, ClubCreateCard, AND the Dashboard club-mode branch.
+
+Existing v8.5.3 behavior preserved byte-for-byte in individual mode. Existing tables `clubs` + `club_members` reused — no D1 migrations.
 
 ## What's new in v8.5.2
 
