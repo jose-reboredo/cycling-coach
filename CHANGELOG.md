@@ -4,6 +4,55 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.1.1] — 2026-04-30
+
+**Palette revert.** Restores the molten orange `#ff4d00` accent + lime `#22c55e` success of v9.0.0 era. The brass `#b8956a` + forest green `#4a8e54` palette shipped in v9.1.0 is rolled back; brand rename to "Cadence Club" stays. Effectively the v9.0.0 visual identity wearing the v9.1.0 brand name.
+
+### Reverted (vs v9.1.0)
+
+- `--c-accent: #b8956a` → `#ff4d00` (molten orange returns)
+- `--c-accent-deep: #9c7c56` → `#cc3e00`
+- `--c-accent-soft / glow / light` → original molten-orange RGBA values
+- `--c-success: #4a8e54` → `#22c55e` (lime returns)
+- `--c-success-soft` → `rgba(34, 197, 94, 0.12)`
+- `--c-success-deep` token removed (was Forest Green decoration only)
+- `--sh-glow` → original molten-orange shadow values
+- All hardcoded `rgba(184, 149, 106, …)` literals across components reverted to `rgba(255, 77, 0, …)` (Card, StreakHeatmap, Pill, Button, VolumeChart, LoadingScreen, Landing, RideDetail, ProgressRing, WhatsNext, OAuth callback HTML pages in worker.js)
+- Tone= remaps reverted: PR pill (RideDetail) `success → accent`, achievement count `success → accent`, "Strengths" eyebrow (AiCoachCard) `success → accent`, "{n} PRs" pill (WinsTimeline) `success → accent`, Dashboard "Demo data" pill restored to `tone="success"` for the unified pill rendering
+- ClubDashboard role pills restored to v9.1.0 logic: admin = accent, member = success
+- Eyebrow component: `success` variant + CSS class removed (back to `'muted' | 'accent'`)
+
+### Kept from v9.1.0 / v9.0.0
+
+- Brand rename "Cycling Coach" → "Cadence Club" everywhere user-facing (TopBar, AppFooter, Landing copy, JoinClub, Privacy reframe, index.html title + meta, worker `/version` `service` field, OAuth callback HTML)
+- TopBar version badge `v9`
+- Landing Pill "For the performance-driven amateur · v9"
+- "Today's workout" → "Today's session" copy substitution (Landing hero preview)
+- OnboardingModal mobile-first padding fix at ≤600px
+- v9.0.0 Clubs MVP + F4 invite-by-link infrastructure (POST /api/clubs/join/:code, /join/$code route, InviteLinkCard, useJoinClub hook)
+- v8.6.0 Clubs MVP backend (POST /api/clubs, GET /api/clubs, GET /api/clubs/:id/members, resolveAthleteId, ContextSwitcher, ClubDashboard, AppContext)
+
+### Why
+
+Visual judgment call after reviewing v9.1.0 in prod: the warm-brass-on-dark aesthetic moved away from the original Strava-adjacent identity that defined the product's first releases. The molten orange `#ff4d00` is closer to the Strava brand color `#fc4c02` and signals "cycling-native" more clearly than brass. The Soho House cream-light theme prototype was abandoned mid-flight (never deployed) for similar reasons — the dark canvas + molten accent is the visual language users built mental models around through v8.x.
+
+### Implementation
+
+Single `git revert 07d9b49` (v9.1.0 step 1/5 — palette swap commit) cleanly reverses tokens.css, tokens.ts, the 5 tone= remaps, the Eyebrow `success` extension, and the hardcoded color sweeps in 9 component files + worker.js. Auto-merge handled the two files (Landing.tsx, worker.js) where subsequent commits (`233cc57` brand rename, `73e774b` release-cut) had touched the same regions.
+
+### Verified
+
+- `npm run build:web` clean (vite + tsc -b)
+- `grep -rn "Cadence Club" apps/web/src` — brand name intact in all v9.1.0 sites
+- `grep -rn "ff4d00" apps/web/src` — molten orange back in tokens
+
+### Commit chain
+
+- `6c5fafb` — `Revert "feat(theme): swap palette to Brass + Forest Green (v9.1.0 step 1/5)"`
+- this commit — `chore(release): v9.1.1`
+
+---
+
 ## [9.1.0] — 2026-04-30
 
 **Brand swap to Cadence Club.** The accent palette pivots from molten orange to warm brass + forest green; the user-facing brand string flips from "Cycling Coach" to "Cadence Club"; the OnboardingModal gets a mobile-first padding fix. No new pages, no auth changes, no D1 migrations. Strava OAuth remains the only auth path. Implemented per `docs/superpowers/specs/2026-04-30-v9.1.0-brand-swap-spec.md` in 3 staged commits with AA-contrast verification before merge.

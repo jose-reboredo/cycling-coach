@@ -2,7 +2,15 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.1.0](./CHANGELOG.md#910--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.1.1](./CHANGELOG.md#911--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.1.1
+
+**Palette revert.** Restores molten orange `#ff4d00` + lime `#22c55e` (v9.0.0 era). The v9.1.0 brass + forest swap is rolled back via `git revert 07d9b49`; brand rename to **Cadence Club** stays. Effectively v9.0.0's visual identity under v9.1.0's brand name.
+
+Why: brass-on-dark drifted from the Strava-adjacent identity that defined the product through v8.x. Molten orange signals "cycling-native"; brass read warm-luxury but disconnected from the established mental model. The Soho House cream-light prototype that was attempted mid-session was abandoned for the same reason — dark canvas + molten accent is the visual language users know.
+
+What stays from v9.1.0: brand rename, "Today's session" copy, OnboardingModal mobile fix.
 
 ## What's new in v9.1.0
 
