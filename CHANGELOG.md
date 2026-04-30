@@ -4,6 +4,80 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.3.0] — 2026-04-30
+
+**Sprint 1 of the post-demo plan ships in one cut: 2 security CRITICALs, mobile 4-tab refactor, route discovery rewire, migration 0004, Dependabot zero-clear.**
+
+### Security — `#33` + `#34` (CRITICALs from the 2026-04-30 audit)
+
+`POST /coach` and `POST /coach-ride` accepted `api_key` in the request body and forwarded to Anthropic with **no authentication gate**. Anyone on the internet could POST a leaked Anthropic key and burn through the owning user's credits — open Anthropic proxy. Combined with the wildcard CORS, any third-party page could submit a victim's key cross-origin.
+
+Fix (`#33`, commit `3b24655`):
+1. Both endpoints now require `Authorization: Bearer <strava-token>`. Validated via `resolveAthleteId()` — same gate used on `/api/clubs*`. Missing/invalid → 401.
+2. Per-athlete rate limit on DOCS_KV (same KV pattern as `/admin/*` from v8.5.2 #18, refactored into a generic `checkRateLimit` helper). 20/min for `/coach`, 60/min for `/coach-ride`. 21st (or 61st) call inside the 60s bucket → 429 with `Retry-After`.
+3. CORS tightening: new `ALLOWED_ORIGINS` allowlist gates the Origin header. OPTIONS preflight from non-allowlisted origins → 403 (intercepted before the global `/api/*` wildcard handler). POST with non-allowlisted Origin → 403.
+4. `checkAdminRateLimit` refactored to delegate to the new generic `checkRateLimit`. Admin behavior unchanged.
+
+Separately (`#34`, commit `f2388e1`): the Worker derived `origin` from `X-Forwarded-Host` and used it to mint OAuth `redirect_uri` + post-callback redirect URLs. An attacker could send `X-Forwarded-Host: evil.com` and turn the OAuth flow into a phishing-redirect kit. Combined with predictable `state` (closed in `#14`, v9.2.0) it was a complete phishing pipeline.
+
+Fix: `userOrigin()` ignores `X-Forwarded-Host` / `X-Forwarded-Proto` entirely. Uses `url.origin` (the host Cloudflare actually received) gated on the new `ALLOWED_ORIGINS` allowlist. `/authorize` fails closed (400) when the host is not allowlisted. Localhost `?origin=` loopback override preserved for dev.
+
+Smoke verified in prod (commit `3b24655` deploy): `POST /coach` without bearer → 401; CORS preflight from non-allowlisted origin → 403; bogus bearer → 401 `authentication required`; valid origin preflight → ACAO matches request origin with `Vary: Origin`; `X-Forwarded-Host: evil.com` on `/authorize` → still redirects to Strava with `redirect_uri=https://cycling-coach.josem-reboredo.workers.dev/callback` (the spoofed header is now ignored).
+
+BYOK `api_key` remains in the request body — moving it server-side requires the encrypted-at-rest D1 column from FB-6 / SC-3, which lands in Sprint 2. Bearer + rate limit + CORS now mean a leaked `api_key` alone is no longer enough to abuse the proxy.
+
+### Mobile 4-tab refactor — `#51` (folds `#48`)
+
+The `/dashboard` route is restructured into 4 nested sub-routes — `/dashboard/today`, `/dashboard/train`, `/dashboard/rides`, `/dashboard/you` — all behind a kill-switch flag `cc_tabsEnabled` (default OFF until demo flip). Pattern mirrors the v9.0.0 `cc_clubsEnabled` rollout: ZERO regression with the flag off; demo-night flip is `localStorage.setItem('cc_tabsEnabled','true')`.
+
+Three commits:
+- `4f87431` — sub-task A. Scaffolding: `useTabsEnabled()` hook in `featureFlags.ts`, 4 stub sub-routes via TanStack flat-dot file convention (`dashboard.today.tsx` etc.), `dashboard.tsx` branches between `<Dashboard />` (off) and `<Outlet /> + <BottomNav />` (on), `/dashboard` redirects to `/dashboard/today` via `beforeLoad` when on. `BottomNav` swaps hash-anchors for Tanstack `<Link>` with `activeProps` when on.
+- `8b40b65` — sub-task B. Splits the 697-line `Dashboard.tsx` content per FB-5 mapping. **Today**: salutation + KPIs + today's session + start CTA + year-progress bar (static 8000km — AI forecast lands in #49 / Sprint 2). **Train**: weekly plan + goal/event card. **Rides**: recent activities + 10/page pagination with prev/next disabled at boundaries (FB-5 acceptance). **You**: FTP + weight + HR Max + Anthropic API key + Strava connection (existing fields only — profile expansion is `#52`, Sprint 2). Each tab has a visible `h1` and an empty-state line (FB-2 / `#48` acceptance). New shared `TabShared.module.css`. Original `Dashboard.tsx` kept intact for the flag-off + desktop codepath; both modes coexist.
+- `5e56e61` — sub-task C. Lightweight test slice: 5 Vitest unit tests on `useTabsEnabled` + `useClubsEnabled`, 2 Playwright e2e specs (`/dashboard` flag-off no-redirect; flag-on redirect-to-today). Note: happy-dom 20.x doesn't expose `localStorage` as an own-property global (prototype getter only), so the unit tests use `vi.stubGlobal` in `beforeEach`. The flag-on redirect e2e goes green after this v9.3.0 deploy.
+
+Issue `#48` ("Dashboard clarity") folded in per CTO review §B.1 — the 4-tab structure inherently satisfies its acceptance (every section has a heading, KPI cards have labels, ≤1 tap to navigate, empty states).
+
+### Route discovery rewire — `#47` Phase 1
+
+Closes the "Madrid vs Zurich" hardcoded-city bug. Routes are now the authenticated user's **own Strava saved routes** — geographically correct by definition.
+
+Backend (`b8e6280`): two new auth-gated endpoints inserted before the generic `/api/*` Strava proxy fall-through.
+
+- `GET /api/routes/saved?surface=&distance=&difficulty=` — proxies `https://www.strava.com/api/v3/athlete/routes?per_page=200` with the caller's bearer. Worker-side filters: surface (`paved`/`gravel`/`any` — `'unknown'` always passes for graceful degradation), distance (±20% band on the requested km), difficulty (`flat` <5 m/km, `rolling` 5–15, `hilly` >15). Surface inference: prefers explicit `surface_type` (numeric or string), falls back to Strava `sub_type` heuristic (1=road→paved, 2/4=MTB/trail→gravel). Response: `{ routes: [{ id, name, distance_m, elevation_gain_m, surface, map_url, strava_url }] }`. Errors: 401 unauthorized, 502 strava unavailable, 500 internal.
+- `PATCH /api/training-prefs` — partial-update of `training_prefs` keyed by `athlete_id`. Body: any subset of `{ home_region, preferred_distance_km, preferred_difficulty, surface_pref, sessions_per_week, start_address }`. Per-field validation. UPSERT — ON CONFLICT updates only provided fields. Returns full row.
+
+Frontend (`6dec06a`): `RoutesPicker` rewired off `MOCK_ROUTES` onto live fetch. Surface chips renamed `dirt` → `gravel` (matches the architect spec vocabulary). New distance chips (30/60/100/Any km, ±20% server-side band) and difficulty chips (Flat/Rolling/Hilly/Any). Loading / empty / error states added. Filter changes persist via `PATCH /api/training-prefs` (debounced; fire-and-forget). `MOCK_ROUTES` fallback gated behind `import.meta.env.DEV` — never reaches prod.
+
+Phase 2 (Claude narrative briefs spike via `POST /api/routes/discover`) deferred to Sprint 3 per founder decision. Phase 3 (Komoot partnership) deferred until after Sprint 3.
+
+### Migration 0004 — route filter columns
+
+`bc48e82` adds three optional columns to `training_prefs`: `home_region` (TEXT), `preferred_distance_km` (INTEGER), `preferred_difficulty` (TEXT — `'flat' | 'rolling' | 'hilly'`). Non-breaking additive migration; NULL defaults preserve all existing rows. Backfill is natural — written when the user first interacts with the route picker post-v9.3.0. Applied to remote D1 in the same step (PRAGMA table_info verified all 3 new columns).
+
+Numbering note: `0003` is reserved for `#52` (`users.sex`, `users.country`, Sprint 2 profile expansion). `0003` ships next sprint; `0004` ships first because Sprint 1 lands first. SQLite handles the gap.
+
+`schema.sql` kept in sync per the v9.2.0 process rule (`#37`).
+
+### Dependency fixes — Dependabot 5/5 closed
+
+`e08331d` clears all 5 open Dependabot alerts on `apps/web` (default branch security tab). All dev-only deps — no runtime/Worker exposure.
+
+| Severity | CVE / GHSA | Package | Fix |
+|---|---|---|---|
+| CRITICAL | CVE-2025-61927 | happy-dom < 20.0.0 | VM context escape RCE |
+| HIGH | CVE-2026-33943 | happy-dom < 20.8.8 | Unsanitized export name code injection |
+| HIGH | CVE-2026-34226 | happy-dom < 20.8.9 | Fetch credentials use page-origin cookies |
+| MEDIUM | CVE-2026-39365 | vite ≤ 6.4.1 | `.map` optimized-deps path traversal |
+| MEDIUM | GHSA-67mh-4wv8-2f99 | esbuild ≤ 0.24.2 | Dev server cross-origin reads |
+
+Bumps: `happy-dom ^15.11.7 → ^20.8.9` (resolved 20.9.0); `vitest ^2.1.9 → ^3.0.0` (resolved 3.2.4); `@vitest/coverage-v8 ^2.1.9 → ^3.0.0` (resolved 3.2.4). The vitest major bump removes transitive `vite@5.4.21` + `esbuild@0.21.5` from the tree, replacing them with `vite@6.4.2` + `esbuild@0.25.12` (already pinned by our top-level `vite ^6`).
+
+Verified: `npm audit` 0 vulnerabilities (was 5); `npm run build` green (1.27s); `npm run test:unit` 11/11 + 5 new = 16/16 green under vitest 3.2.4.
+
+### Versions: 9.2.5 → 9.3.0 in 5 places.
+
+---
+
 ## [9.2.5] — 2026-04-30
 
 **FIX 6 — strip code blocks from /whats-next issue bodies (raw SQL was leaking to the UI).**

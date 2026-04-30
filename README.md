@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.2.5](./CHANGELOG.md#925--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.3.0](./CHANGELOG.md#930--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.3.0
+
+Sprint 1 of the post-demo plan ships in one cut. Two security CRITICALs closed (`#33` `/coach` open-Anthropic-proxy gated behind Strava bearer + per-athlete rate limit; `#34` X-Forwarded-Host phishing vector replaced with origin allowlist). Mobile gets a 4-tab restructure (`#51` — Today / Train / Rides / You behind `cc_tabsEnabled`, default off). Route discovery rewired off mock data onto the user's own Strava saved routes (`#47` Phase 1 — `GET /api/routes/saved` + `PATCH /api/training-prefs` endpoints, surface/distance/difficulty filter chips, persisted preferences). Migration 0004 adds `home_region`, `preferred_distance_km`, `preferred_difficulty` to `training_prefs`. All 5 Dependabot vulnerabilities cleared (happy-dom 15→20, vitest 2→3 — closes 1 critical RCE + 2 high + 2 medium).
 
 ## What's new in v9.2.5
 
