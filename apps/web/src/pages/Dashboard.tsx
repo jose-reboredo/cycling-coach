@@ -523,6 +523,7 @@ function DashboardView({
               </p>
             </header>
             <RoutesPicker
+              todaysPlanText={todaysAiText}
               surface={prefs.surface_pref ?? 'any'}
               onSurfaceChange={(s) => updatePrefs({ surface_pref: s })}
               startAddress={prefs.start_address ?? city}

@@ -175,16 +175,11 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
+}
+.rowName h4 {
   font: 500 16px/1.2 var(--font-sans);
   letter-spacing: -0.01em;
   color: var(--c-text);
-  margin: 0;
-}
-.rowName h4 {
-  font: inherit;
-  letter-spacing: inherit;
-  color: inherit;
-  margin: 0;
 }
 .star {
   color: var(--c-accent);
@@ -277,42 +272,4 @@
   color: var(--c-text-muted);
   padding: var(--s-4);
   text-align: center;
-}
-
-/* v9.3.1 — selection state for picked routes (Today session card flow) */
-.selected {
-  outline: 1px solid var(--c-accent);
-  outline-offset: -1px;
-  background: color-mix(in srgb, var(--c-accent) 6%, transparent);
-}
-
-/* v9.3.1 — AI discover fallback section + narrative row */
-.aiSection {
-  margin-top: var(--s-3);
-  padding-top: var(--s-3);
-  border-top: 1px dashed var(--c-line);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  align-items: stretch;
-}
-
-.aiHint {
-  font: italic 400 12px/1.4 var(--font-sans);
-  color: var(--c-text-faint);
-  text-align: center;
-  margin: 0;
-}
-
-.aiError {
-  font: 500 12px/1.4 var(--font-sans);
-  color: var(--c-warn);
-  text-align: center;
-  margin: 0;
-}
-
-.rowNarrative {
-  margin-top: var(--s-1);
-  font: 400 13px/1.5 var(--font-sans);
-  color: var(--c-text-muted);
 }
