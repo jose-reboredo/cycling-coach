@@ -123,3 +123,34 @@ curl -i -X POST "https://cycling-coach.josem-reboredo.workers.dev/admin/document
 #   filter: "sk-ant-"  → expected: no matches
 #   filter: "api_key=" → expected: no matches (or only "[redacted]")
 ```
+
+## Cost model — system-paid vs BYOK
+
+Anthropic API calls split into two tiers based on user value + cost shape. Decided 2026-04-30 (post-demo planning).
+
+### System-paid endpoints (Anthropic Haiku)
+
+| Endpoint | Cost per call | Trigger | Why system-paid |
+|---|---|---|---|
+| `/api/forecast` (recompute) | ~$0.001 (Haiku, 300 token context) | Strava webhook event | Friction-free for Persona C ("casual commuter") who may never set up an Anthropic key. Cost is negligible at our scale. |
+| `POST /api/routes/discover` (Phase 2 spike) | ~$0.002 (Haiku, 500 token context) | User-initiated route search | Same — Persona C-friendly. Rate-limited to 10/hr/athlete via DOCS_KV. |
+
+**Total estimated cost** at <100 users with daily activity sync: <$5/month. The cap holds until ~1,000 active users (~$50/month at the same per-user shape).
+
+### BYOK endpoints (Anthropic Sonnet)
+
+| Endpoint | Cost per call | Why BYOK |
+|---|---|---|
+| `POST /coach` (weekly plan generation) | ~$0.05 (Sonnet, ~5k token context) | High per-call cost; users opting into deep AI coaching provide their own key. Aligns with the "premium feature" tier. |
+| `POST /coach-ride` (per-ride feedback) | ~$0.02 (Sonnet, ~3k token context) | Same — premium tier per-ride analysis. |
+
+User Anthropic key stays in browser localStorage (`cc_anthropicKey`). Server never persists it. Same pattern for club admin's club-scoped key (`cc_clubAiKey:${clubId}`, v9.1.2).
+
+### Revisit threshold
+
+Re-evaluate the system-paid budget when **active users exceed 500** OR **monthly Anthropic spend exceeds $25**. At that point: shift more endpoints to BYOK, introduce paid tier, or negotiate volume pricing with Anthropic. Whichever lands first triggers the review.
+
+### Implementation status
+
+- v9.2.5: BYOK pattern established for `/coach`, `/coach-ride` (existing) + ClubCoachCard (v9.1.2). System-paid endpoints not yet shipped — first one lands in Sprint 2 (`/api/forecast`).
+- All Anthropic keys (BYOK or system) are write-only from the user's perspective — never logged, never returned in API responses, never persisted to D1. The system Anthropic key is a Cloudflare Workers secret named `SYSTEM_ANTHROPIC_KEY` (set via `wrangler secret put SYSTEM_ANTHROPIC_KEY`; already referenced in wrangler.jsonc and CONTRIBUTING.md).
