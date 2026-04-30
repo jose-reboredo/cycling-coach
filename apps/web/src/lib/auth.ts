@@ -22,11 +22,19 @@ export function readTokens(): StravaTokens | null {
 }
 
 export function writeTokens(t: StravaTokens) {
-  localStorage.setItem(KEY, JSON.stringify(t));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(t));
+  } catch {
+    // silently ignore — Safari private mode throws QuotaExceededError etc.
+  }
 }
 
 export function clearTokens() {
-  localStorage.removeItem(KEY);
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // silently ignore — Safari private mode etc.
+  }
 }
 
 /** True when the access token expires within the next 5 minutes. */
