@@ -81,6 +81,30 @@ export default {
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
+
+    // v9.3.0 (#33) — /coach + /coach-ride get tightened CORS (separate from
+    // the wildcard policy used by /api/*, /version, /roadmap). Preflight
+    // requests from non-allowlisted origins are rejected here, before the
+    // global wildcard handler below would have echoed a permissive `*`.
+    const isAiPath = url.pathname === '/coach' || url.pathname === '/coach-ride';
+    if (isAiPath && request.method === 'OPTIONS') {
+      const reqOrigin = request.headers.get('Origin') || '';
+      if (!ALLOWED_ORIGINS.includes(reqOrigin)) {
+        const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+        safeWarn(`[coach] CORS preflight rejected — origin="${reqOrigin}" path=${url.pathname} ip=${ip}`);
+        return new Response(null, { status: 403 });
+      }
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': reqOrigin,
+          'Vary': 'Origin',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Access-Control-Max-Age': '86400',
+        },
+      });
+    }
+
     if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
     // /, /dashboard, /privacy are served by the React SPA (Workers Static
@@ -553,15 +577,49 @@ try {
  
     // ============= AI COACHING (BYOK - user provides own API key) =============
     if (url.pathname === '/coach' && request.method === 'POST') {
+      // v9.3.0 (#33) — pre-handler gates: origin allowlist, bearer auth, per-athlete
+      // rate limit. Built to prevent the previous open-Anthropic-proxy posture where
+      // anyone on the internet could POST a leaked api_key and burn through the
+      // owning user's Claude credits.
+      const reqOrigin = request.headers.get('Origin') || '';
+      if (reqOrigin && !ALLOWED_ORIGINS.includes(reqOrigin)) {
+        safeWarn(`[coach] POST origin not allowed: "${reqOrigin}"`);
+        return new Response(JSON.stringify({ error: 'origin not allowed' }), {
+          status: 403, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const aiCorsHeaders = reqOrigin
+        ? { 'Access-Control-Allow-Origin': reqOrigin, 'Vary': 'Origin' }
+        : {}; // no Origin header (curl/server-to-server) → omit CORS headers
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const athleteId = authResult.athleteId;
+      // 20 requests per athlete per 60s — issue #33 acceptance: 21st in 60s → 429.
+      const rl = await checkRateLimit(env, 'coach', String(athleteId), 20, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: {
+            ...aiCorsHeaders,
+            'Content-Type': 'application/json',
+            'Retry-After': String(rl.retryAfter),
+          },
+        });
+      }
       try {
         const body = await request.json();
         const { athlete, stats, recent, api_key, prefs } = body;
- 
+
         // User must provide their own Anthropic API key
         const apiKey = api_key || env.ANTHROPIC_API_KEY;
         if (!apiKey) {
           return new Response(JSON.stringify({ error: 'No API key provided. Add your Anthropic API key in the dashboard.' }), {
-            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 401, headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
           });
         }
  
@@ -650,7 +708,7 @@ Respond ONLY with valid JSON, no markdown:
             error: msg,
             invalid_key: isAuthError,
           }), {
-            status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: res.status, headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
           });
         }
         const text = data.content?.find(c => c.type === 'text')?.text || '';
@@ -658,7 +716,7 @@ Respond ONLY with valid JSON, no markdown:
         let parsed;
         try { parsed = JSON.parse(cleaned); }
         catch { return new Response(JSON.stringify({ error: 'AI returned invalid JSON', raw: text }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500, headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
         }); }
  
         // VALIDATION: ensure the weekly plan respects the session count.
@@ -708,24 +766,56 @@ Respond ONLY with valid JSON, no markdown:
         }
  
         return new Response(JSON.stringify(parsed), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
         });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500, headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
         });
       }
     }
- 
+
     // ============= AI PER-RIDE FEEDBACK =============
     if (url.pathname === '/coach-ride' && request.method === 'POST') {
+      // v9.3.0 (#33) — same gate stack as /coach above. Per-ride feedback is
+      // smaller per-call but called once per ride sync, so the rate limit is
+      // looser (60/min — sync of a backlog of recent rides).
+      const reqOrigin = request.headers.get('Origin') || '';
+      if (reqOrigin && !ALLOWED_ORIGINS.includes(reqOrigin)) {
+        safeWarn(`[coach-ride] POST origin not allowed: "${reqOrigin}"`);
+        return new Response(JSON.stringify({ error: 'origin not allowed' }), {
+          status: 403, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const aiCorsHeaders = reqOrigin
+        ? { 'Access-Control-Allow-Origin': reqOrigin, 'Vary': 'Origin' }
+        : {};
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const athleteId = authResult.athleteId;
+      const rl = await checkRateLimit(env, 'coach-ride', String(athleteId), 60, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: {
+            ...aiCorsHeaders,
+            'Content-Type': 'application/json',
+            'Retry-After': String(rl.retryAfter),
+          },
+        });
+      }
       try {
         const body = await request.json();
         const { ride, athlete, context, api_key } = body;
         const apiKey = api_key || env.ANTHROPIC_API_KEY;
         if (!apiKey) {
           return new Response(JSON.stringify({ error: 'No API key' }), {
-            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 401, headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
           });
         }
  
@@ -765,7 +855,7 @@ Respond ONLY with valid JSON, no markdown:
           const msg = data.error?.message || 'AI request failed';
           const isAuthError = res.status === 401 || /authentication|api[_ ]key|invalid/i.test(msg);
           return new Response(JSON.stringify({ error: msg, invalid_key: isAuthError }), {
-            status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: res.status, headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
           });
         }
         const text = data.content?.find(c => c.type === 'text')?.text || '';
@@ -773,18 +863,18 @@ Respond ONLY with valid JSON, no markdown:
         let parsed;
         try { parsed = JSON.parse(cleaned); }
         catch { return new Response(JSON.stringify({ error: 'AI returned invalid JSON' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500, headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
         }); }
         return new Response(JSON.stringify(parsed), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
         });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500, headers: { ...aiCorsHeaders, 'Content-Type': 'application/json' },
         });
       }
     }
- 
+
     // ============= STRAVA WEBHOOK =============
     // Path-secret defence (#17): canonical URL is /webhook/<env.STRAVA_WEBHOOK_PATH_SECRET>.
     // Worker registers only the secret URL with Strava when multi-user approval lands.
@@ -1008,45 +1098,48 @@ function requireAdmin(request, env) {
 }
 
 /**
- * Defense-in-depth rate-limit for admin endpoints (#18).
+ * Generic per-identifier rate-limit on top of DOCS_KV (Free-plan-compatible).
  *
- * Even though /admin/* is admin-auth-gated by requireAdmin(), an ADMIN_SECRET
- * leak or a runaway-loop bug in CI could burn external API quota (Confluence,
- * GitHub) and cost real money. This adds a per-IP counter in DOCS_KV with a
- * sliding minute-bucket window: if more than `limit` requests arrive in the
- * current minute, returns a 429 sentinel that the caller surfaces as a real
- * 429 response with Retry-After header.
+ * Sliding minute-bucket window: if more than `limit` requests arrive in the
+ * current bucket from `identifier`, returns a 429 sentinel that the caller
+ * surfaces as a real 429 with Retry-After. KV doesn't support atomic ops,
+ * but this is defense-in-depth — strict precision isn't required.
  *
- * Uses DOCS_KV (already bound for Confluence hash-skip, Free-plan-compatible).
- * Logs every threshold-hit attempt with source IP via safeWarn() so abuse
- * shows up in observability without leaking secrets.
+ * Used by:
+ *   - /admin/* (per-IP, abuse-protection — #18, v8.5.2)
+ *   - /coach + /coach-ride (per-athlete, cost-runaway protection — #33, v9.3.0)
  *
  * Returns:
- *   null                 — under threshold, request proceeds
- *   { retryAfter: N }    — over threshold, caller returns 429 with Retry-After: N
+ *   null              — under threshold, request proceeds
+ *   { retryAfter: N } — over threshold, caller returns 429 with Retry-After: N
  */
-async function checkAdminRateLimit(env, scope, request, limit, windowSeconds) {
+async function checkRateLimit(env, scope, identifier, limit, windowSeconds) {
   if (!env.DOCS_KV) {
-    // KV not bound — fail-open with a warning. Better to lose the rate-limit
-    // than to break the admin endpoint entirely.
     safeWarn(`[ratelimit] DOCS_KV not bound; skipping rate-limit on ${scope}`);
     return null;
   }
-  const ip = request.headers.get('cf-connecting-ip') || 'unknown';
   const now = Math.floor(Date.now() / 1000);
   const bucket = Math.floor(now / windowSeconds);
-  const kvKey = `ratelimit:${scope}:${ip}:${bucket}`;
+  const kvKey = `ratelimit:${scope}:${identifier}:${bucket}`;
   const current = parseInt((await env.DOCS_KV.get(kvKey)) || '0', 10);
   if (current >= limit) {
     const retryAfter = windowSeconds - (now % windowSeconds);
-    safeWarn(`[ratelimit] threshold-hit: scope=${scope} ip=${ip} count=${current} limit=${limit} retry_after=${retryAfter}s`);
+    safeWarn(`[ratelimit] threshold-hit: scope=${scope} id=${identifier} count=${current} limit=${limit} retry_after=${retryAfter}s`);
     return { retryAfter };
   }
-  // Best-effort increment. KV doesn't support atomic ops, but this is a
-  // defense-in-depth check — strict precision isn't required. The TTL gives
-  // the bucket a natural cleanup window.
   await env.DOCS_KV.put(kvKey, String(current + 1), { expirationTtl: windowSeconds * 2 });
   return null;
+}
+
+/**
+ * Per-IP rate-limit for /admin/* — thin wrapper around checkRateLimit.
+ * Even though /admin/* is admin-auth-gated by requireAdmin(), an ADMIN_SECRET
+ * leak or runaway-loop bug in CI could burn external API quota (Confluence,
+ * GitHub) and cost real money. See checkRateLimit() docstring for behavior.
+ */
+async function checkAdminRateLimit(env, scope, request, limit, windowSeconds) {
+  const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+  return checkRateLimit(env, scope, ip, limit, windowSeconds);
 }
 
 function confluenceClient(env) {
