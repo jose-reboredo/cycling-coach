@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.5.1](./CHANGELOG.md#951--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.5.2](./CHANGELOG.md#952--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.5.2
+
+Sprint 3 Phase 3 — accessibility + UI polish. Four CSS-only fixes from the 2026-04-30 audit closed in one batch. **#43**: `:focus-visible` rings on Button (all variants), BottomNav, and form inputs across the app. New `--ring-focus` + `--ring-focus-offset` tokens; WCAG 1.4.11 BottomNav color-only-focus replaced with proper outline; inputs migrated from `:focus` to `:focus-visible` so mouse clicks no longer light up the ring. **#44**: 44px touch targets via `min-height: var(--hit-min)` on `VolumeChart .toggleBtn`, `ClubDashboard .tab`, `RideFeedback .askBtn`. **#45**: AppFooter mobile-first grid — 1fr stack at narrow viewports, 3 columns at 600px+ (fixes the iPhone Mini ~111px column collapse). **#3**: Removed "Revoke access" link from the public marketing footer; UserMenu still has it for authenticated users. Build green; 27/27 unit tests still pass.
 
 ## What's new in v9.5.1
 

@@ -4,6 +4,48 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.5.2] — 2026-04-30
+
+**Sprint 3 Phase 3 — accessibility + UI polish. Four CSS-only / single-component fixes batched into one release theme.**
+
+### `#43` — `:focus-visible` rings
+
+Several interactive components had no visible focus indication for keyboard users:
+
+- `Button.module.css` — secondary, ghost, strava variants had no focus ring
+- `BottomNav.module.css` — focus-visible only changed color (WCAG 1.4.11 fail — color-only indication)
+- Form inputs across `ClubCreateModal`, `ClubEventModal`, `OnboardingModal`, `AiCoachCard`, `GoalEventCard`, `TabShared`, `RideFeedback` used `:focus` not `:focus-visible`, so mouse clicks lit up the ring (visually noisy)
+
+Fix: new `--ring-focus` + `--ring-focus-offset` design tokens in `tokens.css`. All listed components migrated to `:focus-visible` with `outline: var(--ring-focus); outline-offset: var(--ring-focus-offset)`. Keyboard-only users now get a clear accent-colored outline; mouse users no longer get the noisy ring on click.
+
+### `#44` — 44px WCAG touch targets
+
+Three buttons were below the WCAG 2.5.5 minimum touch target:
+
+| Component | Was | Now |
+|---|---|---|
+| `VolumeChart .toggleBtn` | ~25px tall | `min-height: var(--hit-min)` (44px) |
+| `ClubDashboard .tab` | ~31px tall | `min-height: var(--hit-min)` (44px) |
+| `RideFeedback .askBtn` | ~27px tall | `min-height: var(--hit-min)` (44px) |
+
+The `--hit-min` token already existed in `tokens.css`; only the per-component `min-height` rule was added.
+
+### `#45` — AppFooter mobile-first grid
+
+`AppFooter.module.css` `.footCols` had a hard `repeat(3, 1fr)` with no breakpoint — at 375px (iPhone Mini) each column collapsed to ~111px and link labels wrapped awkwardly. Fixed with mobile-first stack: `1fr` at narrow viewports, `repeat(3, 1fr)` at `min-width: 600px`.
+
+### `#3` — Remove "Revoke access" from public footer
+
+`AppFooter.tsx` was rendering a "Revoke access" link in the marketing footer — confusing for anonymous visitors and exposing an auth-specific action to unauthenticated users. Removed. The revoke flow stays in `UserMenu` for authenticated users via the existing trigger. Footer columns now: **Product / Trust / Powered by**.
+
+### Test totals
+
+27/27 unit pass (unchanged — pure CSS / single-component edits, no logic touched). Mobile-tabs Playwright gate still green (4/4) — verified post-deploy.
+
+### Versions: 9.5.1 → 9.5.2 in 5 places.
+
+---
+
 ## [9.5.1] — 2026-04-30
 
 **Sprint 3 Phase 2 — three security hardening fixes covering method allowlist, clubs-write rate-limit, and full security header set.**
