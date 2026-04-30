@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.2.3](./CHANGELOG.md#923--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.2.4](./CHANGELOG.md#924--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.2.4
+
+New Confluence spec page: **Data Model**. 12 tables documented end-to-end (DDL, FKs, indexes, read/write paths, migrations). Auto-created on the next deploy. Plus 4 small drift fixes in APIs + Technical Spec pages (`scheduled_at` → `event_date`, `created_by` → `owner_athlete_id` for clubs).
 
 ## What's new in v9.2.3
 

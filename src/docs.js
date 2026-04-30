@@ -1060,6 +1060,450 @@ npm run deploy
 <h2>12. Disclosure policy</h2>
 <p>This is a single-maintainer hobby project. To report a security issue confidentially: open a <a href="https://github.com/jose-reboredo/cycling-coach/security/advisories/new">GitHub Security Advisory</a> (preferred — private until resolved) or DM the maintainer on Strava. We don't run a bug-bounty program; please be patient with response times.</p>`,
   },
+  {
+    slug: 'data-model',
+    title: '7. Data Model',
+    storage: `<h1>Data Model</h1>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Source of truth = <code>schema.sql</code> + <code>migrations/</code>. Updated on every D1 schema change per the v9.2.0 cumulative-schema policy. See <code>db/README.md</code>. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code>.</p></ac:rich-text-body></ac:structured-macro>
+
+<h2>1. Overview</h2>
+<p>Cadence Club uses 12 D1 (SQLite) tables. The schema is multi-source-ready — Strava is the only connected source today; Garmin and Apple Health connection points are reserved via <code>user_connections.source</code> and the <code>garmin_id</code> / <code>apple_health_uuid</code> deduplication columns on <code>activities</code>. The Strangler-Fig migration from <code>localStorage</code> to D1 is complete for tokens, activities, and clubs. The club layer (tables <code>clubs</code>, <code>club_members</code>, <code>club_goals</code>, <code>club_events</code>) was added in v8.6.0+ and fully shipped in v9.1.3.</p>
+
+<h2>2. ER summary</h2>
+<ul>
+  <li><code>users</code> 1—* <code>user_connections</code> (one row per source per athlete; <code>UNIQUE(athlete_id, source)</code>; ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>activities</code> (<code>athlete_id</code> FK; ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>daily_load</code> (<code>athlete_id</code> FK; ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>ai_reports</code> (<code>athlete_id</code> FK; ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—1 <code>training_prefs</code> (<code>athlete_id</code> PK FK; ON DELETE CASCADE)</li>
+  <li><code>activities</code> 1—1 <code>ride_feedback</code> (<code>activity_id</code> PK FK; ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>goals</code> (<code>athlete_id</code> FK; ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>clubs</code> (<code>owner_athlete_id</code> FK; <strong>no cascade</strong> — orphan-handling deferred per audit issue #37 follow-up)</li>
+  <li><code>clubs</code> 1—* <code>club_members</code> M—1 <code>users</code> (ON DELETE CASCADE on both FKs)</li>
+  <li><code>clubs</code> 1—* <code>club_goals</code> (ON DELETE CASCADE)</li>
+  <li><code>clubs</code> 1—* <code>club_events</code> (ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>club_events</code> (<code>created_by</code> FK; ON DELETE CASCADE)</li>
+</ul>
+
+<h2>3. Tables</h2>
+
+<h3>3.1 <code>users</code> — athlete identity + performance profile</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE users (
+  athlete_id INTEGER PRIMARY KEY,
+  firstname TEXT,
+  lastname TEXT,
+  profile_url TEXT,
+  raw_athlete_json TEXT,
+  created_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  ftp_w INTEGER,
+  weight_kg REAL,
+  hr_max INTEGER,
+  ftp_set_at INTEGER
+);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>PRIMARY KEY</td><td>Strava athlete ID — natural key across sources</td><td>v1 (base schema)</td></tr>
+    <tr><td><code>firstname</code></td><td>TEXT</td><td>—</td><td>From Strava athlete profile</td><td>v1</td></tr>
+    <tr><td><code>lastname</code></td><td>TEXT</td><td>—</td><td>From Strava athlete profile</td><td>v1</td></tr>
+    <tr><td><code>profile_url</code></td><td>TEXT</td><td>—</td><td>Strava avatar URL</td><td>v1</td></tr>
+    <tr><td><code>raw_athlete_json</code></td><td>TEXT</td><td>—</td><td>Full Strava athlete JSON blob</td><td>v1</td></tr>
+    <tr><td><code>created_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds — first OAuth login</td><td>v1</td></tr>
+    <tr><td><code>last_seen_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds — updated on every OAuth callback</td><td>v1</td></tr>
+    <tr><td><code>ftp_w</code></td><td>INTEGER</td><td>—</td><td>Functional Threshold Power in watts — drives zone math + TSS</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>weight_kg</code></td><td>REAL</td><td>—</td><td>Body weight in kg — drives W/kg display</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>hr_max</code></td><td>INTEGER</td><td>—</td><td>Max heart rate in BPM — HR zone math</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>ftp_set_at</code></td><td>INTEGER</td><td>—</td><td>Unix epoch seconds — when FTP was last updated</td><td>v9.0.x (migration 0001)</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> none beyond the primary key.</p>
+<p><strong>Read paths:</strong> <code>/callback</code> (upsert on login); <code>/refresh</code> (FTP for TSS math, future).</p>
+<p><strong>Write paths:</strong> <code>/callback</code> (INSERT OR REPLACE on every OAuth); <code>/api/athlete/activities</code> proxy side-effect; FTP/weight/HR sync deferred (issue #11).</p>
+
+<h3>3.2 <code>user_connections</code> — per-source OAuth credentials</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE user_connections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  source TEXT NOT NULL,
+  credentials_json TEXT NOT NULL,
+  connected_at INTEGER NOT NULL,
+  last_sync_at INTEGER,
+  is_active INTEGER DEFAULT 1,
+  UNIQUE(athlete_id, source)
+);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER</td><td>PK AUTOINCREMENT</td><td>Surrogate key</td><td>v1</td></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>NOT NULL, FK → users</td><td>Owning athlete</td><td>v1</td></tr>
+    <tr><td><code>source</code></td><td>TEXT</td><td>NOT NULL</td><td>'strava' today; 'garmin' / 'apple_health' reserved</td><td>v1</td></tr>
+    <tr><td><code>credentials_json</code></td><td>TEXT</td><td>NOT NULL</td><td>JSON blob: <code>{access_token, refresh_token, expires_at}</code></td><td>v1</td></tr>
+    <tr><td><code>connected_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds — first connect timestamp</td><td>v1</td></tr>
+    <tr><td><code>last_sync_at</code></td><td>INTEGER</td><td>—</td><td>Unix epoch seconds — last token refresh; NULL until first refresh</td><td>v1</td></tr>
+    <tr><td><code>is_active</code></td><td>INTEGER</td><td>DEFAULT 1</td><td>Soft-disable flag (1 = active)</td><td>v1</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> implicit unique index on <code>(athlete_id, source)</code>.</p>
+<p><strong>Read paths:</strong> <code>/refresh</code> (verify token exists before Strava forward).</p>
+<p><strong>Write paths:</strong> <code>/callback</code> (INSERT OR REPLACE); <code>/refresh</code> (UPDATE credentials_json + last_sync_at).</p>
+
+<h3>3.3 <code>activities</code> — multi-source activity log</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE activities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  start_date_local TEXT NOT NULL,
+  sport_type TEXT NOT NULL,
+  distance REAL NOT NULL,
+  moving_time INTEGER NOT NULL,
+  total_elevation_gain REAL,
+  average_speed REAL,
+  average_heartrate REAL,
+  max_heartrate REAL,
+  pr_count INTEGER DEFAULT 0,
+  achievement_count INTEGER DEFAULT 0,
+  strava_id INTEGER UNIQUE,
+  garmin_id TEXT UNIQUE,
+  apple_health_uuid TEXT UNIQUE,
+  primary_source TEXT NOT NULL,
+  strava_raw_json TEXT,
+  garmin_raw_json TEXT,
+  apple_health_raw_json TEXT,
+  synced_at INTEGER NOT NULL,
+  duration_s INTEGER,
+  average_watts INTEGER,
+  np_w INTEGER,
+  if_pct REAL,
+  tss REAL,
+  primary_zone INTEGER
+);
+
+CREATE INDEX idx_activities_athlete_date ON activities(athlete_id, start_date_local DESC);
+CREATE INDEX idx_activities_sport_type ON activities(athlete_id, sport_type, start_date_local DESC);
+CREATE INDEX idx_activities_athlete_tss ON activities(athlete_id, start_date_local DESC, tss);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER</td><td>PK AUTOINCREMENT</td><td>Surrogate key</td><td>v1</td></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>NOT NULL, FK → users</td><td>Owning athlete</td><td>v1</td></tr>
+    <tr><td><code>start_date_local</code></td><td>TEXT</td><td>NOT NULL</td><td>ISO 8601 local start time (as provided by source)</td><td>v1</td></tr>
+    <tr><td><code>sport_type</code></td><td>TEXT</td><td>NOT NULL</td><td>e.g. 'Ride', 'VirtualRide', 'Run'</td><td>v1</td></tr>
+    <tr><td><code>distance</code></td><td>REAL</td><td>NOT NULL</td><td>Metres</td><td>v1</td></tr>
+    <tr><td><code>moving_time</code></td><td>INTEGER</td><td>NOT NULL</td><td>Seconds</td><td>v1</td></tr>
+    <tr><td><code>total_elevation_gain</code></td><td>REAL</td><td>—</td><td>Metres</td><td>v1</td></tr>
+    <tr><td><code>average_speed</code></td><td>REAL</td><td>—</td><td>m/s</td><td>v1</td></tr>
+    <tr><td><code>average_heartrate</code></td><td>REAL</td><td>—</td><td>BPM; NULL when HR not recorded</td><td>v1</td></tr>
+    <tr><td><code>max_heartrate</code></td><td>REAL</td><td>—</td><td>BPM; NULL when HR not recorded</td><td>v1</td></tr>
+    <tr><td><code>pr_count</code></td><td>INTEGER</td><td>DEFAULT 0</td><td>Number of segment PRs on this activity</td><td>v1</td></tr>
+    <tr><td><code>achievement_count</code></td><td>INTEGER</td><td>DEFAULT 0</td><td>Total achievements (KOMs, CRs, PRs)</td><td>v1</td></tr>
+    <tr><td><code>strava_id</code></td><td>INTEGER</td><td>UNIQUE</td><td>Strava activity ID — deduplication key for Strava source</td><td>v1</td></tr>
+    <tr><td><code>garmin_id</code></td><td>TEXT</td><td>UNIQUE</td><td>Reserved for Garmin Connect deduplication</td><td>v1</td></tr>
+    <tr><td><code>apple_health_uuid</code></td><td>TEXT</td><td>UNIQUE</td><td>Reserved for Apple Health deduplication</td><td>v1</td></tr>
+    <tr><td><code>primary_source</code></td><td>TEXT</td><td>NOT NULL</td><td>'strava' | 'garmin' | 'apple_health'</td><td>v1</td></tr>
+    <tr><td><code>strava_raw_json</code></td><td>TEXT</td><td>—</td><td>Full Strava activity JSON</td><td>v1</td></tr>
+    <tr><td><code>garmin_raw_json</code></td><td>TEXT</td><td>—</td><td>Reserved for Garmin raw payload</td><td>v1</td></tr>
+    <tr><td><code>apple_health_raw_json</code></td><td>TEXT</td><td>—</td><td>Reserved for Apple Health raw payload</td><td>v1</td></tr>
+    <tr><td><code>synced_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds — when row was last written</td><td>v1</td></tr>
+    <tr><td><code>duration_s</code></td><td>INTEGER</td><td>—</td><td>Elapsed duration in seconds (distinct from moving_time)</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>average_watts</code></td><td>INTEGER</td><td>—</td><td>Average power in watts</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>np_w</code></td><td>INTEGER</td><td>—</td><td>Normalized Power in watts</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>if_pct</code></td><td>REAL</td><td>—</td><td>Intensity Factor (NP / FTP); stored as a ratio (e.g. 0.85)</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>tss</code></td><td>REAL</td><td>—</td><td>Training Stress Score</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>primary_zone</code></td><td>INTEGER</td><td>—</td><td>Coggan zone 1–6; widens to 1–7 when Strava 7-zone ingestion lands</td><td>v9.0.x (migration 0001)</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> <code>idx_activities_athlete_date</code> (athlete_id, start_date_local DESC) · <code>idx_activities_sport_type</code> (athlete_id, sport_type, start_date_local DESC) · <code>idx_activities_athlete_tss</code> (athlete_id, start_date_local DESC, tss).</p>
+<p><strong>Read paths:</strong> <code>/api/athlete/activities</code> proxy; PMC/streak/volume client-side derivations.</p>
+<p><strong>Write paths:</strong> <code>/api/athlete/activities</code> proxy side-effect (<code>persistActivities()</code> — INSERT OR IGNORE on <code>strava_id</code>).</p>
+
+<h3>3.4 <code>daily_load</code> — pre-computed PMC rollup</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE daily_load (
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  tss_sum REAL NOT NULL DEFAULT 0,
+  ctl REAL NOT NULL DEFAULT 0,
+  atl REAL NOT NULL DEFAULT 0,
+  tsb REAL NOT NULL DEFAULT 0,
+  computed_at INTEGER NOT NULL,
+  PRIMARY KEY (athlete_id, date)
+);
+
+CREATE INDEX idx_daily_load_athlete_date ON daily_load(athlete_id, date DESC);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>NOT NULL, FK → users, PK part</td><td>Owning athlete</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>date</code></td><td>TEXT</td><td>NOT NULL, PK part</td><td>ISO YYYY-MM-DD</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>tss_sum</code></td><td>REAL</td><td>NOT NULL DEFAULT 0</td><td>Sum of TSS for the day</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>ctl</code></td><td>REAL</td><td>NOT NULL DEFAULT 0</td><td>Chronic Training Load (42-day EMA)</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>atl</code></td><td>REAL</td><td>NOT NULL DEFAULT 0</td><td>Acute Training Load (7-day EMA)</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>tsb</code></td><td>REAL</td><td>NOT NULL DEFAULT 0</td><td>Training Stress Balance (CTL − ATL)</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>computed_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds — when row was last recomputed</td><td>v9.0.x (migration 0001)</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> <code>idx_daily_load_athlete_date</code> (athlete_id, date DESC).</p>
+<p><strong>Read paths:</strong> PMC dashboard widgets (future — currently computed client-side).</p>
+<p><strong>Write paths:</strong> backfill script (deferred, issue #8); nightly recompute job (TBD).</p>
+
+<h3>3.5 <code>ai_reports</code> — server-cached weekly AI plans</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE ai_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  generated_at INTEGER NOT NULL,
+  sessions_per_week INTEGER,
+  surface_pref TEXT,
+  report_json TEXT NOT NULL,
+  prompt_version TEXT,
+  model_used TEXT
+);
+
+CREATE INDEX idx_reports_athlete_date ON ai_reports(athlete_id, generated_at DESC);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER</td><td>PK AUTOINCREMENT</td><td>Surrogate key</td><td>v1</td></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>NOT NULL, FK → users</td><td>Owning athlete</td><td>v1</td></tr>
+    <tr><td><code>generated_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds</td><td>v1</td></tr>
+    <tr><td><code>sessions_per_week</code></td><td>INTEGER</td><td>—</td><td>Requested sessions used when generating</td><td>v1</td></tr>
+    <tr><td><code>surface_pref</code></td><td>TEXT</td><td>—</td><td>Surface preference at time of generation</td><td>v1</td></tr>
+    <tr><td><code>report_json</code></td><td>TEXT</td><td>NOT NULL</td><td>Full Claude response JSON</td><td>v1</td></tr>
+    <tr><td><code>prompt_version</code></td><td>TEXT</td><td>—</td><td>Prompt template version string for auditability</td><td>v1</td></tr>
+    <tr><td><code>model_used</code></td><td>TEXT</td><td>—</td><td>Claude model ID used (e.g. claude-haiku-4-5-20251001)</td><td>v1</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> <code>idx_reports_athlete_date</code> (athlete_id, generated_at DESC).</p>
+<p><strong>Read paths:</strong> server-side cache lookup (not yet wired to SPA — localStorage is primary cache today).</p>
+<p><strong>Write paths:</strong> <code>/coach</code> (INSERT after successful Claude response; not yet implemented — schema is forward-deployed).</p>
+
+<h3>3.6 <code>ride_feedback</code> — per-ride AI verdicts</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE ride_feedback (
+  activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+  athlete_id INTEGER NOT NULL,
+  feedback_json TEXT NOT NULL,
+  generated_at INTEGER NOT NULL,
+  prompt_version TEXT,
+  model_used TEXT
+);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>activity_id</code></td><td>INTEGER</td><td>PK, FK → activities ON DELETE CASCADE</td><td>One verdict per activity; cascade-deletes with the activity</td><td>v1</td></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>NOT NULL</td><td>Denormalized athlete ID (no FK constraint in schema)</td><td>v1</td></tr>
+    <tr><td><code>feedback_json</code></td><td>TEXT</td><td>NOT NULL</td><td>Claude response: <code>{verdict, feedback, next}</code></td><td>v1</td></tr>
+    <tr><td><code>generated_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds</td><td>v1</td></tr>
+    <tr><td><code>prompt_version</code></td><td>TEXT</td><td>—</td><td>Prompt template version</td><td>v1</td></tr>
+    <tr><td><code>model_used</code></td><td>TEXT</td><td>—</td><td>Claude model ID</td><td>v1</td></tr>
+  </tbody>
+</table>
+<p><strong>Note:</strong> <code>athlete_id</code> has no FK constraint in <code>schema.sql</code> (denormalized for fast reads).</p>
+<p><strong>Indexes:</strong> none beyond the primary key.</p>
+<p><strong>Read paths:</strong> <code>/coach-ride</code> cache lookup (not yet wired — localStorage primary today).</p>
+<p><strong>Write paths:</strong> <code>/coach-ride</code> (INSERT on verdict generation; not yet implemented — schema forward-deployed).</p>
+
+<h3>3.7 <code>training_prefs</code> — per-athlete AI + routes preferences</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE training_prefs (
+  athlete_id INTEGER PRIMARY KEY REFERENCES users(athlete_id) ON DELETE CASCADE,
+  sessions_per_week INTEGER DEFAULT 3,
+  surface_pref TEXT,
+  start_address TEXT,
+  updated_at INTEGER NOT NULL
+);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>PK, FK → users ON DELETE CASCADE</td><td>One row per athlete</td><td>v1</td></tr>
+    <tr><td><code>sessions_per_week</code></td><td>INTEGER</td><td>DEFAULT 3</td><td>Target sessions per week for AI coach prompts</td><td>v1</td></tr>
+    <tr><td><code>surface_pref</code></td><td>TEXT</td><td>—</td><td>'tarmac' | 'gravel' | 'any'</td><td>v1</td></tr>
+    <tr><td><code>start_address</code></td><td>TEXT</td><td>—</td><td>Free-text start location for routes picker</td><td>v1</td></tr>
+    <tr><td><code>updated_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds</td><td>v1</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> none beyond the primary key.</p>
+<p><strong>Read paths:</strong> <code>/coach</code> (preference injection into prompt — D1 sync deferred, issue #11).</p>
+<p><strong>Write paths:</strong> preference update endpoint (deferred, issue #11; currently localStorage-only).</p>
+
+<h3>3.8 <code>goals</code> — personal training goals + structured events</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE goals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  goal_type TEXT NOT NULL,
+  target_value REAL,
+  target_unit TEXT,
+  target_date TEXT,
+  title TEXT,
+  set_at INTEGER NOT NULL,
+  achieved_at INTEGER,
+  event_name TEXT,
+  event_type TEXT,
+  event_distance_km REAL,
+  event_elevation_m REAL,
+  event_location TEXT,
+  event_priority INTEGER DEFAULT 1
+);
+
+CREATE INDEX idx_goals_athlete ON goals(athlete_id, set_at DESC);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER</td><td>PK AUTOINCREMENT</td><td>Surrogate key</td><td>v1</td></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>NOT NULL, FK → users</td><td>Owning athlete</td><td>v1</td></tr>
+    <tr><td><code>goal_type</code></td><td>TEXT</td><td>NOT NULL</td><td>e.g. 'yearly_km', 'event'</td><td>v1</td></tr>
+    <tr><td><code>target_value</code></td><td>REAL</td><td>—</td><td>Numeric target (km, watts, etc.)</td><td>v1</td></tr>
+    <tr><td><code>target_unit</code></td><td>TEXT</td><td>—</td><td>Unit string (e.g. 'km', 'W')</td><td>v1</td></tr>
+    <tr><td><code>target_date</code></td><td>TEXT</td><td>—</td><td>ISO date string for the goal deadline</td><td>v1</td></tr>
+    <tr><td><code>title</code></td><td>TEXT</td><td>—</td><td>Display label</td><td>v1</td></tr>
+    <tr><td><code>set_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds — when goal was created</td><td>v1</td></tr>
+    <tr><td><code>achieved_at</code></td><td>INTEGER</td><td>—</td><td>Unix epoch seconds — NULL until achieved</td><td>v1</td></tr>
+    <tr><td><code>event_name</code></td><td>TEXT</td><td>—</td><td>e.g. 'Etape du Tour 2025'</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>event_type</code></td><td>TEXT</td><td>—</td><td>'gran_fondo' | 'tt' | 'crit' | 'race' | 'volume'</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>event_distance_km</code></td><td>REAL</td><td>—</td><td>Target event distance in km</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>event_elevation_m</code></td><td>REAL</td><td>—</td><td>Target event elevation in metres</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>event_location</code></td><td>TEXT</td><td>—</td><td>Free-text location string</td><td>v9.0.x (migration 0001)</td></tr>
+    <tr><td><code>event_priority</code></td><td>INTEGER</td><td>DEFAULT 1</td><td>A/B/C race priority: 1 = A, 2 = B, 3 = C</td><td>v9.0.x (migration 0001)</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> <code>idx_goals_athlete</code> (athlete_id, set_at DESC).</p>
+<p><strong>Read paths:</strong> <code>GoalEventCard</code> (via D1 sync, deferred issue #4).</p>
+<p><strong>Write paths:</strong> goal creation / update endpoint (deferred — currently localStorage-only via <code>cc_goalEvent</code>).</p>
+
+<h3>3.9 <code>clubs</code> — training clubs</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE clubs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT,
+  owner_athlete_id INTEGER NOT NULL REFERENCES users(athlete_id),
+  is_public INTEGER DEFAULT 0,
+  invite_code TEXT UNIQUE,
+  created_at INTEGER NOT NULL
+);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER</td><td>PK AUTOINCREMENT</td><td>Surrogate key</td><td>v1 (clubs layer, v8.6.0+)</td></tr>
+    <tr><td><code>name</code></td><td>TEXT</td><td>NOT NULL</td><td>Club display name</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>description</code></td><td>TEXT</td><td>—</td><td>Optional club description</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>owner_athlete_id</code></td><td>INTEGER</td><td>NOT NULL, FK → users (<strong>no ON DELETE</strong>)</td><td>Creating athlete; orphan-handling deferred per issue #37 follow-up</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>is_public</code></td><td>INTEGER</td><td>DEFAULT 0</td><td>0 = private (invite-only); 1 = discoverable (not yet used)</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>invite_code</code></td><td>TEXT</td><td>UNIQUE</td><td>16-char code generated via <code>crypto.randomUUID().replace(/-/g,'').slice(0,16)</code></td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>created_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds</td><td>v1 (clubs layer)</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> implicit unique index on <code>invite_code</code>.</p>
+<p><strong>Read paths:</strong> <code>GET /api/clubs</code> (list clubs for athlete via <code>club_members</code> join).</p>
+<p><strong>Write paths:</strong> <code>POST /api/clubs</code> (INSERT + first member); <code>POST /api/clubs/join/:code</code> (lookup by invite_code).</p>
+
+<h3>3.10 <code>club_members</code> — club membership roster</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE club_members (
+  club_id INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  role TEXT DEFAULT 'member',
+  joined_at INTEGER NOT NULL,
+  PRIMARY KEY (club_id, athlete_id)
+);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>club_id</code></td><td>INTEGER</td><td>NOT NULL, FK → clubs ON DELETE CASCADE, PK part</td><td>Owning club</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>athlete_id</code></td><td>INTEGER</td><td>NOT NULL, FK → users ON DELETE CASCADE, PK part</td><td>Member athlete</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>role</code></td><td>TEXT</td><td>DEFAULT 'member'</td><td>'member' | 'admin' (admin role reserved; no gating logic yet)</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>joined_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds</td><td>v1 (clubs layer)</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> composite primary key on <code>(club_id, athlete_id)</code>.</p>
+<p><strong>Read paths:</strong> <code>GET /api/clubs/:id/members</code>; membership gate check on all club sub-routes.</p>
+<p><strong>Write paths:</strong> <code>POST /api/clubs</code> (creator as first member); <code>POST /api/clubs/join/:code</code>.</p>
+
+<h3>3.11 <code>club_goals</code> — collective club training goals</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE club_goals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  club_id INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  goal_type TEXT NOT NULL,
+  target_value REAL NOT NULL,
+  target_unit TEXT,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  title TEXT,
+  description TEXT,
+  created_at INTEGER NOT NULL,
+  achieved_at INTEGER
+);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER</td><td>PK AUTOINCREMENT</td><td>Surrogate key</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>club_id</code></td><td>INTEGER</td><td>NOT NULL, FK → clubs ON DELETE CASCADE</td><td>Owning club</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>goal_type</code></td><td>TEXT</td><td>NOT NULL</td><td>Collective goal category (e.g. 'club_km')</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>target_value</code></td><td>REAL</td><td>NOT NULL</td><td>Numeric collective target</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>target_unit</code></td><td>TEXT</td><td>—</td><td>Unit string</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>start_date</code></td><td>TEXT</td><td>NOT NULL</td><td>ISO date — goal window start</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>end_date</code></td><td>TEXT</td><td>NOT NULL</td><td>ISO date — goal window end</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>title</code></td><td>TEXT</td><td>—</td><td>Display label</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>description</code></td><td>TEXT</td><td>—</td><td>Optional longer description</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>created_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds</td><td>v1 (clubs layer)</td></tr>
+    <tr><td><code>achieved_at</code></td><td>INTEGER</td><td>—</td><td>Unix epoch seconds — NULL until achieved</td><td>v1 (clubs layer)</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> none beyond the primary key.</p>
+<p><strong>Read paths:</strong> no active API endpoint yet — schema is forward-deployed.</p>
+<p><strong>Write paths:</strong> no active API endpoint yet — schema is forward-deployed.</p>
+
+<h3>3.12 <code>club_events</code> — club-posted group events</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE club_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  club_id INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  created_by INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  event_date INTEGER NOT NULL,
+  location TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_club_events_club_date ON club_events(club_id, event_date);
+CREATE INDEX idx_club_events_creator ON club_events(created_by, event_date);]]></ac:plain-text-body></ac:structured-macro>
+<table>
+  <tbody>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th><th>Shipped in</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER</td><td>PK AUTOINCREMENT</td><td>Surrogate key</td><td>v9.1.3 (migration 0002)</td></tr>
+    <tr><td><code>club_id</code></td><td>INTEGER</td><td>NOT NULL, FK → clubs ON DELETE CASCADE</td><td>Owning club</td><td>v9.1.3 (migration 0002)</td></tr>
+    <tr><td><code>created_by</code></td><td>INTEGER</td><td>NOT NULL, FK → users ON DELETE CASCADE</td><td>Athlete who posted the event; any member may create (no admin gate)</td><td>v9.1.3 (migration 0002)</td></tr>
+    <tr><td><code>title</code></td><td>TEXT</td><td>NOT NULL</td><td>Event title</td><td>v9.1.3 (migration 0002)</td></tr>
+    <tr><td><code>description</code></td><td>TEXT</td><td>—</td><td>Optional event details</td><td>v9.1.3 (migration 0002)</td></tr>
+    <tr><td><code>event_date</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds — when the event happens (start time)</td><td>v9.1.3 (migration 0002)</td></tr>
+    <tr><td><code>location</code></td><td>TEXT</td><td>—</td><td>Optional free-text location (e.g. "Richmond Park · Sheen Gate")</td><td>v9.1.3 (migration 0002)</td></tr>
+    <tr><td><code>created_at</code></td><td>INTEGER</td><td>NOT NULL</td><td>Unix epoch seconds — when the row was inserted</td><td>v9.1.3 (migration 0002)</td></tr>
+  </tbody>
+</table>
+<p><strong>Indexes:</strong> <code>idx_club_events_club_date</code> (club_id, event_date) — primary read path for <code>GET /api/clubs/:id/events</code> ordered by event_date ASC · <code>idx_club_events_creator</code> (created_by, event_date) — future "events I created" view.</p>
+<p><strong>Read paths:</strong> <code>GET /api/clubs/:id/events</code> (upcoming events, ordered by event_date ASC).</p>
+<p><strong>Write paths:</strong> <code>POST /api/clubs/:id/events</code> (any member may INSERT).</p>
+
+<h2>4. Migrations</h2>
+<table>
+  <tbody>
+    <tr><th>File</th><th>What it added</th><th>Shipped in</th></tr>
+    <tr><td><code>migrations/0001_pmc_and_events.sql</code></td><td>FTP / weight / HR max on <code>users</code>; TSS / NP / IF / duration_s / average_watts / primary_zone on <code>activities</code>; <code>idx_activities_athlete_tss</code> index; <code>daily_load</code> table + <code>idx_daily_load_athlete_date</code>; goal-event extension columns on <code>goals</code> (event_name, event_type, event_distance_km, event_elevation_m, event_location, event_priority)</td><td>v9.0.x</td></tr>
+    <tr><td><code>migrations/0002_club_events.sql</code></td><td><code>club_events</code> table; <code>idx_club_events_club_date</code> index; <code>idx_club_events_creator</code> index</td><td>v9.1.3</td></tr>
+  </tbody>
+</table>
+<p>Apply order is sequential. For a fresh bootstrap, run <code>schema.sql</code> directly — it is the cumulative state and subsumes both migration files. Migration files are the authoritative change-history record.</p>
+
+<h2>5. Operational notes</h2>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[# Export (backup) the remote D1 database
+npx wrangler d1 export cycling_coach_db --remote --output backup.sql
+
+# Apply a new migration locally first, then remote
+npx wrangler d1 execute cycling_coach_db --local  --file migrations/000N_description.sql
+npx wrangler d1 execute cycling_coach_db --remote --file migrations/000N_description.sql
+
+# Fresh bootstrap on a new D1 instance
+npx wrangler d1 execute cycling_coach_db --local  --file schema.sql
+npx wrangler d1 execute cycling_coach_db --remote --file schema.sql
+]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Cumulative-schema policy (v9.2.0):</strong> every migration MUST also update <code>schema.sql</code> in the same commit. PRs that leave the two out of sync are rejected. Reviewers verify by diffing <code>schema.sql</code> against the union of all migration files. See <code>CONTRIBUTING.md</code> for the full rule.</p>
+<p><strong>Naming:</strong> migration files use a zero-padded 4-digit prefix (<code>0001</code>, <code>0002</code>, …) followed by a snake_case description. Run in ascending numeric order only.</p>
+<p><strong>No down-migrations:</strong> all migrations are append-only (ADD COLUMN, CREATE TABLE). Column drops or renames require a new migration.</p>`,
+  },
 ];
 
 // Pages from earlier doc structure to be cleaned up on first run after the

@@ -4,6 +4,31 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.2.4] — 2026-04-30
+
+**New Confluence spec page: Data Model.** 12 tables documented end-to-end (DDL, columns, indexes, FK + ON DELETE behavior, read/write paths per Worker endpoint, migration history, operational notes). Source of truth = `schema.sql`. ~444 lines added to `src/docs.js`. Auto-created in Confluence on next deploy via `ensurePage()` (the worker creates pages that don't exist yet, no manual setup).
+
+### Page structure
+
+1. Overview — multi-source-ready, Strangler-Fig complete (tokens + activities + clubs), club layer v8.6.0+
+2. ER summary — 12 plain-English relationship bullets
+3. Tables — 12 subsections, one per table
+4. Migrations — 0001 (PMC) + 0002 (club_events)
+5. Operational notes — `wrangler d1 export` backup, `--local`/`--remote` apply pattern
+
+### Drift fixes also included
+
+While reviewing schema, caught 4 small drifts in existing pages:
+
+- **APIs §2.12d** — events POST body/response: `scheduled_at` → `event_date`; response shape now lists all 8 fields (was missing description, location)
+- **APIs §2.12e** — events GET response: same shape fix; added `creator_firstname/lastname` (which the JOIN already returns) + note about `?include=past`
+- **Technical Spec clubs row** — column list said `created_by` (wrong, that's `club_events`); fixed to actual `owner_athlete_id, is_public, invite_code, created_at`
+- **Technical Spec club_events row** — `scheduled_at` → `event_date`
+
+Versions: 9.2.3 → 9.2.4 in 5 places.
+
+---
+
 ## [9.2.3] — 2026-04-30
 
 **Confluence spec pages content sync.** Surgical updates across all 6 spec pages in `src/docs.js` to reflect current v9.2.x state — clubs MVP + events Phase A + OAuth nonce + /refresh auth gate + schema.sql consolidation + What's-new badge removal + ContextSwitcher dropdown fix. ~151 lines net added across the 6 pages. No code changes — `docs.js` is bundled into the worker, deployed, and `npm run docs:sync` (auto-step in `npm run deploy`) pushes the updated content to Confluence.
