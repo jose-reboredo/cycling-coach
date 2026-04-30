@@ -5,69 +5,44 @@
   padding: var(--s-6) 0;
 }
 
-/* COVER HERO — striped placeholder bg + italic-em title (Saturday Crew Wireframes 01) */
-.cover {
-  position: relative;
-  border: 1px solid var(--c-line-strong);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  min-height: 220px;
-  background: var(--c-surface);
-}
-
-.coverStripes {
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    110deg,
-    var(--c-surface) 0 12px,
-    var(--c-surface-elev) 12px 24px
-  );
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.coverInner {
-  position: relative;
-  padding: var(--s-7) var(--s-7) var(--s-6);
+/* SLIM STICKY HEADER — club name + metadata band. Replaces the cover hero
+ * (founder directive 2026-04-30). Reclaims ~280 px of vertical space. */
+.slimHeader {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
-  height: 100%;
-  min-height: 220px;
-  justify-content: flex-end;
+  gap: var(--s-2);
+  padding: var(--s-4) 0 var(--s-3);
+  background: var(--c-canvas);
+  border-bottom: 1px solid var(--c-line);
 }
 
-@media (min-width: 768px) {
-  .coverInner {
-    padding: var(--s-10) var(--s-10) var(--s-8);
-    min-height: 280px;
-  }
+.slimHeaderName {
+  font: 600 clamp(22px, 4vw, 32px) / 1.1 var(--font-sans);
+  letter-spacing: -0.022em;
+  color: var(--c-text);
+  margin: 0;
+}
+.slimHeaderName em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
 }
 
-.coverMetaTop {
+.slimHeaderMeta {
   display: flex;
   align-items: center;
   gap: var(--s-4);
   flex-wrap: wrap;
 }
 
-.coverEyebrow {
-  font: 500 11px/1.4 var(--font-mono);
+.slimHeaderBand {
+  font: 500 10px/1.4 var(--font-mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--c-text-muted);
-}
-
-.coverTitle {
-  font: 600 clamp(36px, 7vw, 64px) / 0.95 var(--font-sans);
-  letter-spacing: -0.028em;
-  color: var(--c-text);
-}
-.coverTitle em {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--c-accent);
 }
 
 /* TABS — Overview / Schedule / Members / Metrics */
@@ -113,15 +88,7 @@
   border-bottom-color: var(--c-accent);
 }
 
-.tabSoon {
-  font-size: 9px;
-  letter-spacing: 0.14em;
-  color: var(--c-accent);
-  border: 1px solid var(--c-accent);
-  border-radius: var(--r-sm);
-  padding: 2px 6px;
-  text-transform: uppercase;
-}
+/* .tabSoon removed — tabs are navigable in Phase 1 (no longer disabled) */
 
 /* SECTION (consistent eyebrow + content gap) */
 .section {
@@ -326,19 +293,25 @@
 
 .eventRow {
   display: grid;
-  grid-template-columns: 84px 1fr;
+  grid-template-columns: 84px 1fr auto;
   gap: var(--s-4);
   padding: var(--s-4) var(--s-5);
   background: var(--c-surface);
   border: 1px solid var(--c-line);
   border-radius: var(--r-md);
+  align-items: center;
 }
 
 @media (max-width: 540px) {
   .eventRow {
     grid-template-columns: 64px 1fr;
+    grid-template-rows: auto auto;
     gap: var(--s-3);
     padding: var(--s-3) var(--s-4);
+  }
+  .eventRow .rsvpBtn {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 
@@ -415,11 +388,40 @@
   letter-spacing: -0.005em;
 }
 
+.eventMetaConfirmed {
+  font-style: normal;
+  color: var(--c-text-muted);
+}
+
 .eventDesc {
   font: 400 14px/1.5 var(--font-sans);
   color: var(--c-text-muted);
   letter-spacing: -0.005em;
   margin-top: var(--s-1);
+}
+
+/* RSVP BUTTON — placeholder; Phase 2 wires the write path */
+.rsvpBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hit-min);
+  padding: 0 var(--s-4);
+  background: transparent;
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-sm);
+  color: var(--c-text-muted);
+  font: 600 10px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: not-allowed;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+/* STAT SKELETON — loading state for tiles */
+.statSkeleton {
+  color: var(--c-text-faint);
 }
 
 /* MEMBERS LIST */
@@ -493,187 +495,6 @@
   font: italic 400 14px/1.5 var(--font-sans);
   color: var(--c-text-muted);
   text-align: center;
-}
-
-/* COMING NEXT — replaces the old comingSoon card style */
-.roadmap {
-  list-style: none;
-  margin: 0;
-  padding: var(--s-5) var(--s-5) var(--s-5) var(--s-6);
-  background: var(--c-accent-soft);
-  border-left: 2px solid var(--c-accent);
-  border-radius: var(--r-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.roadmap li {
-  font: 400 14px/1.5 var(--font-sans);
-  color: var(--c-text-muted);
-  position: relative;
-  padding-left: var(--s-3);
-}
-
-.roadmap li::before {
-  content: '·';
-  position: absolute;
-  left: 0;
-  color: var(--c-accent);
-  font-weight: 700;
-}
-
-/* COACH AI — captain-managed Anthropic key (v9.1.2 BA spec) */
-.coachCard {
-  padding: var(--s-5) var(--s-5);
-  background: var(--c-surface);
-  border: 1px solid var(--c-line);
-  border-left: 2px solid var(--c-accent);
-  border-radius: var(--r-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.coachBody {
-  font: 400 15px/1.55 var(--font-sans);
-  color: var(--c-text-muted);
-  letter-spacing: -0.005em;
-}
-
-.coachBody strong {
-  color: var(--c-text);
-  font-weight: 600;
-}
-
-.coachLink {
-  color: var(--c-accent);
-  text-decoration: none;
-  border-bottom: 1px solid var(--c-accent-soft);
-  transition: border-color var(--d-fast) var(--e-out);
-}
-.coachLink:hover {
-  border-bottom-color: var(--c-accent);
-}
-
-.coachStatusRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  flex-wrap: wrap;
-}
-
-.coachStatus {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  font: 500 11px/1 var(--font-mono);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--c-text);
-}
-
-.coachDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--c-accent);
-  flex-shrink: 0;
-}
-
-.coachKeyPreview {
-  font: 500 12px/1 var(--font-mono);
-  color: var(--c-text-faint);
-  letter-spacing: 0.04em;
-  background: var(--c-canvas);
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-sm);
-  padding: 4px 8px;
-  user-select: all;
-}
-
-.coachForm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  margin-top: var(--s-2);
-}
-
-.coachLabel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--c-text-muted);
-}
-
-.coachInput {
-  width: 100%;
-  height: var(--hit-comfy);
-  padding: 0 var(--s-3);
-  background: var(--c-canvas);
-  border: 1px solid var(--c-line-strong);
-  border-radius: var(--r-sm);
-  color: var(--c-text);
-  font: 500 14px/1 var(--font-mono);
-  letter-spacing: 0.02em;
-}
-.coachInput:focus-visible {
-  outline: var(--ring-focus);
-  outline-offset: var(--ring-focus-offset);
-  border-color: var(--c-accent);
-}
-
-.coachFormRow {
-  display: flex;
-  gap: var(--s-2);
-  flex-wrap: wrap;
-}
-
-.coachPrimaryBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--hit-comfy);
-  padding: 0 var(--s-5);
-  background: var(--c-accent);
-  border: 1px solid var(--c-accent);
-  border-radius: var(--r-sm);
-  color: var(--c-canvas);
-  font: 600 13px/1 var(--font-sans);
-  letter-spacing: -0.005em;
-  cursor: pointer;
-  transition: opacity var(--d-fast) var(--e-out);
-}
-.coachPrimaryBtn:hover:not(:disabled) {
-  opacity: 0.92;
-}
-.coachPrimaryBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.coachSecondaryBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--hit-comfy);
-  padding: 0 var(--s-4);
-  background: transparent;
-  border: 1px solid var(--c-line-strong);
-  border-radius: var(--r-sm);
-  color: var(--c-text);
-  font: 500 12px/1 var(--font-sans);
-  letter-spacing: -0.005em;
-  cursor: pointer;
-  transition: border-color var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out);
-}
-.coachSecondaryBtn:hover {
-  border-color: var(--c-accent);
-  color: var(--c-accent);
 }
 
 /* HINT BANNER (switch back) */

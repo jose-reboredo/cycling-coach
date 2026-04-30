@@ -2,7 +2,7 @@
 // as useStravaData hooks (5 min stale, 30 min gc).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clubsApi, type Club, type ClubEvent, type ClubMember, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type JoinClubResponse } from '../lib/clubsApi';
+import { clubsApi, type Club, type ClubEvent, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type JoinClubResponse } from '../lib/clubsApi';
 
 const FIVE_MIN = 5 * 60 * 1000;
 const THIRTY_MIN = 30 * 60 * 1000;
@@ -54,6 +54,16 @@ export function useClubEvents(clubId: number | null, opts: { includePast?: boole
     // Events are time-sensitive; refetch more aggressively than other club data.
     staleTime: 60 * 1000,        // 1 min stale
     gcTime: 10 * 60 * 1000,      // 10 min gc
+  });
+}
+
+export function useClubOverview(clubId: number | null) {
+  return useQuery<ClubOverview>({
+    queryKey: ['clubs', clubId, 'overview'],
+    queryFn: () => clubsApi.overview(clubId as number),
+    enabled: clubId != null,
+    staleTime: FIVE_MIN,
+    gcTime: THIRTY_MIN,
   });
 }
 

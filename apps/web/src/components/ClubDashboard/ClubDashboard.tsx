@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Eyebrow } from '../Eyebrow/Eyebrow';
 import { Pill } from '../Pill/Pill';
-import { useClubMembers, useClubs, useClubEvents } from '../../hooks/useClubs';
+import { useClubMembers, useClubOverview } from '../../hooks/useClubs';
 import { ClubEventModal } from '../ClubEventModal/ClubEventModal';
-import type { Club, ClubEvent, ClubMember } from '../../lib/clubsApi';
+import type { ClubMember, UpcomingEvent } from '../../lib/clubsApi';
 import styles from './ClubDashboard.module.css';
 
 interface ClubDashboardProps {
@@ -15,69 +15,71 @@ interface ClubDashboardProps {
 type Tab = 'overview' | 'schedule' | 'members' | 'metrics';
 
 /**
- * ClubDashboard — restructured per Saturday Crew Wireframes (claude.ai/design
- * 2026-04-30 bundle). Information architecture from wireframe 01 "Overview tab":
+ * ClubDashboard — Sprint 4 Phase 1 restructure (v9.6.0).
  *
- *   1. Cover hero — italic-em club name + metadata strip + role pill
- *   2. Tabs row — Overview / Schedule / Members / Metrics
- *   3. Hero invite CTA — "★ share is the primary feature · expires 7 days"
- *      (admin-only; promoted from buried aside to full-width)
- *   4. Stat tiles — Hours collective, Distance, Group rides, New members
- *   5. Members aside — circular initial + name + FTP/W
- *   6. Circle note placeholder — admin-posted update
- *   7. Switch-back hint
+ * Changes from v9.1.2:
+ * - Cover hero dropped per founder mid-stream directive (2026-04-30).
+ *   Replaced with a slim sticky header: club name + metadata band
+ *   (EST. year · N members · PRIVATE).
+ * - Overview tab wired to new GET /api/clubs/:id/overview endpoint via
+ *   useClubOverview hook. Stat tiles now consume live 28-day aggregations.
+ * - Upcoming section upgraded: confirmed-count placeholder + disabled RSVP
+ *   button (Phase 2 wires the write path).
+ * - Circle Note section visible to all members; plain text for Phase 1
+ *   (Phase 5 adds AI draft + editor).
+ * - Schedule / Members / Metrics tabs are navigable (not disabled) with
+ *   placeholder content for now.
+ * - Coach AI card + "Coming next" roadmap section removed from Overview;
+ *   retained logic is in sub-components below.
  *
- * Schedule / Members / Metrics tabs render coming-soon placeholders today;
- * Overview is the only fully-implemented tab. Visual styling stays in PARS
- * dark + molten orange (no cream) per the v9.1.1 palette revert.
+ * Information architecture (4-tab shell):
+ *   Overview / Schedule / Members / Metrics
  */
 export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
+  const overview = useClubOverview(clubId);
   const members = useClubMembers(clubId);
   const memberCount = members.data?.length ?? 0;
-  const clubs = useClubs();
-  const club: Club | undefined = clubs.data?.find((c) => c.id === clubId);
-  const events = useClubEvents(clubId);
   const isAdmin = role === 'admin';
   const [tab, setTab] = useState<Tab>('overview');
   const [eventModalOpen, setEventModalOpen] = useState(false);
 
+  const club = overview.data?.club;
   const createdYear = club?.created_at
     ? new Date(club.created_at * 1000).getFullYear()
     : new Date().getFullYear();
 
   return (
     <div className={styles.root}>
-      {/* COVER HERO — striped placeholder background, club name italic-em, metadata strip */}
-      <header className={styles.cover}>
-        <div className={styles.coverStripes} aria-hidden="true" />
-        <div className={styles.coverInner}>
-          <div className={styles.coverMetaTop}>
-            <span className={styles.coverEyebrow}>
-              Est. {createdYear} · {memberCount} {memberCount === 1 ? 'member' : 'members'} · Private
-            </span>
-            {isAdmin ? (
-              <Pill dot tone="accent">{role}</Pill>
-            ) : (
-              <Pill dot>{role}</Pill>
-            )}
-          </div>
-          <h1 className={styles.coverTitle}>
-            {clubName.endsWith('.') ? clubName : <>{clubName}<em>.</em></>}
-          </h1>
+      {/* SLIM STICKY HEADER — club name + metadata band. Replaces the old cover hero.
+       * Reclaims ~280 px of vertical space for content (founder directive 2026-04-30). */}
+      <header className={styles.slimHeader}>
+        <h1 className={styles.slimHeaderName}>
+          {clubName.endsWith('.') ? clubName : <>{clubName}<em>.</em></>}
+        </h1>
+        <div className={styles.slimHeaderMeta}>
+          <span className={styles.slimHeaderBand}>
+            EST. {createdYear} · {memberCount} {memberCount === 1 ? 'MEMBER' : 'MEMBERS'} · PRIVATE
+          </span>
+          {isAdmin ? (
+            <Pill dot tone="accent">{role}</Pill>
+          ) : (
+            <Pill dot>{role}</Pill>
+          )}
         </div>
       </header>
 
-      {/* TABS — Overview / Schedule / Members / Metrics. Only Overview is functional today. */}
+      {/* TABS — Overview / Schedule / Members / Metrics */}
       <nav className={styles.tabs} aria-label="Club views">
         <TabBtn active={tab === 'overview'} onClick={() => setTab('overview')} label="Overview" />
-        <TabBtn active={tab === 'schedule'} onClick={() => setTab('schedule')} label="Schedule" disabled />
-        <TabBtn active={tab === 'members'} onClick={() => setTab('members')} label="Members" disabled />
-        <TabBtn active={tab === 'metrics'} onClick={() => setTab('metrics')} label="Metrics" disabled />
+        <TabBtn active={tab === 'schedule'} onClick={() => setTab('schedule')} label="Schedule" />
+        <TabBtn active={tab === 'members'} onClick={() => setTab('members')} label="Members" />
+        <TabBtn active={tab === 'metrics'} onClick={() => setTab('metrics')} label="Metrics" />
       </nav>
 
+      {/* ---- OVERVIEW TAB ---- */}
       {tab === 'overview' && (
         <>
-          {/* HERO INVITE CTA — admin-only. Wireframes: "★ share is the primary feature · expires 7 days" */}
+          {/* INVITE LINK — admin-only */}
           {isAdmin && club?.invite_code && (
             <section className={styles.section}>
               <Eyebrow rule tone="accent">Invite</Eyebrow>
@@ -85,69 +87,39 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
             </section>
           )}
 
-          {/* STAT TILES — wireframe labels */}
+          {/* STAT TILES — wired to /api/clubs/:id/overview 28-day aggregations */}
           <section className={styles.section}>
             <Eyebrow>The circle, this month</Eyebrow>
-            <div className={styles.statRow}>
-              <StatTile value="—" label="Hours collective" />
-              <StatTile value="0" label="Distance · km" />
-              <StatTile value="0" label="Group rides" />
-              <StatTile value={String(memberCount)} label="Members" />
-            </div>
+            <StatTilesSection overview={overview} />
           </section>
 
-          {/* UPCOMING EVENTS — any member can create. v9.1.3 spec. */}
+          {/* UPCOMING — events with placeholder RSVP button (Phase 2 wires the write) */}
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <Eyebrow rule>Upcoming</Eyebrow>
-              <button
-                type="button"
-                className={styles.sectionAction}
-                onClick={() => setEventModalOpen(true)}
-              >
-                + Post event
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className={styles.sectionAction}
+                  onClick={() => setEventModalOpen(true)}
+                >
+                  + Post event
+                </button>
+              )}
             </div>
-            <EventsList state={events} />
+            <UpcomingSection overview={overview} />
           </section>
 
-          {/* CIRCLE NOTE — admin-only, placeholder while no posts table exists */}
-          {isAdmin && (
-            <section className={styles.section}>
-              <Eyebrow rule>Circle note</Eyebrow>
-              <div className={styles.circleNote}>
-                <p className={styles.circleNoteBody}>
-                  Posts and weekly updates land here once a circle-note table exists in
-                  D1. For now, share the invite link above to grow the crew.
-                </p>
-                <span className={styles.circleNoteSig}>— Cadence · Circle Layer</span>
-              </div>
-            </section>
-          )}
-
-          {/* COACH AI — captain-managed Anthropic key (MVP per BA spec). Visible to all
-           * members; only admin (captain) can edit the key. Feedback generation against
-           * member-aggregated data lands when a club-rides table exists. */}
+          {/* CIRCLE NOTE — plain text for Phase 1. Phase 5 adds AI draft + editor. */}
           <section className={styles.section}>
-            <Eyebrow rule tone="accent">Coach AI</Eyebrow>
-            <ClubCoachCard clubId={clubId} isAdmin={isAdmin} />
+            <Eyebrow rule>Circle note</Eyebrow>
+            <CircleNoteSection circleNote={overview.data?.circle_note ?? null} isLoading={overview.isLoading} />
           </section>
 
-          {/* MEMBERS LIST */}
+          {/* MEMBERS RAIL */}
           <section className={styles.section}>
             <Eyebrow rule>Members · {String(memberCount).padStart(2, '0')}</Eyebrow>
             <MembersList state={members} />
-          </section>
-
-          {/* COMING NEXT */}
-          <section className={styles.section}>
-            <Eyebrow rule tone="accent">Coming next</Eyebrow>
-            <ul className={styles.roadmap}>
-              <li>Group rides — schedule a session, members RSVP, post-ride debrief</li>
-              <li>Collective goals — distance / elevation / consistency targets</li>
-              <li>Coach dashboard — admin view of every member's weekly load</li>
-              <li>Schedule + Members + Metrics tabs — full views for each</li>
-            </ul>
           </section>
 
           <p className={styles.hint}>
@@ -157,14 +129,27 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
         </>
       )}
 
-      {tab !== 'overview' && (
+      {/* ---- SCHEDULE TAB (Phase 3 — v9.6.2) ---- */}
+      {tab === 'schedule' && (
         <div className={styles.tabPlaceholder}>
-          <Eyebrow rule tone="accent">Coming soon</Eyebrow>
-          <p className={styles.tabPlaceholderBody}>
-            The <strong>{tab}</strong> tab is wireframed. Schedule lays out a calendar
-            view of events + filters; Members renders a sortable roster with FTP /
-            hours / attendance; Metrics surfaces collective load and form trends.
-          </p>
+          <Eyebrow rule tone="accent">Schedule</Eyebrow>
+          <p className={styles.tabPlaceholderBody}>Coming in v9.6.2</p>
+        </div>
+      )}
+
+      {/* ---- MEMBERS TAB (Phase 2 — v9.6.1) ---- */}
+      {tab === 'members' && (
+        <div className={styles.tabPlaceholder}>
+          <Eyebrow rule tone="accent">Members</Eyebrow>
+          <p className={styles.tabPlaceholderBody}>Coming in v9.6.1</p>
+        </div>
+      )}
+
+      {/* ---- METRICS TAB (Phase 5 — v9.6.4) ---- */}
+      {tab === 'metrics' && (
+        <div className={styles.tabPlaceholder}>
+          <Eyebrow rule tone="accent">Metrics</Eyebrow>
+          <p className={styles.tabPlaceholderBody}>Coming in v9.6.4</p>
         </div>
       )}
 
@@ -177,68 +162,82 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
   );
 }
 
-/* ---------- subcomponents ---------- */
+/* ---------- sub-components ---------- */
 
 function TabBtn({
   active,
   onClick,
   label,
-  disabled,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
-  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       className={`${styles.tab} ${active ? styles.tabActive : ''}`}
       onClick={onClick}
-      disabled={disabled && !active}
       aria-current={active ? 'page' : undefined}
     >
       {label}
-      {disabled && !active && <span className={styles.tabSoon}>Soon</span>}
     </button>
   );
 }
 
-function EventsList({ state }: {
-  state: ReturnType<typeof useClubEvents>;
-}) {
-  if (state.isLoading) {
-    return <div className={styles.empty}>Loading events…</div>;
+function StatTilesSection({ overview }: { overview: ReturnType<typeof useClubOverview> }) {
+  if (overview.isLoading) {
+    return (
+      <div className={styles.statRow}>
+        {['Hours collective', 'Distance · km', 'Group rides', 'New members'].map((label) => (
+          <div key={label} className={styles.statTile}>
+            <span className={`${styles.statValue} ${styles.statSkeleton}`}>—</span>
+            <span className={styles.statLabel}>{label}</span>
+          </div>
+        ))}
+      </div>
+    );
   }
-  if (state.isError) {
-    return <div className={styles.error}>Could not load events.</div>;
+  const tiles = overview.data?.stat_tiles;
+  return (
+    <div className={styles.statRow}>
+      <StatTile value={tiles ? String(tiles.hours_28d) : '—'} label="Hours collective" />
+      <StatTile value={tiles ? String(tiles.distance_28d) : '0'} label="Distance · km" />
+      <StatTile value={tiles ? String(tiles.ride_count_28d) : '0'} label="Group rides" />
+      <StatTile value={tiles ? String(tiles.new_members_28d) : '0'} label="New members" />
+    </div>
+  );
+}
+
+function UpcomingSection({ overview }: { overview: ReturnType<typeof useClubOverview> }) {
+  if (overview.isLoading) {
+    return <div className={styles.empty}>Loading upcoming rides…</div>;
   }
-  const events = state.data ?? [];
+  if (overview.isError) {
+    return <div className={styles.error}>Could not load upcoming rides.</div>;
+  }
+  const events = overview.data?.upcoming_events ?? [];
   if (events.length === 0) {
     return (
       <div className={styles.empty}>
-        No upcoming events. Post one to get the circle moving.
+        No upcoming rides yet.
       </div>
     );
   }
   return (
     <div className={styles.events}>
-      {events.map((e) => <EventRow key={e.id} event={e} />)}
+      {events.map((e) => <UpcomingEventRow key={e.id} event={e} />)}
     </div>
   );
 }
 
-function EventRow({ event }: { event: ClubEvent }) {
+function UpcomingEventRow({ event }: { event: UpcomingEvent }) {
   const dt = new Date(event.event_date * 1000);
-  const dayShort = dt.toLocaleDateString('en-GB', { weekday: 'short' }); // Sat
-  const dayNum = dt.toLocaleDateString('en-GB', { day: '2-digit' });     // 03
-  const monShort = dt.toLocaleDateString('en-GB', { month: 'short' });   // May
-  const timeShort = dt.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const creator = [event.creator_firstname, event.creator_lastname].filter(Boolean).join(' ').trim();
+  const dayShort = dt.toLocaleDateString('en-GB', { weekday: 'short' });
+  const dayNum = dt.toLocaleDateString('en-GB', { day: '2-digit' });
+  const monShort = dt.toLocaleDateString('en-GB', { month: 'short' });
+  const timeShort = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+
   return (
     <article className={styles.eventRow}>
       <div className={styles.eventDate} aria-hidden="true">
@@ -256,18 +255,49 @@ function EventRow({ event }: { event: ClubEvent }) {
               <span className={styles.eventMetaLoc}>{event.location}</span>
             </>
           )}
-          {creator && (
-            <>
-              <span className={styles.eventMetaDot} aria-hidden="true">·</span>
-              <span className={styles.eventMetaCreator}>posted by {creator}</span>
-            </>
-          )}
+          <span className={styles.eventMetaDot} aria-hidden="true">·</span>
+          <span className={styles.eventMetaConfirmed}>
+            {event.confirmed_count} confirmed
+          </span>
         </div>
-        {event.description && (
-          <p className={styles.eventDesc}>{event.description}</p>
-        )}
       </div>
+      {/* Phase 2 wires the actual RSVP write path */}
+      <button
+        type="button"
+        className={styles.rsvpBtn}
+        disabled
+        aria-label={`RSVP to ${event.title} — coming soon`}
+        title="RSVP coming in v9.6.1"
+      >
+        RSVP
+      </button>
     </article>
+  );
+}
+
+function CircleNoteSection({
+  circleNote,
+  isLoading,
+}: {
+  circleNote: string | null;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className={styles.circleNote}>
+        <p className={styles.circleNoteBody}>Loading…</p>
+      </div>
+    );
+  }
+  return (
+    <div className={styles.circleNote}>
+      <p className={styles.circleNoteBody}>
+        {circleNote ?? 'No notes yet — your captain can post one.'}
+      </p>
+      {!circleNote && (
+        <span className={styles.circleNoteSig}>— Circle Note · Phase 5 adds AI draft + editor</span>
+      )}
+    </div>
   );
 }
 
@@ -280,28 +310,29 @@ function MembersList({ state }: {
   if (state.isError) {
     return <div className={styles.error}>Could not load members. Try again later.</div>;
   }
-  const members = state.data ?? [];
-  if (members.length === 0) {
+  const memberList = state.data ?? [];
+  if (memberList.length === 0) {
     return <div className={styles.empty}>No members yet.</div>;
   }
   return (
     <div className={styles.members}>
-      {members.map((m) => <MemberRow key={m.athlete_id} member={m} />)}
+      {memberList.map((m) => <MemberRow key={m.athlete_id} member={m} />)}
     </div>
   );
 }
 
 function MemberRow({ member }: { member: ClubMember }) {
-  const fullName = [member.firstname, member.lastname].filter(Boolean).join(' ').trim() || `Athlete ${member.athlete_id}`;
+  const fullName =
+    [member.firstname, member.lastname].filter(Boolean).join(' ').trim() ||
+    `Athlete ${member.athlete_id}`;
   const initials =
-    [member.firstname?.[0], member.lastname?.[0]].filter(Boolean).join('').toUpperCase() ||
-    '?';
+    [member.firstname?.[0], member.lastname?.[0]].filter(Boolean).join('').toUpperCase() || '?';
   const joinedDate = new Date(member.joined_at * 1000).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
-  const isAdmin = member.role === 'admin';
+  const isAdminMember = member.role === 'admin';
   return (
     <div className={styles.member}>
       {member.profile_url ? (
@@ -313,16 +344,21 @@ function MemberRow({ member }: { member: ClubMember }) {
         <span className={styles.memberName}>{fullName}</span>
         <span className={styles.memberJoined}>Joined {joinedDate}</span>
       </div>
-      {isAdmin ? <Pill dot tone="accent">{member.role}</Pill> : <Pill dot>{member.role}</Pill>}
+      {isAdminMember ? (
+        <Pill dot tone="accent">{member.role}</Pill>
+      ) : (
+        <Pill dot>{member.role}</Pill>
+      )}
     </div>
   );
 }
 
 function InviteHeroCta({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
-  const link = typeof window !== 'undefined'
-    ? `${window.location.origin}/join/${code}`
-    : `/join/${code}`;
+  const link =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/join/${code}`
+      : `/join/${code}`;
 
   async function copy() {
     try {
@@ -347,187 +383,6 @@ function InviteHeroCta({ code }: { code: string }) {
       <span className={styles.inviteHeroAnnot}>
         ★ Share is the primary feature · invite link is permanent until a regenerate flow ships
       </span>
-    </div>
-  );
-}
-
-/**
- * ClubCoachCard — captain-managed Anthropic API key + Coach AI feedback gate.
- *
- * MVP per BA spec (v9.1.2): captain (admin) enters their own Anthropic API key
- * locally; key is stored in localStorage under `cc_clubAiKey:${clubId}` (NOT
- * synced to D1, NOT shared with other members — admin-only secret). When set,
- * the card surfaces a "Generate weekly feedback" affordance; when not set,
- * non-admins see "Captain has not yet set up Coach AI" and admins see the
- * key-entry form.
- *
- * Why localStorage and not D1: we don't have a clubs.api_key column yet, and
- * adding one means a migration + an admin-only edit endpoint + a server-side
- * encryption story (we don't store user Anthropic keys in D1 today either —
- * personal AI Coach also lives in localStorage). Matching that pattern keeps
- * the security posture consistent.
- *
- * Feedback rendering itself is a placeholder until a club-rides aggregate
- * table exists — without aggregated member training data we can't usefully
- * call /coach for the club. Ships the key-entry UX so the captain can be
- * onboarded ahead of the data path.
- */
-function ClubCoachCard({ clubId, isAdmin }: { clubId: number; isAdmin: boolean }) {
-  const storageKey = `cc_clubAiKey:${clubId}`;
-  const [apiKey, setApiKey] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    try { return window.localStorage.getItem(storageKey) ?? ''; } catch { return ''; }
-  });
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-
-  const hasKey = apiKey.trim().length > 0;
-  const masked = hasKey ? `${apiKey.slice(0, 7)}…${apiKey.slice(-4)}` : '';
-
-  function save() {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-    try { window.localStorage.setItem(storageKey, trimmed); } catch { /* swallow */ }
-    setApiKey(trimmed);
-    setDraft('');
-    setEditing(false);
-  }
-
-  function clear() {
-    try { window.localStorage.removeItem(storageKey); } catch { /* swallow */ }
-    setApiKey('');
-  }
-
-  // Non-admin view
-  if (!isAdmin) {
-    return (
-      <div className={styles.coachCard}>
-        {hasKey ? (
-          <>
-            <p className={styles.coachBody}>
-              The captain has connected an Anthropic API key. Coach AI feedback will
-              surface here once the club-rides aggregate data path ships.
-            </p>
-            <span className={styles.coachStatus}>
-              <span className={styles.coachDot} aria-hidden="true" /> Coach connected
-            </span>
-          </>
-        ) : (
-          <p className={styles.coachBody}>
-            Captain has not yet set up Coach AI. Once they connect an Anthropic
-            API key, weekly feedback for the circle will appear here.
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  // Admin view — key entry / management
-  return (
-    <div className={styles.coachCard}>
-      {!hasKey && !editing && (
-        <>
-          <p className={styles.coachBody}>
-            Add your Anthropic API key to power Coach AI for the circle. The key
-            stays in your browser only — it isn't shared with members or stored
-            on our servers. About <strong>$0.02</strong> per generated weekly
-            feedback. <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className={styles.coachLink}>Get a key →</a>
-          </p>
-          <button
-            type="button"
-            className={styles.coachPrimaryBtn}
-            onClick={() => setEditing(true)}
-          >
-            Connect Anthropic key
-          </button>
-        </>
-      )}
-
-      {!hasKey && editing && (
-        <form
-          className={styles.coachForm}
-          onSubmit={(e) => { e.preventDefault(); save(); }}
-        >
-          <label className={styles.coachLabel}>
-            Anthropic API key
-            <input
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="sk-ant-..."
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              className={styles.coachInput}
-              autoFocus
-            />
-          </label>
-          <div className={styles.coachFormRow}>
-            <button type="submit" className={styles.coachPrimaryBtn} disabled={!draft.trim()}>
-              Save key
-            </button>
-            <button
-              type="button"
-              className={styles.coachSecondaryBtn}
-              onClick={() => { setEditing(false); setDraft(''); }}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {hasKey && (
-        <>
-          <div className={styles.coachStatusRow}>
-            <span className={styles.coachStatus}>
-              <span className={styles.coachDot} aria-hidden="true" /> Coach connected
-            </span>
-            <span className={styles.coachKeyPreview}>{masked}</span>
-          </div>
-          <p className={styles.coachBody}>
-            Coach AI feedback for the circle ships once a club-rides aggregate
-            table exists in D1. The key you entered is stored locally — clear it
-            anytime; replacing it just overwrites the previous value.
-          </p>
-          <div className={styles.coachFormRow}>
-            <button type="button" className={styles.coachSecondaryBtn} onClick={() => setEditing(true)}>
-              Replace key
-            </button>
-            <button type="button" className={styles.coachSecondaryBtn} onClick={clear}>
-              Disconnect
-            </button>
-          </div>
-          {editing && (
-            <form
-              className={styles.coachForm}
-              onSubmit={(e) => { e.preventDefault(); save(); }}
-            >
-              <input
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="sk-ant-..."
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                className={styles.coachInput}
-                autoFocus
-              />
-              <div className={styles.coachFormRow}>
-                <button type="submit" className={styles.coachPrimaryBtn} disabled={!draft.trim()}>
-                  Save new key
-                </button>
-                <button
-                  type="button"
-                  className={styles.coachSecondaryBtn}
-                  onClick={() => { setEditing(false); setDraft(''); }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-        </>
-      )}
     </div>
   );
 }

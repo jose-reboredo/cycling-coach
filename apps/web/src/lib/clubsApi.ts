@@ -83,6 +83,30 @@ export interface CreateClubEventInput {
   event_date: string | number;
 }
 
+// ---- /overview endpoint types (Phase 1) ----
+
+export interface ClubStatTiles {
+  hours_28d: number;
+  distance_28d: number;
+  ride_count_28d: number;
+  new_members_28d: number;
+}
+
+export interface UpcomingEvent {
+  id: number;
+  title: string;
+  event_date: number; // unix epoch seconds
+  location: string | null;
+  confirmed_count: number;
+}
+
+export interface ClubOverview {
+  club: Club & { role: string };
+  stat_tiles: ClubStatTiles;
+  upcoming_events: UpcomingEvent[];
+  circle_note: string | null;
+}
+
 export const clubsApi = {
   list: () => call<{ clubs: Club[] }>('/api/clubs').then((r) => r.clubs),
   create: (input: CreateClubInput) =>
@@ -102,4 +126,6 @@ export const clubsApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  overview: (clubId: number) =>
+    call<ClubOverview>(`/api/clubs/${clubId}/overview`),
 };

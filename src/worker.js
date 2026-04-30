@@ -577,6 +577,120 @@ async function handleRequest(request, env) {
       });
     }
 
+    // GET /api/clubs/:id/overview — single D1 batch powering the Overview tab:
+    // club row, 28-day stat aggregations, upcoming events, and latest Circle Note
+    // (null in Phase 1; club_circle_notes table lands Phase 5).
+    // Membership-gated 404 (OWASP — don't leak existence of clubs the caller
+    // isn't in). Slots in alongside /api/clubs/:id/members per architect §B row 1.
+    const overviewMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/overview$/);
+    if (overviewMatch && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const clubId = parseInt(overviewMatch[1], 10);
+      const db = env.cycling_coach_db;
+      const now = Math.floor(Date.now() / 1000);
+      const twentyEightDaysAgo = now - 28 * 24 * 3600;
+      // activities.start_date_local is TEXT (ISO), club_members.joined_at is
+      // INTEGER (unix epoch seconds). Use the right form of the cutoff for each.
+      const cutoffEpoch = twentyEightDaysAgo;
+      const cutoffIso = new Date(twentyEightDaysAgo * 1000).toISOString().slice(0, 19);
+
+      let batchResults;
+      try {
+        batchResults = await db.batch([
+          // [0] Club row + caller's role
+          db.prepare(`
+            SELECT c.id, c.name, c.description, c.owner_athlete_id, c.invite_code, c.created_at, m.role
+            FROM clubs c
+            INNER JOIN club_members m ON m.club_id = c.id AND m.athlete_id = ?
+            WHERE c.id = ?
+            LIMIT 1
+          `).bind(authResult.athleteId, clubId),
+
+          // [1] 28-day stat aggregations from activities + new-member count.
+          // Schema: activities.moving_time INTEGER seconds (no elapsed_time column);
+          //         activities.start_date_local TEXT ISO; club_members.joined_at INTEGER.
+          db.prepare(`
+            SELECT
+              ROUND(COALESCE(SUM(a.moving_time), 0) / 3600.0, 1) AS hours_28d,
+              ROUND(COALESCE(SUM(a.distance), 0) / 1000.0, 1)    AS distance_28d,
+              COUNT(DISTINCT a.id)                                AS ride_count_28d,
+              (SELECT COUNT(*) FROM club_members
+               WHERE club_id = ? AND joined_at >= ?)              AS new_members_28d
+            FROM activities a
+            INNER JOIN club_members cm ON cm.athlete_id = a.athlete_id AND cm.club_id = ?
+            WHERE a.start_date_local >= ?
+          `).bind(clubId, cutoffEpoch, clubId, cutoffIso),
+
+          // [2] Upcoming events (next 20)
+          db.prepare(`
+            SELECT id, title, event_date, location
+            FROM club_events
+            WHERE club_id = ? AND event_date >= ?
+            ORDER BY event_date ASC
+            LIMIT 20
+          `).bind(clubId, now),
+
+          // [3] Latest published Circle Note — Phase 1 returns null (table lands Phase 5)
+          // Stub: SELECT NULL so batch always has 4 statements; ignored in response.
+          db.prepare('SELECT NULL AS stub'),
+        ]);
+      } catch (e) {
+        safeWarn(`[clubs/overview] D1 batch failed for club ${clubId}: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'internal error' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // [0] Membership + club row — 404 if the caller is not a member (OWASP).
+      const clubRow = batchResults[0]?.results?.[0];
+      if (!clubRow) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // [1] Stat aggregations
+      const stats = batchResults[1]?.results?.[0] ?? {};
+
+      // [2] Upcoming events — confirmed_count placeholder (0) until Phase 2 lands event_rsvps.
+      const upcomingRaw = batchResults[2]?.results ?? [];
+      const upcomingEvents = upcomingRaw.map((e) => ({
+        id: e.id,
+        title: e.title,
+        event_date: e.event_date,
+        location: e.location ?? null,
+        confirmed_count: 0,
+      }));
+
+      return new Response(JSON.stringify({
+        club: {
+          id: clubRow.id,
+          name: clubRow.name,
+          description: clubRow.description ?? null,
+          owner_athlete_id: clubRow.owner_athlete_id,
+          invite_code: clubRow.invite_code ?? null,
+          created_at: clubRow.created_at,
+          role: clubRow.role,
+        },
+        stat_tiles: {
+          hours_28d: Number(stats.hours_28d ?? 0),
+          distance_28d: Number(stats.distance_28d ?? 0),
+          ride_count_28d: Number(stats.ride_count_28d ?? 0),
+          new_members_28d: Number(stats.new_members_28d ?? 0),
+        },
+        upcoming_events: upcomingEvents,
+        circle_note: null, // Phase 5: club_circle_notes table + AI draft
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const membersMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/members$/);
     if (membersMatch && request.method === 'GET') {
       const authResult = await resolveAthleteId(request);
