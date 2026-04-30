@@ -4,6 +4,31 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.2.5] — 2026-04-30
+
+**FIX 6 — strip code blocks from /whats-next issue bodies (raw SQL was leaking to the UI).**
+
+`/roadmap`'s `normalizeGhIssue` server-side transform took the first paragraph of each GitHub issue body and stripped `#`/`>`/`*`/`-`/whitespace prefixes — but did not strip fenced code blocks. Issues that opened with a ```` ```sql ```` block (#35, #37, the recent audit-spec issues) leaked their migration DDL — `CREATE TABLE club_events ...` — verbatim into the route card UI on `/whats-next`. Visible to users via projector during the demo.
+
+Fix is purely server-side in `src/worker.js` `normalizeGhIssue()`:
+1. Strip fenced code blocks (` ```...``` `) before any other processing.
+2. Strip inline code (`` `code` ``).
+3. Then take the first non-empty paragraph after the existing prefix-strip pass (was: take first paragraph THEN strip prefixes — broken if the first paragraph was *only* a code block, would leave empty `body`).
+
+Acceptance: `/whats-next` no longer renders backtick fences or SQL for any issue card. Issues whose body has a prose first paragraph (the majority) render unchanged. Issues whose entire body is code blocks render with empty body — title still shows, which is the right fallback.
+
+Also includes the **remote D1 backfill for invite_code** that v9.1.4 only applied locally — `UPDATE clubs SET invite_code = lower(hex(randomblob(8))) WHERE invite_code IS NULL` ran against prod D1, backfilled 1 club (Merkle Riders) that had `NULL` from the original buggy create.
+
+FIXes 2-5 from the demo punch-list were already shipped in v9.1.4 (commit `b4e6395`):
+- `invite_code` generation in POST /api/clubs ✓
+- `--c-text-faint: #7a8290` (5.11:1, AA passing) ✓
+- `--c-z7: #a55be0` (4.87:1, AA passing — note: punch-list suggested `#9a4dd9` but that computes to 4.18:1 and **fails** AA; existing value is better, kept it) ✓
+- `--c-bg-deep: #000` defined ✓
+
+Versions: 9.2.4 → 9.2.5 in 5 places.
+
+---
+
 ## [9.2.4] — 2026-04-30
 
 **New Confluence spec page: Data Model.** 12 tables documented end-to-end (DDL, columns, indexes, FK + ON DELETE behavior, read/write paths per Worker endpoint, migration history, operational notes). Source of truth = `schema.sql`. ~444 lines added to `src/docs.js`. Auto-created in Confluence on next deploy via `ensurePage()` (the worker creates pages that don't exist yet, no manual setup).

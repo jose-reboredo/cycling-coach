@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.2.4](./CHANGELOG.md#924--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.2.5](./CHANGELOG.md#925--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.2.5
+
+Demo-blocker fix. `/whats-next` was leaking raw SQL — issue bodies that opened with ```` ```sql ```` migration blocks (#35, #37) rendered verbatim in route card UI. Server-side `normalizeGhIssue` now strips fenced + inline code before extracting the first paragraph. Plus the remote D1 invite_code backfill that v9.1.4 only applied locally — Merkle Riders now has a valid invite code in prod.
 
 ## What's new in v9.2.4
 
