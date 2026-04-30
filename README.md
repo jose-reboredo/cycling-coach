@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.3.3](./CHANGELOG.md#933--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.3.4](./CHANGELOG.md#934--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.3.4
+
+Clubs feature lifted into the mobile tabs layout. v9.3.3 added `<TopBar />` with `<UserMenu />` but missed `<ContextSwitcher />` (the individual ↔ club toggle), so clubs went invisible on mobile. v9.3.4 mirrors the legacy `Dashboard.tsx` pattern: ContextSwitcher in the TopBar trailing slot whenever `cc_clubsEnabled`, and when scope is club-mode the tabs layout swaps its `<Outlet />` for `<ClubDashboard />` (with `<ClubCreateCard />` above) instead of rendering the personal tab content. BottomNav hides in club mode — tabs are personal-only.
 
 ## What's new in v9.3.3
 

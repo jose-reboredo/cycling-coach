@@ -4,6 +4,32 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.3.4] — 2026-04-30
+
+**Clubs feature restored in the mobile tabs layout. v9.3.3 added `<TopBar />` + `<UserMenu />` but missed `<ContextSwitcher />` and the club-mode rendering branch — clubs went invisible on mobile.**
+
+### Background
+
+Legacy `pages/Dashboard.tsx` (desktop / flag-off codepath) renders the TopBar trailing as `<><ContextSwitcher /><UserMenu /></>` and switches the main view between `<ClubDashboard />` and the individual dashboard sections based on `scope.mode === 'club'`. v9.3.3's `TabsLayout` only ported the UserMenu half — ContextSwitcher was missing, and the layout always rendered `<Outlet />` regardless of scope. Result: mobile users in tabs mode could neither see their clubs nor switch into them.
+
+### Fix
+
+`apps/web/src/routes/dashboard.tsx` `TabsLayout` now mirrors `Dashboard.tsx`'s pattern:
+
+- TopBar trailing: `{clubsEnabled ? <ContextSwitcher /> : null}<UserMenu …>` — same gating as legacy
+- Main body: `isClubMode ? <main><Container><ClubCreateCard /><ClubDashboard … /></Container></main> : <><Outlet /><BottomNav /></>`
+- BottomNav hides in club mode — tabs (Today / Train / Rides / You) are personal-only, so they're irrelevant when scope is club. Toggle back to individual via ContextSwitcher to restore tab nav.
+
+`isClubMode` derived identically: `clubsEnabled && scope.mode === 'club' && scope.clubId != null` (same as `Dashboard.tsx:168`).
+
+### What carries over
+
+All v9.3.3 features unchanged — viewport-aware `useTabsEnabled()`, redirect-loop guard, RoutesPicker rework + AI fallback, `POST /api/routes/discover`, Migration 0004 columns, `<TopBar />` + `<UserMenu />` in tabs layout.
+
+### Versions: 9.3.3 → 9.3.4 in 5 places.
+
+---
+
 ## [9.3.3] — 2026-04-30
 
 **Stabilization release. Adds the `<TopBar />` brand bar that was missing from the mobile 4-tab layout shell since v9.3.1.**

@@ -5,7 +5,12 @@ import { Dashboard } from '../pages/Dashboard';
 import { BottomNav } from '../components/BottomNav/BottomNav';
 import { TopBar } from '../components/TopBar/TopBar';
 import { UserMenu } from '../components/UserMenu/UserMenu';
-import { computeTabsEnabled, useTabsEnabled } from '../lib/featureFlags';
+import { ContextSwitcher } from '../components/ContextSwitcher/ContextSwitcher';
+import { ClubCreateCard } from '../components/ClubCreateCard/ClubCreateCard';
+import { ClubDashboard } from '../components/ClubDashboard/ClubDashboard';
+import { Container } from '../components/Container/Container';
+import { computeTabsEnabled, useTabsEnabled, useClubsEnabled } from '../lib/featureFlags';
+import { useAppContext } from '../lib/AppContext';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
 import { useRides } from '../hooks/useStravaData';
 import { readTokens, clearTokens } from '../lib/auth';
@@ -33,9 +38,6 @@ function DashboardRoute() {
     return <Dashboard />;
   }
 
-  // Flag is on — tabs layout shell. Renders TopBar (v9.3.3 fix — was
-  // missing from v9.3.1/v9.3.2; tabs view had no brand bar at all),
-  // Outlet for the active sub-route, and BottomNav for navigation.
   return <TabsLayout />;
 }
 
@@ -60,42 +62,70 @@ function TabsLayout() {
   const avatarInitials =
     (firstName.charAt(0) + (lastName.charAt(0) || '')).toUpperCase() || 'YOU';
 
+  // v9.3.4 — clubs feature also lifted into tabs layout. Mirrors the legacy
+  // Dashboard.tsx pattern: TopBar gets ContextSwitcher (always-visible toggle
+  // when clubsEnabled), and when scope.mode === 'club' the tabs view swaps
+  // its Outlet for ClubDashboard. ClubCreateCard renders above ClubDashboard
+  // (it self-hides when the user already owns a club).
+  const { scope } = useAppContext();
+  const clubsEnabled = useClubsEnabled();
+  const isClubMode = clubsEnabled && scope.mode === 'club' && scope.clubId != null;
+
   return (
     <>
       <TopBar
         variant="app"
         trailing={
-          <UserMenu
-            username={`${firstName}${lastName ? ' ' + lastName : ''}`}
-            onSync={() => {
-              queryClient.invalidateQueries({ queryKey: ['athlete'] });
-              queryClient.invalidateQueries({ queryKey: ['activities'] });
-            }}
-            onDisconnect={() => {
-              clearTokens();
-              if (typeof window !== 'undefined') window.location.href = '/';
-            }}
-            onEditProfile={() => profile.resetDismissal()}
-          >
-            <span className={dashboardStyles.userPill}>
-              {profilePhoto ? (
-                <img src={profilePhoto} alt="" className={dashboardStyles.userPhoto} />
-              ) : (
-                <span className={dashboardStyles.userAvatar}>{avatarInitials}</span>
-              )}
-              <span className={dashboardStyles.userMeta}>
-                <span className={dashboardStyles.userName}>
-                  {firstName} {lastName.charAt(0)}
-                  {lastName ? '.' : ''}
+          <>
+            {clubsEnabled ? <ContextSwitcher /> : null}
+            <UserMenu
+              username={`${firstName}${lastName ? ' ' + lastName : ''}`}
+              onSync={() => {
+                queryClient.invalidateQueries({ queryKey: ['athlete'] });
+                queryClient.invalidateQueries({ queryKey: ['activities'] });
+              }}
+              onDisconnect={() => {
+                clearTokens();
+                if (typeof window !== 'undefined') window.location.href = '/';
+              }}
+              onEditProfile={() => profile.resetDismissal()}
+            >
+              <span className={dashboardStyles.userPill}>
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt="" className={dashboardStyles.userPhoto} />
+                ) : (
+                  <span className={dashboardStyles.userAvatar}>{avatarInitials}</span>
+                )}
+                <span className={dashboardStyles.userMeta}>
+                  <span className={dashboardStyles.userName}>
+                    {firstName} {lastName.charAt(0)}
+                    {lastName ? '.' : ''}
+                  </span>
+                  {city ? <span className={dashboardStyles.userCity}>{city}</span> : null}
                 </span>
-                {city ? <span className={dashboardStyles.userCity}>{city}</span> : null}
               </span>
-            </span>
-          </UserMenu>
+            </UserMenu>
+          </>
         }
       />
-      <Outlet />
-      <BottomNav />
+
+      {isClubMode ? (
+        <main id="main">
+          <Container width="wide">
+            <ClubCreateCard />
+            <ClubDashboard
+              clubId={scope.clubId as number}
+              clubName={scope.clubName ?? 'Club'}
+              role={scope.role ?? 'member'}
+            />
+          </Container>
+        </main>
+      ) : (
+        <>
+          <Outlet />
+          <BottomNav />
+        </>
+      )}
     </>
   );
 }
