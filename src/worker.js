@@ -699,6 +699,13 @@ async function handleRequest(request, env) {
       });
     }
 
+    // GET /api/clubs/:id/members — extended Phase 2 (v9.6.2):
+    //   - Server-side FTP mask per ADR-S4.4: caller role 'admin' sees all members'
+    //     FTP; otherwise ftp_w is null unless the target member's ftp_visibility='public'.
+    //     NOTE: users.ftp_w column does not exist yet (lands with #52 Sprint 5). The
+    //     masking logic is wired and ready; server returns null for ftp_w until then.
+    //   - Optional sort/dir query params (allowlist: name|role|joined_at, default joined_at DESC).
+    //     FTP-sort deferred — requires users.ftp_w column (#52 / Sprint 5).
     const membersMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/members$/);
     if (membersMatch && request.method === 'GET') {
       const authResult = await resolveAthleteId(request);
@@ -710,24 +717,235 @@ async function handleRequest(request, env) {
       }
       const clubId = parseInt(membersMatch[1], 10);
       const db = env.cycling_coach_db;
-      const [membershipRow, membersResult] = await db.batch([
-        db.prepare('SELECT 1 AS member FROM club_members WHERE club_id = ? AND athlete_id = ? LIMIT 1').bind(clubId, authResult.athleteId),
+
+      // Sort / direction — allowlist guards against SQL injection.
+      // FTP sort deliberately absent: users.ftp_w lands in #52 (Sprint 5).
+      const SORT_ALLOWLIST = { name: 'u.firstname', role: 'm.role', joined_at: 'm.joined_at' };
+      const sortParam = url.searchParams.get('sort') || 'joined_at';
+      const dirParam = (url.searchParams.get('dir') || 'desc').toLowerCase();
+      const sortCol = SORT_ALLOWLIST[sortParam] || 'm.joined_at';
+      const sortDir = dirParam === 'asc' ? 'ASC' : 'DESC';
+
+      const [callerRow, membersResult] = await db.batch([
+        db.prepare(
+          'SELECT m.role FROM club_members m WHERE m.club_id = ? AND m.athlete_id = ? LIMIT 1',
+        ).bind(clubId, authResult.athleteId),
         db.prepare(`
-          SELECT u.athlete_id, u.firstname, u.lastname, u.profile_url, m.role, m.joined_at
+          SELECT u.athlete_id, u.firstname, u.lastname, u.profile_url,
+                 u.ftp_visibility,
+                 m.role, m.joined_at, m.trend_arrow, m.trend_updated_at
           FROM club_members m
           INNER JOIN users u ON u.athlete_id = m.athlete_id
           WHERE m.club_id = ?
-          ORDER BY m.role DESC, m.joined_at ASC
+          ORDER BY ${sortCol} ${sortDir}
         `).bind(clubId),
       ]);
-      if (!membershipRow.results || membershipRow.results.length === 0) {
+
+      if (!callerRow.results || callerRow.results.length === 0) {
         return new Response(JSON.stringify({ error: 'not found' }), {
           status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      return new Response(JSON.stringify({ club_id: clubId, members: membersResult.results || [] }), {
+
+      const callerRole = callerRow.results[0].role;
+      const callerIsPrivileged = callerRole === 'admin';
+      // Phase 5 note: 'pace_setter' role will also be privileged once it ships.
+
+      const members = (membersResult.results || []).map((m) => {
+        // ADR-S4.4 FTP mask. ftp_w column absent from schema until #52 ships;
+        // always null today. Masking logic is wired so it works transparently
+        // when the column appears.
+        const ftpVisible = callerIsPrivileged || m.ftp_visibility === 'public';
+        return {
+          athlete_id: m.athlete_id,
+          firstname: m.firstname,
+          lastname: m.lastname,
+          profile_url: m.profile_url,
+          role: m.role,
+          joined_at: m.joined_at,
+          trend_arrow: m.trend_arrow ?? null,
+          trend_updated_at: m.trend_updated_at ?? null,
+          // ftp_w: null today (column lands #52); masking applied when it exists.
+          ftp_w: ftpVisible ? (m.ftp_w ?? null) : null,
+        };
+      });
+
+      return new Response(JSON.stringify({ club_id: clubId, members }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // POST /api/clubs/:id/events/:eventId/rsvp — upsert RSVP state (Phase 2, v9.6.2).
+    // Body: { status: 'going' | 'not_going' }. Idempotent via ON CONFLICT DO UPDATE.
+    // Returns { status, confirmed_count }. Rate-limited 30/min/athlete on clubs-write scope.
+    const rsvpWriteMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/events\/(\d+)\/rsvp$/);
+    if (rsvpWriteMatch && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { athleteId } = authResult;
+      const clubId = parseInt(rsvpWriteMatch[1], 10);
+      const eventId = parseInt(rsvpWriteMatch[2], 10);
+      const db = env.cycling_coach_db;
+
+      // Membership gate — 404 on non-member (OWASP: don't leak club existence)
+      const membershipRow = await db.prepare(
+        'SELECT 1 FROM club_members WHERE club_id = ? AND athlete_id = ? LIMIT 1',
+      ).bind(clubId, athleteId).first();
+      if (!membershipRow) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Rate limit — shared clubs-write scope (30/min/athlete)
+      const rl = await checkRateLimit(env, 'clubs-write', String(athleteId), 30, 60);
+      if (!rl.ok) {
+        return new Response(JSON.stringify({ error: 'rate limit exceeded' }), {
+          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
+
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
+      const { status } = body;
+      if (status !== 'going' && status !== 'not_going') {
+        return new Response(JSON.stringify({ error: 'status must be "going" or "not_going"' }), {
+          status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      // UPSERT — idempotent. Re-posting same status is safe.
+      await db.prepare(`
+        INSERT INTO event_rsvps (event_id, athlete_id, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(event_id, athlete_id) DO UPDATE
+          SET status = excluded.status, updated_at = excluded.updated_at
+      `).bind(eventId, athleteId, status, now, now).run();
+
+      const countRow = await db.prepare(
+        "SELECT COUNT(*) AS cnt FROM event_rsvps WHERE event_id = ? AND status = 'going'",
+      ).bind(eventId).first();
+
+      return new Response(JSON.stringify({
+        status,
+        confirmed_count: Number(countRow?.cnt ?? 0),
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // GET /api/clubs/:id/events/:eventId/rsvps — confirmed count + top-12 avatars (Phase 2).
+    // ADR-S4.5: visible to all members (no FTP in this payload).
+    const rsvpReadMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/events\/(\d+)\/rsvps$/);
+    if (rsvpReadMatch && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { athleteId } = authResult;
+      const clubId = parseInt(rsvpReadMatch[1], 10);
+      const eventId = parseInt(rsvpReadMatch[2], 10);
+      const db = env.cycling_coach_db;
+
+      // Membership gate
+      const membershipRow = await db.prepare(
+        'SELECT 1 FROM club_members WHERE club_id = ? AND athlete_id = ? LIMIT 1',
+      ).bind(clubId, athleteId).first();
+      if (!membershipRow) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const [countRow, avatarRows] = await db.batch([
+        db.prepare(
+          "SELECT COUNT(*) AS cnt FROM event_rsvps WHERE event_id = ? AND status = 'going'",
+        ).bind(eventId),
+        db.prepare(`
+          SELECT r.athlete_id, u.firstname, u.profile_url
+          FROM event_rsvps r
+          INNER JOIN users u ON u.athlete_id = r.athlete_id
+          WHERE r.event_id = ? AND r.status = 'going'
+          ORDER BY r.created_at ASC
+          LIMIT 12
+        `).bind(eventId),
+      ]);
+
+      return new Response(JSON.stringify({
+        confirmed_count: Number(countRow.results?.[0]?.cnt ?? 0),
+        avatars: avatarRows.results ?? [],
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // PATCH /api/users/me/profile — update user profile fields (Phase 2, v9.6.2).
+    // Column allowlist enforced in handler: never interpolate user-supplied column names.
+    // Currently supports: ftp_visibility ('private'|'public'). Extensible.
+    // Rate-limited 10/min/athlete on profile-write scope.
+    if (url.pathname === '/api/users/me/profile' && request.method === 'PATCH') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { athleteId } = authResult;
+      const db = env.cycling_coach_db;
+
+      const rl = await checkRateLimit(env, 'profile-write', String(athleteId), 10, 60);
+      if (!rl.ok) {
+        return new Response(JSON.stringify({ error: 'rate limit exceeded' }), {
+          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
+
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
+
+      // Column allowlist — NEVER interpolate user-supplied column names into SQL.
+      const PROFILE_ALLOWLIST = new Set(['ftp_visibility']);
+      const updates = {};
+      for (const key of Object.keys(body)) {
+        if (!PROFILE_ALLOWLIST.has(key)) {
+          return new Response(JSON.stringify({ error: `field '${key}' is not updatable via this endpoint` }), {
+            status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        updates[key] = body[key];
+      }
+      if (Object.keys(updates).length === 0) {
+        return new Response(JSON.stringify({ error: 'no updatable fields provided' }), {
+          status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate ftp_visibility value if present
+      if ('ftp_visibility' in updates && updates.ftp_visibility !== 'private' && updates.ftp_visibility !== 'public') {
+        return new Response(JSON.stringify({ error: 'ftp_visibility must be "private" or "public"' }), {
+          status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Build SET clause using only allowlisted column names (safe — keys validated above).
+      const setClauses = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+      const values = [...Object.values(updates), athleteId];
+      await db.prepare(`UPDATE users SET ${setClauses} WHERE athlete_id = ?`).bind(...values).run();
+
+      const updatedRow = await db.prepare(
+        'SELECT athlete_id, ftp_visibility FROM users WHERE athlete_id = ? LIMIT 1',
+      ).bind(athleteId).first();
+
+      return new Response(JSON.stringify({
+        athlete_id: updatedRow?.athlete_id ?? athleteId,
+        ftp_visibility: updatedRow?.ftp_visibility ?? 'private',
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // ============= ROUTES (#47 Phase 1, v9.3.0) =============
