@@ -689,7 +689,7 @@ export const SPEC_PAGES = [
 <tr><th>Create a club</th><td>POST /api/clubs with a name (and optional description). The Worker auto-generates a 16-char <code>invite_code</code>; creator is added as the first member. Clubs are private: member list and events visible to members only.</td></tr>
 <tr><th>Join by invite link</th><td>POST /api/clubs/join/:code. Any athlete with the 16-char invite code may join. Duplicate joins return 409.</td></tr>
 <tr><th>Members list</th><td>GET /api/clubs/:id/members. Non-members receive 404 (membership-gated read). Returns athlete_id, role, joined_at per member. Uses <code>resolveAthleteId</code> helper to look up the caller.</td></tr>
-<tr><th>Club events (Phase A)</th><td>Any member may POST /api/clubs/:id/events (title, scheduled_at, optional description + location). Events are stored in the <code>club_events</code> table (migration 0002). GET /api/clubs/:id/events lists all events for the club. RSVPs deferred to Phase B.</td></tr>
+<tr><th>Club events (Phase A)</th><td>Any member may POST /api/clubs/:id/events (title, event_date, optional description + location). Events are stored in the <code>club_events</code> table (migration 0002). GET /api/clubs/:id/events lists upcoming events by default; <code>?include=past</code> widens to history. RSVPs deferred to Phase B.</td></tr>
 <tr><th>Data</th><td>D1 tables: <code>clubs</code>, <code>club_members</code>, <code>club_events</code>. No SPA UI in current sprint — API-first.</td></tr>
 </tbody></table>
 
