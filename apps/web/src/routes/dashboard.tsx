@@ -1,13 +1,18 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
 import { Dashboard } from '../pages/Dashboard';
 import { BottomNav } from '../components/BottomNav/BottomNav';
-import { computeTabsEnabled, useTabsEnabled } from '../lib/featureFlags';
+import { useTabsEnabled } from '../lib/featureFlags';
 
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: () => {
-    // v9.3.1 — viewport-aware: mobile default ON, desktop default OFF,
-    // localStorage override wins in both directions. Mirrors useTabsEnabled().
-    if (computeTabsEnabled()) {
+    // When the tabs flag is on, redirect bare /dashboard to /dashboard/today.
+    // read() is safe to call here (no React context needed).
+    const raw =
+      typeof window !== 'undefined'
+        ? window.localStorage.getItem('cc_tabsEnabled')
+        : null;
+    const tabsEnabled = raw === 'true';
+    if (tabsEnabled) {
       throw redirect({ to: '/dashboard/today' });
     }
   },
