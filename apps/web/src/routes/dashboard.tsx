@@ -4,10 +4,13 @@ import { BottomNav } from '../components/BottomNav/BottomNav';
 import { computeTabsEnabled, useTabsEnabled } from '../lib/featureFlags';
 
 export const Route = createFileRoute('/dashboard')({
-  beforeLoad: () => {
-    // v9.3.1 — viewport-aware: mobile default ON, desktop default OFF,
-    // localStorage override wins in both directions. Mirrors useTabsEnabled().
-    if (computeTabsEnabled()) {
+  beforeLoad: ({ location }) => {
+    // v9.3.2 fix — only redirect bare /dashboard, NOT sub-routes. Parent
+    // beforeLoad fires on every nested navigation in Tanstack Router; without
+    // the pathname guard, navigating to /dashboard/today re-triggers another
+    // redirect to /dashboard/today → infinite loop, JS thread blocked, React
+    // never mounts, page renders blank. That was the v9.3.1 prod regression.
+    if (location.pathname === '/dashboard' && computeTabsEnabled()) {
       throw redirect({ to: '/dashboard/today' });
     }
   },

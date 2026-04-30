@@ -4,6 +4,49 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.3.2] — 2026-04-30
+
+**Hotfix-of-hotfix. Ships v9.3.1's features with the redirect-loop regression fixed.**
+
+### Background
+
+v9.3.1 (commit `d4e8b21`) deployed to prod and immediately broke the mobile experience — the page rendered all-black, no error in DevTools, no `pageerror` event fired. v9.3.0 was reverted (`93ef06b`) to restore service while the regression was diagnosed locally.
+
+### Root cause
+
+`/dashboard`'s `beforeLoad` redirected to `/dashboard/today` whenever `computeTabsEnabled()` returned true. With v9.3.1's mobile-default-ON change, that returned true on every mobile load. Tanstack Router runs the parent route's `beforeLoad` on every nested-route navigation — so visiting `/dashboard/today` re-triggered the parent's `beforeLoad`, which re-redirected to `/dashboard/today`, which fired again, ad infinitum. The JS thread blocked, React never mounted, the page sat on the dark canvas with `<div id="root"></div>` empty. No error fired because Tanstack catches `redirect()` throws as control flow.
+
+Reproduced locally with Playwright headless against `npm run dev`: `page.locator('#root')` timed out, `page.content()` hung. Adding the pathname guard fixed both within one HMR reload.
+
+### Fix
+
+`apps/web/src/routes/dashboard.tsx`:
+
+```diff
+- beforeLoad: () => {
+-   if (computeTabsEnabled()) {
++ beforeLoad: ({ location }) => {
++   if (location.pathname === '/dashboard' && computeTabsEnabled()) {
+      throw redirect({ to: '/dashboard/today' });
+    }
+  },
+```
+
+The redirect now fires only on bare `/dashboard`, not on its sub-routes.
+
+### Everything else
+
+All v9.3.1 features carry over unchanged — viewport-aware `useTabsEnabled()` hook, RoutesPicker rewrite (surface-only chips, inline placement in Today session card, AI fallback panel, `Start workout in Strava ↗` button), `POST /api/routes/discover` endpoint with system-paid Haiku and 10/h/athlete rate limit, Migration 0004's three columns on `training_prefs`. See the v9.3.1 entry below for the full feature description.
+
+### Process notes
+
+- v9.3.1 release-cut shipped with `git add -A` which swept `.DS_Store` and a one-off `scripts/file-post-demo-sprint-issues.sh` into the commit. Both are absent from v9.3.2 — `.DS_Store` is in `.gitignore` (added in `982fd44`); the one-off script is removed.
+- The Playwright local-debug script that pinpointed the redirect loop was thrown away — a reusable repro harness is a backlog item, not a hotfix scope item.
+
+### Versions: 9.3.1 → 9.3.2 in 5 places.
+
+---
+
 ## [9.3.1] — 2026-04-30
 
 **Sprint 1 follow-up — tabs viewport-aware default + RoutesPicker rework + AI route discovery (Phase 2 lifted forward).**
