@@ -205,3 +205,95 @@ test.describe('Smoke — UserMenu keyboard nav (/dashboard?demo=1)', () => {
   });
 });
 
+/* ============================================================
+ * Club endpoint auth gates (issue #35 — closes test-coverage gap
+ * for v9.0.0 invite-by-link + v9.1.3 events. Tests the unauth
+ * branches; full membership-gated round-trip needs a live Strava
+ * token and is out of scope for the e2e harness today.)
+ * ============================================================ */
+test.describe('Smoke — club API auth gates', () => {
+  // Use the deployed prod URL when E2E_TARGET_PROD=1 (the same env var
+  // that gates the /whats-next probe earlier in this file). Locally
+  // these would hit vite preview which doesn't proxy /api, so they're
+  // skipped without the env var.
+  const PROD = process.env.E2E_TARGET_PROD === '1';
+  const BASE = PROD ? 'https://cycling-coach.josem-reboredo.workers.dev' : '';
+
+  test.skip(!PROD, 'requires E2E_TARGET_PROD=1 to hit deployed API');
+
+  test('GET /api/clubs without auth → 401', async ({ request }) => {
+    const res = await request.get(`${BASE}/api/clubs`);
+    expect(res.status()).toBe(401);
+    const body = await res.json();
+    expect(body).toMatchObject({ error: 'authentication required' });
+  });
+
+  test('POST /api/clubs without auth → 401', async ({ request }) => {
+    const res = await request.post(`${BASE}/api/clubs`, {
+      data: { name: 'auth-gate test', description: 'should not create' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('GET /api/clubs/:id/events without auth → 401', async ({ request }) => {
+    const res = await request.get(`${BASE}/api/clubs/1/events`);
+    expect(res.status()).toBe(401);
+    const body = await res.json();
+    expect(body).toMatchObject({ error: 'authentication required' });
+  });
+
+  test('POST /api/clubs/:id/events without auth → 401', async ({ request }) => {
+    const res = await request.post(`${BASE}/api/clubs/1/events`, {
+      data: { title: 'auth-gate test', event_date: '2030-01-01' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('GET /api/clubs/:id/members without auth → 401', async ({ request }) => {
+    const res = await request.get(`${BASE}/api/clubs/1/members`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('POST /api/clubs/join/:code without auth → 401', async ({ request }) => {
+    const res = await request.post(`${BASE}/api/clubs/join/anycode`, { data: {} });
+    expect(res.status()).toBe(401);
+  });
+
+  test('CORS preflight on /api/clubs → 200 + Access-Control-Allow-Origin', async ({ request }) => {
+    const res = await request.fetch(`${BASE}/api/clubs`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:5173',
+        'Access-Control-Request-Method': 'GET',
+      },
+    });
+    expect(res.status()).toBe(200);
+    expect(res.headers()['access-control-allow-origin']).toBeTruthy();
+  });
+});
+
+/* ============================================================
+ * Worker /version endpoint sanity (closes a smaller gap — no
+ * existing test verifies the deployed worker version is queryable).
+ * Cheap canary: caught a v8.x deploy where /version returned the
+ * wrong build_date during the v8.5.2 cycle.
+ * ============================================================ */
+test.describe('Smoke — /version endpoint', () => {
+  const PROD = process.env.E2E_TARGET_PROD === '1';
+  const BASE = PROD ? 'https://cycling-coach.josem-reboredo.workers.dev' : '';
+
+  test.skip(!PROD, 'requires E2E_TARGET_PROD=1');
+
+  test('returns service + version + build_date', async ({ request }) => {
+    const res = await request.get(`${BASE}/version`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({
+      service: expect.any(String),
+      version: expect.stringMatching(/^v\d+\.\d+\.\d+$/),
+      build_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      status: 'ok',
+    });
+  });
+});
+
