@@ -23,20 +23,13 @@
 }
 
 .controls {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: var(--s-4);
   padding: var(--s-4);
   background: var(--c-surface);
   border: 1px solid var(--c-line);
   border-radius: var(--r-md);
-}
-@media (min-width: 600px) {
-  .controls {
-    grid-template-columns: auto 1fr;
-    gap: var(--s-6);
-    align-items: center;
-  }
 }
 
 .controlGroup {
@@ -217,6 +210,15 @@
 .zoneRow {
   display: inline-flex;
   gap: 4px;
+}
+.stravaLink {
+  color: var(--c-accent);
+  text-decoration: none;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.stravaLink:hover {
+  text-decoration: underline;
 }
 
 .rowMatch {

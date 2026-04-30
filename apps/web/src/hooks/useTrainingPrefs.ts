@@ -4,8 +4,8 @@ import { storage, KEYS } from '../lib/storage';
 export interface TrainingPrefs {
   /** 1..7 — how many cycling sessions per week the rider can commit to */
   sessions_per_week: number;
-  /** 'paved' | 'dirt' | 'any' — surface preference for the route picker */
-  surface_pref?: 'paved' | 'dirt' | 'any';
+  /** 'paved' | 'gravel' | 'any' — surface preference for the route picker */
+  surface_pref?: 'paved' | 'gravel' | 'any';
   /** city / area string — used to ground the route picker */
   start_address?: string;
 }

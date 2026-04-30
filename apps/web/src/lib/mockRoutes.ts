@@ -1,7 +1,10 @@
-// Marco's saved routes — Zürich-area, varied surfaces. Used until the
-// /api/athlete/routes proxy is wired into the React app.
+/**
+ * @deprecated Marco's saved routes — Zürich-area, varied surfaces.
+ * Used only as a DEV-mode fallback while /api/routes/saved is unavailable.
+ * Production code in RoutesPicker uses the live endpoint.
+ */
 
-export type Surface = 'paved' | 'dirt' | 'mixed';
+export type Surface = 'paved' | 'gravel' | 'mixed';
 
 export interface MockRoute {
   id: number;
@@ -61,7 +64,7 @@ export const MOCK_ROUTES: MockRoute[] = [
     name: 'Sihlwald gravel',
     distanceKm: 38,
     elevationM: 510,
-    surface: 'dirt',
+    surface: 'gravel',
     starred: false,
     zones: [2, 3],
     blurb: 'Forest gravel. Soft underwheel, technical in the wet.',
