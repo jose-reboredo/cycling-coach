@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.3.0';
+const WORKER_VERSION = 'v9.3.2';
 const BUILD_DATE = '2026-04-30';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -745,6 +745,173 @@ export default {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+    }
+
+    // ============= ROUTES DISCOVERY (#47 Phase 2, v9.3.1) =============
+    // POST /api/routes/discover — system-paid Haiku call returning 3-5 narrative
+    // route briefs based on the caller's location + today's session intent.
+    // Used by the Today session card when zero saved Strava routes match.
+    // Rate-limit: 10/hour/athlete via DOCS_KV (per architect spec §C.3).
+    // Output is explicitly framed as "narrative briefs" — NOT GPX. The user
+    // takes the brief to Komoot / RideWithGPS / Strava-create to plan the
+    // actual route.
+    if (url.pathname === '/api/routes/discover' && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const athleteId = authResult.athleteId;
+
+      // Rate-limit: 10 calls / hour / athlete (system-paid Haiku — bound spend).
+      const rl = await checkRateLimit(env, 'discover', String(athleteId), 10, 3600);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'Retry-After': String(rl.retryAfter),
+          },
+        });
+      }
+
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const ALLOWED_SURFACE = ['paved', 'gravel', 'any'];
+      const ALLOWED_DIFFICULTY = ['flat', 'rolling', 'hilly'];
+      const required = (msg) => new Response(JSON.stringify({ error: msg }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+
+      const location = typeof body?.location === 'string' ? body.location.trim() : '';
+      if (!location) return required('missing required field: location');
+      if (location.length > 200) return required('location too long (max 200 chars)');
+
+      if (!ALLOWED_SURFACE.includes(body?.surface)) return required('missing required field: surface');
+
+      const distance_km = Number(body?.distance_km);
+      if (!Number.isFinite(distance_km) || distance_km < 1 || distance_km > 500) {
+        return required('distance_km must be between 1 and 500');
+      }
+
+      if (!ALLOWED_DIFFICULTY.includes(body?.difficulty)) return required('missing required field: difficulty');
+
+      // System-paid key (set via `wrangler secret put SYSTEM_ANTHROPIC_KEY`).
+      // Falls back to the legacy ANTHROPIC_API_KEY if set (single-user dev).
+      const systemKey = env.SYSTEM_ANTHROPIC_KEY || env.ANTHROPIC_API_KEY;
+      if (!systemKey) {
+        safeWarn('[discover] SYSTEM_ANTHROPIC_KEY not set — endpoint disabled');
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const prompt = `You are a cycling coach helping a rider find a route for today's training session.
+
+LOCATION: ${location}
+TARGET DISTANCE: ${distance_km} km (acceptable range: ${Math.round(distance_km * 0.8)}-${Math.round(distance_km * 1.2)} km)
+TERRAIN: ${body.difficulty} (${body.difficulty === 'flat' ? '<5 m/km' : body.difficulty === 'rolling' ? '5-15 m/km' : '>15 m/km'} elevation gain)
+SURFACE: ${body.surface === 'any' ? 'any (rider has no preference)' : body.surface}
+
+Generate 3 to 5 route SUGGESTIONS as narrative briefs. These are NOT real GPX files — they are starting points for the rider to plan in Komoot / RideWithGPS / Strava-create.
+
+For each suggestion provide:
+- name: short, evocative route name
+- narrative: 2-3 sentences describing the route (what the rider experiences — terrain, scenery, key climbs/sections)
+- start_address: a real, plausible starting point in or near ${location} (street name + neighbourhood / suburb if available)
+- target_distance_km: integer km target (within the acceptable range)
+- estimated_elevation_m: integer estimated total elevation gain in metres (consistent with the ${body.difficulty} terrain band)
+
+Respond ONLY with valid JSON, no markdown, no code fences:
+{"routes": [{"name": "…", "narrative": "…", "start_address": "…", "target_distance_km": 0, "estimated_elevation_m": 0}, ...]}`;
+
+      let aiResp;
+      try {
+        aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': systemKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 1500,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+      } catch (e) {
+        safeWarn(`[discover] Anthropic fetch error: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!aiResp.ok) {
+        const errText = await aiResp.text().catch(() => '');
+        safeWarn(`[discover] Anthropic returned ${aiResp.status}: ${errText.slice(0, 200)}`);
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      let parsed;
+      try {
+        const data = await aiResp.json();
+        const text = data.content?.find((c) => c.type === 'text')?.text || '';
+        const cleaned = text.replace(/```json|```/g, '').trim();
+        parsed = JSON.parse(cleaned);
+      } catch (e) {
+        safeWarn(`[discover] Anthropic response parse error: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!parsed?.routes || !Array.isArray(parsed.routes) || parsed.routes.length === 0) {
+        safeWarn('[discover] Anthropic response missing routes array');
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Best-effort shape validation — drop malformed entries rather than 503ing
+      // when at least one is well-formed.
+      const validRoutes = parsed.routes
+        .filter((r) =>
+          typeof r?.name === 'string' &&
+          typeof r?.narrative === 'string' &&
+          typeof r?.start_address === 'string' &&
+          Number.isFinite(Number(r?.target_distance_km)) &&
+          Number.isFinite(Number(r?.estimated_elevation_m)),
+        )
+        .map((r) => ({
+          name: r.name.slice(0, 200),
+          narrative: r.narrative.slice(0, 600),
+          start_address: r.start_address.slice(0, 200),
+          target_distance_km: Math.round(Number(r.target_distance_km)),
+          estimated_elevation_m: Math.round(Number(r.estimated_elevation_m)),
+        }));
+
+      if (validRoutes.length === 0) {
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        routes: validRoutes,
+        generated_at: new Date().toISOString(),
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     if (url.pathname.startsWith('/api/')) {

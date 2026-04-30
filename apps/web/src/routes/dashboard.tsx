@@ -1,18 +1,16 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
 import { Dashboard } from '../pages/Dashboard';
 import { BottomNav } from '../components/BottomNav/BottomNav';
-import { useTabsEnabled } from '../lib/featureFlags';
+import { computeTabsEnabled, useTabsEnabled } from '../lib/featureFlags';
 
 export const Route = createFileRoute('/dashboard')({
-  beforeLoad: () => {
-    // When the tabs flag is on, redirect bare /dashboard to /dashboard/today.
-    // read() is safe to call here (no React context needed).
-    const raw =
-      typeof window !== 'undefined'
-        ? window.localStorage.getItem('cc_tabsEnabled')
-        : null;
-    const tabsEnabled = raw === 'true';
-    if (tabsEnabled) {
+  beforeLoad: ({ location }) => {
+    // v9.3.2 fix — only redirect bare /dashboard, NOT sub-routes. Parent
+    // beforeLoad fires on every nested navigation in Tanstack Router; without
+    // the pathname guard, navigating to /dashboard/today re-triggers another
+    // redirect to /dashboard/today → infinite loop, JS thread blocked, React
+    // never mounts, page renders blank. That was the v9.3.1 prod regression.
+    if (location.pathname === '/dashboard' && computeTabsEnabled()) {
       throw redirect({ to: '/dashboard/today' });
     }
   },

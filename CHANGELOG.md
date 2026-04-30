@@ -4,6 +4,113 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.3.2] — 2026-04-30
+
+**Hotfix-of-hotfix. Ships v9.3.1's features with the redirect-loop regression fixed.**
+
+### Background
+
+v9.3.1 (commit `d4e8b21`) deployed to prod and immediately broke the mobile experience — the page rendered all-black, no error in DevTools, no `pageerror` event fired. v9.3.0 was reverted (`93ef06b`) to restore service while the regression was diagnosed locally.
+
+### Root cause
+
+`/dashboard`'s `beforeLoad` redirected to `/dashboard/today` whenever `computeTabsEnabled()` returned true. With v9.3.1's mobile-default-ON change, that returned true on every mobile load. Tanstack Router runs the parent route's `beforeLoad` on every nested-route navigation — so visiting `/dashboard/today` re-triggered the parent's `beforeLoad`, which re-redirected to `/dashboard/today`, which fired again, ad infinitum. The JS thread blocked, React never mounted, the page sat on the dark canvas with `<div id="root"></div>` empty. No error fired because Tanstack catches `redirect()` throws as control flow.
+
+Reproduced locally with Playwright headless against `npm run dev`: `page.locator('#root')` timed out, `page.content()` hung. Adding the pathname guard fixed both within one HMR reload.
+
+### Fix
+
+`apps/web/src/routes/dashboard.tsx`:
+
+```diff
+- beforeLoad: () => {
+-   if (computeTabsEnabled()) {
++ beforeLoad: ({ location }) => {
++   if (location.pathname === '/dashboard' && computeTabsEnabled()) {
+      throw redirect({ to: '/dashboard/today' });
+    }
+  },
+```
+
+The redirect now fires only on bare `/dashboard`, not on its sub-routes.
+
+### Everything else
+
+All v9.3.1 features carry over unchanged — viewport-aware `useTabsEnabled()` hook, RoutesPicker rewrite (surface-only chips, inline placement in Today session card, AI fallback panel, `Start workout in Strava ↗` button), `POST /api/routes/discover` endpoint with system-paid Haiku and 10/h/athlete rate limit, Migration 0004's three columns on `training_prefs`. See the v9.3.1 entry below for the full feature description.
+
+### Process notes
+
+- v9.3.1 release-cut shipped with `git add -A` which swept `.DS_Store` and a one-off `scripts/file-post-demo-sprint-issues.sh` into the commit. Both are absent from v9.3.2 — `.DS_Store` is in `.gitignore` (added in `982fd44`); the one-off script is removed.
+- The Playwright local-debug script that pinpointed the redirect loop was thrown away — a reusable repro harness is a backlog item, not a hotfix scope item.
+
+### Versions: 9.3.1 → 9.3.2 in 5 places.
+
+---
+
+## [9.3.1] — 2026-04-30
+
+**Sprint 1 follow-up — tabs viewport-aware default + RoutesPicker rework + AI route discovery (Phase 2 lifted forward).**
+
+User feedback after the v9.3.0 deploy surfaced three product mismatches:
+
+1. The kill-switch flag `cc_tabsEnabled` defaulted off, so most users still saw the legacy single-page dashboard. Mobile users in particular expected the tabbed layout by default. Demo flip via DevTools wasn't a sustainable distribution model.
+2. The RoutesPicker chips for **distance** and **difficulty** were over-spec — the architect's `03-architecture-changes.md §C.2` table proposed them, but the BA's FB-1 only required surface. Removed.
+3. The RoutesPicker rendered as a separate panel several scroll-screens removed from the Today session card. Users expected: open Today → see AI plan → pick a route inline → tap **Start workout** → land in Strava with the route loaded.
+
+This release rebuilds around what users actually wanted.
+
+### Tabs viewport-aware (`#51` follow-up)
+
+`useTabsEnabled()` now defaults based on viewport:
+- Mobile (<1024px) — tabs ON.
+- Desktop (≥1024px) — single-page dashboard.
+
+Kill-switch works in both directions: `localStorage.cc_tabsEnabled='true'` forces tabs anywhere; `'false'` forces single-page anywhere. The hook also listens to `matchMedia` change events, so rotating an iPad mid-session updates the layout without a refresh.
+
+A pure helper `computeTabsEnabled()` mirrors the hook's logic for use outside React (the `/dashboard` route's `beforeLoad` redirect, which Tanstack runs before mounting). Same precedence: explicit override → viewport.
+
+7 unit tests added; 18 total green.
+
+### RoutesPicker rework (`#47` follow-up)
+
+`apps/web/src/components/RoutesPicker/RoutesPicker.tsx` rewritten:
+
+- Distance + difficulty chips removed entirely (BA didn't ask, user didn't want).
+- Surface filter retained (Any / Paved / Gravel — same vocabulary as `GET /api/routes/saved`).
+- Saved Strava routes now scored against today's session: routes within ±20% of the session's target distance pass; the rest are hidden. Target distance is derived from the AI plan text (km mention, hour/min mention with 25 km/h proxy, or workout-type heuristic).
+- Browse mode (no session) still works — passing no `todaysSession` prop lists all surface-filtered saved routes. Used by the legacy desktop Dashboard.
+- New `onRouteSelected` callback + `selectedRouteKey` prop for the parent to hold the picked route. When `onRouteSelected` is absent, route rows render read-only.
+- Dev-mode mock fallback removed — hot reloads against real Strava. Dev-only auth issues now surface as the real "Couldn't load…" error rather than masking with mocks.
+
+### Today session card integration
+
+`apps/web/src/routes/dashboard.today.tsx` now embeds RoutesPicker between the AI plan card body and a new **Start workout in Strava ↗** CTA. The button:
+- Disabled until a route is picked.
+- For saved Strava routes — opens `https://www.strava.com/routes/{id}` in a new tab. Universal links jump to the Strava app on mobile; the user just taps record.
+- For AI-discovered routes (no Strava ID) — opens `https://www.strava.com/athlete/routes/new` so the user can plan it before recording. The picker also shows a hint: "Briefs only — plan one in Strava routes or Komoot, then tap Start workout."
+
+`useTrainingPrefs` is read for surface + start_address defaults; updates flow through `PATCH /api/training-prefs` (debounced 800ms via the existing helper).
+
+### Phase 2 — `POST /api/routes/discover` (lifted forward from Sprint 3)
+
+The original plan deferred Phase 2 to Sprint 3, but Phase 1 alone proved load-bearing without it: a user with no saved routes (or whose saved routes don't match today's distance) hit a dead end. This release ships Phase 2.
+
+Endpoint per architect spec `§C.3`:
+- Auth: Strava bearer → `resolveAthleteId`
+- Body: `{ location, surface, distance_km, difficulty }` — all required, validated
+- Rate-limit: 10 calls / hour / athlete via the generic `checkRateLimit` helper on `DOCS_KV` (scope `discover`, 3600s window)
+- System-paid: reads `env.SYSTEM_ANTHROPIC_KEY` (set via `wrangler secret put`); falls back to `env.ANTHROPIC_API_KEY` for single-user dev
+- Model: `claude-haiku-4-5-20251001`, `max_tokens: 1500`
+- Response: `{ routes: [{ name, narrative, start_address, target_distance_km, estimated_elevation_m }], generated_at }` — 3-5 items
+- Server-side validation: drops malformed entries from the AI response rather than 503ing on partial output; 503 only when the response shape is unparseable or empty
+- 503 fallback when `SYSTEM_ANTHROPIC_KEY` is unset
+
+The Today RoutesPicker calls this endpoint when zero saved routes match. Frontend derives `distance_km` and `difficulty` from the AI plan text — user only sees the surface chip + start address. Per-call cost ≈ $0.001-0.003.
+
+### Versions: 9.3.0 → 9.3.1 in 5 places.
+
+---
+
 ## [9.3.0] — 2026-04-30
 
 **Sprint 1 of the post-demo plan ships in one cut: 2 security CRITICALs, mobile 4-tab refactor, route discovery rewire, migration 0004, Dependabot zero-clear.**

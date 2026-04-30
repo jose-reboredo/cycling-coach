@@ -422,3 +422,18 @@
   color: var(--c-text-faint);
   margin-top: var(--s-3);
 }
+
+/* v9.3.1 — RoutesPicker embedded inside the Today session card. */
+.sessionRoutes {
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px dashed var(--c-line);
+}
+
+.startWorkoutRow {
+  margin-top: var(--s-4);
+  display: flex;
+}
+.startWorkoutRow > * {
+  flex: 1;
+}
