@@ -1,8 +1,18 @@
 -- =============================================================
--- Cycling Coach DB Schema v1
+-- Cadence Club DB Schema — cumulative state through v9.2.0
 -- =============================================================
--- Designed for: Strava (current), multi-source (future), 
--- clubs + collective goals (future Phase 2)
+-- Source of truth for fresh-bootstrap parity. Every column added by
+-- migrations/0001_pmc_and_events.sql, /0002_club_events.sql is mirrored
+-- here so a fresh `wrangler d1 execute --file=schema.sql` produces a
+-- working DB. The migration files are kept as the authoritative
+-- record of the change history; this file is the snapshot.
+--
+-- Process rule (v9.2.0 onward, see CONTRIBUTING.md):
+--   Every migration MUST also update schema.sql in the same commit.
+--   Reviewers reject PRs that drift the two apart.
+--
+-- Multi-source ready (Strava today, Garmin / AppleHealth later) +
+-- clubs + collective goals + per-club events.
 -- =============================================================
 
 -- ============= USERS =============
@@ -13,7 +23,12 @@ CREATE TABLE users (
   profile_url TEXT,
   raw_athlete_json TEXT,
   created_at INTEGER NOT NULL,
-  last_seen_at INTEGER NOT NULL
+  last_seen_at INTEGER NOT NULL,
+  -- v9.0.x (migration 0001) — athlete profile for zone math + PMC.
+  ftp_w INTEGER,
+  weight_kg REAL,
+  hr_max INTEGER,
+  ftp_set_at INTEGER
 );
 
 -- ============= USER CONNECTIONS =============
@@ -51,11 +66,37 @@ CREATE TABLE activities (
   strava_raw_json TEXT,
   garmin_raw_json TEXT,
   apple_health_raw_json TEXT,
-  synced_at INTEGER NOT NULL
+  synced_at INTEGER NOT NULL,
+  -- v9.0.x (migration 0001) — TSS / NP / IF as first-class columns
+  -- (previously only in strava_raw_json blob).
+  duration_s INTEGER,
+  average_watts INTEGER,
+  np_w INTEGER,
+  if_pct REAL,
+  tss REAL,
+  primary_zone INTEGER          -- 1..6 Coggan; widens to 1..7 when Strava 7-zone ingestion lands
 );
 
 CREATE INDEX idx_activities_athlete_date ON activities(athlete_id, start_date_local DESC);
 CREATE INDEX idx_activities_sport_type ON activities(athlete_id, sport_type, start_date_local DESC);
+-- v9.0.x (migration 0001)
+CREATE INDEX idx_activities_athlete_tss ON activities(athlete_id, start_date_local DESC, tss);
+
+-- ============= DAILY LOAD (v9.0.x, migration 0001) =============
+-- Pre-computed PMC rollup. One row per athlete per day. ctl/atl
+-- recomputed nightly when activities change.
+CREATE TABLE daily_load (
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  date TEXT NOT NULL,           -- ISO YYYY-MM-DD
+  tss_sum REAL NOT NULL DEFAULT 0,
+  ctl REAL NOT NULL DEFAULT 0,
+  atl REAL NOT NULL DEFAULT 0,
+  tsb REAL NOT NULL DEFAULT 0,
+  computed_at INTEGER NOT NULL,
+  PRIMARY KEY (athlete_id, date)
+);
+
+CREATE INDEX idx_daily_load_athlete_date ON daily_load(athlete_id, date DESC);
 
 -- ============= AI REPORTS =============
 CREATE TABLE ai_reports (
@@ -100,7 +141,15 @@ CREATE TABLE goals (
   target_date TEXT,
   title TEXT,
   set_at INTEGER NOT NULL,
-  achieved_at INTEGER
+  achieved_at INTEGER,
+  -- v9.0.x (migration 0001) — structured goal events (Etape du Tour,
+  -- Gran Fondo, etc.) so PMC math can target a date.
+  event_name TEXT,
+  event_type TEXT,              -- 'gran_fondo' | 'tt' | 'crit' | 'race' | 'volume'
+  event_distance_km REAL,
+  event_elevation_m REAL,
+  event_location TEXT,
+  event_priority INTEGER DEFAULT 1   -- 1=A race, 2=B, 3=C
 );
 
 CREATE INDEX idx_goals_athlete ON goals(athlete_id, set_at DESC);
@@ -137,3 +186,20 @@ CREATE TABLE club_goals (
   created_at INTEGER NOT NULL,
   achieved_at INTEGER
 );
+
+-- ============= CLUB EVENTS (v9.1.3, migration 0002) =============
+-- Any club member can post an event. Admins are not gatekeepers per
+-- the v9.1.3 BA spec. RSVPs deferred to a future event_rsvps table.
+CREATE TABLE club_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  club_id INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  created_by INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  event_date INTEGER NOT NULL,    -- unix epoch seconds, when the event happens
+  location TEXT,                  -- optional free-text ("Richmond Park · Sheen Gate")
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_club_events_club_date ON club_events(club_id, event_date);
+CREATE INDEX idx_club_events_creator ON club_events(created_by, event_date);
