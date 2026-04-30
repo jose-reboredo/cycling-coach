@@ -1,0 +1,424 @@
+/* Shared styles for the 4 mobile tab sub-routes */
+
+.tabRoot {
+  min-height: 100dvh;
+  padding-bottom: calc(72px + var(--s-6) + env(safe-area-inset-bottom, 0));
+}
+
+.tabHeading {
+  font: 700 clamp(28px, 6vw, 48px) / 0.95 var(--font-sans);
+  letter-spacing: -0.03em;
+  color: var(--c-text);
+  margin: var(--s-6) 0 var(--s-5);
+  padding-top: var(--s-4);
+}
+
+.section {
+  margin-bottom: var(--s-8);
+}
+
+/* TODAY TAB — greeting */
+.greetRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.greet {
+  font: 700 clamp(32px, 8vw, 64px) / 0.95 var(--font-sans);
+  letter-spacing: -0.038em;
+  color: var(--c-text);
+  margin-bottom: var(--s-2);
+}
+
+.greet em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
+}
+
+.greetLede {
+  font: italic 400 16px/1.4 var(--font-sans);
+  color: var(--c-text-muted);
+  max-width: 480px;
+  letter-spacing: -0.005em;
+  margin-bottom: var(--s-4);
+}
+
+.greetLede strong {
+  color: var(--c-text);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.quickStats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+
+@media (min-width: 480px) {
+  .quickStats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.quickStats > div {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+}
+
+.proxyNote {
+  font: italic 400 12px/1.5 var(--font-sans);
+  color: var(--c-text-faint);
+  margin-top: var(--s-2);
+}
+
+/* TODAY TAB — today's plan card */
+.todayHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.todayText {
+  font: 400 15px/1.6 var(--font-sans);
+  color: var(--c-text-muted);
+}
+
+/* TODAY TAB — year goal */
+.goalCard {
+  /* inherits Card styles, nothing extra needed */
+}
+
+.goalRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  margin-top: var(--s-4);
+}
+
+.goalNum {
+  font: 700 22px/1 var(--font-mono);
+  letter-spacing: -0.04em;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.goalNotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  font: 400 13px/1.45 var(--font-sans);
+  color: var(--c-text-muted);
+}
+
+.goalNotes strong {
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.goalSub {
+  font: italic 400 12px/1.4 var(--font-sans);
+  color: var(--c-text-faint);
+}
+
+/* RIDES TAB */
+.rides {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.ride {
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.ride:last-child {
+  border-bottom: none;
+}
+
+.rideTop {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-3);
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+  border-radius: var(--r-sm);
+  transition: background var(--d-fast) var(--e-out);
+}
+
+.rideTop:hover {
+  background: var(--c-surface-elev);
+}
+
+.rideTop:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 4px;
+}
+
+@media (min-width: 768px) {
+  .rideTop {
+    grid-template-columns: 1.4fr auto;
+    gap: var(--s-6);
+    align-items: center;
+  }
+}
+
+.rideChev {
+  display: inline-block;
+  font: 600 18px/1 var(--font-sans);
+  color: var(--c-text-faint);
+  margin-left: var(--s-2);
+  transition: transform var(--d-fast) var(--e-out);
+}
+
+.rideChevOpen {
+  transform: rotate(90deg);
+  color: var(--c-accent);
+}
+
+.rideActions {
+  margin-top: var(--s-3);
+}
+
+.rideMain {
+  min-width: 0;
+}
+
+.rideName {
+  font: 500 15px/1.35 var(--font-sans);
+  color: var(--c-text);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: var(--s-2);
+}
+
+.rideMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--c-text-faint);
+}
+
+.rideStats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-3);
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.rideStats span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rideStats strong {
+  color: var(--c-text);
+  font: 600 16px/1 var(--font-mono);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+
+@media (min-width: 768px) {
+  .rideStats {
+    grid-template-columns: repeat(4, auto);
+    gap: var(--s-5);
+  }
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+  padding: var(--s-3) 0;
+}
+
+.pageBtn {
+  font: 500 13px/1 var(--font-sans);
+  color: var(--c-text-muted);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  padding: var(--s-2) var(--s-4);
+  cursor: pointer;
+  transition: background var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out);
+  min-height: 44px;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: var(--c-surface-elev);
+  color: var(--c-text);
+}
+
+.pageBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.05em;
+  color: var(--c-text-faint);
+}
+
+/* YOU TAB */
+.profileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-4) var(--s-6);
+  margin-top: var(--s-4);
+}
+
+.profileItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.profileLabel {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.profileValue {
+  font: 600 18px/1.2 var(--font-sans);
+  letter-spacing: -0.02em;
+  color: var(--c-text);
+}
+
+.apiKeyRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.apiKeySet {
+  font: 400 14px/1.4 var(--font-sans);
+  color: var(--c-text-muted);
+}
+
+.apiKeyMono {
+  font: 400 11px/1.5 var(--font-mono);
+  color: var(--c-text-faint);
+  word-break: break-all;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+}
+
+.apiKeyForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.apiKeyHint {
+  font: italic 400 13px/1.5 var(--font-sans);
+  color: var(--c-text-faint);
+}
+
+.apiKeyInput {
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  background: var(--c-bg);
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-md);
+  font: 400 14px/1 var(--font-mono);
+  color: var(--c-text);
+  transition: border-color var(--d-fast) var(--e-out);
+}
+
+.apiKeyInput:focus {
+  outline: none;
+  border-color: var(--c-accent);
+}
+
+.subtleBtn {
+  font: 400 12px/1 var(--font-sans);
+  color: var(--c-text-faint);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color var(--d-fast) var(--e-out);
+}
+
+.subtleBtn:hover {
+  color: var(--c-text);
+}
+
+.stravaConnected {
+  font: 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  margin-top: var(--s-3);
+}
+
+.stravaDisconnected {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+
+.stravaDisconnected p {
+  font: 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+}
+
+/* Shared empty states */
+.emptyState {
+  padding: var(--s-8);
+  text-align: center;
+  background: var(--c-surface);
+  border: 1px dashed var(--c-line-strong);
+  border-radius: var(--r-md);
+  font: italic 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.emptyInline {
+  font: italic 400 13px/1.5 var(--font-sans);
+  color: var(--c-text-faint);
+  margin-top: var(--s-3);
+}
