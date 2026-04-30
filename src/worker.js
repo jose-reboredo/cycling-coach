@@ -190,11 +190,18 @@ export default {
       }
       const db = env.cycling_coach_db;
       const now = Math.floor(Date.now() / 1000);
+      // Generate a 16-char hex invite code per club. v9.1.4 fix — until this
+      // release, the INSERT omitted invite_code, leaving every club with a
+      // NULL value. The InviteLinkCard renders only when invite_code is
+      // truthy, so F4 (invite-by-link, v9.0.0) was silently broken for every
+      // real user. crypto.randomUUID() gives 122 bits of entropy; sliced to
+      // 16 hex chars = 64 bits, plenty for the small invite-link namespace.
+      const inviteCode = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
       let clubId;
       try {
         const insertClub = await db
-          .prepare('INSERT INTO clubs (name, description, owner_athlete_id, created_at) VALUES (?, ?, ?, ?) RETURNING id')
-          .bind(name, description, athleteId, now)
+          .prepare('INSERT INTO clubs (name, description, owner_athlete_id, invite_code, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id')
+          .bind(name, description, athleteId, inviteCode, now)
           .first();
         clubId = insertClub?.id;
         if (!clubId) throw new Error('club insert returned no id');
@@ -221,6 +228,7 @@ export default {
         id: clubId,
         name,
         description,
+        invite_code: inviteCode,
         role: 'admin',
       }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }

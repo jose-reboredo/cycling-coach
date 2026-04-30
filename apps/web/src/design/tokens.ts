@@ -37,7 +37,7 @@ export const tokens = {
 
     text: '#f0f1f3',
     textMuted: '#7d8290',
-    textFaint: '#454a55',
+    textFaint: '#7a8290', // v9.1.4 contrast lift — was #454a55 (2.16:1 fail, 49 use sites)
 
     line: 'rgba(255,255,255,.06)',
     lineStrong: 'rgba(255,255,255,.14)',
@@ -59,7 +59,7 @@ export const tokens = {
       z4: '#fb923c',
       z5: '#ef4444',
       z6: '#a855f7',
-      z7: '#6b21a8',
+      z7: '#a55be0', // v9.1.4 contrast lift — was #6b21a8 (2.23:1 fail when used as text)
     },
 
     status: {

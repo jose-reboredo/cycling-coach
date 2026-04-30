@@ -31,6 +31,7 @@ export interface CreateClubResponse {
   id: number;
   name: string;
   description: string | null;
+  invite_code: string;
   role: 'admin';
 }
 
