@@ -4,6 +4,18 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.2.2] — 2026-04-30
+
+**Removed the "What's new" badge from TopBar.** Decision call: the auto-popping CHANGELOG modal in the header didn't fit the editorial restraint the brand is converging on (Soho House / Monocle, not Garmin). User can still read CHANGELOG.md directly.
+
+- Dropped `<WhatsNewBadge />` from `Dashboard.tsx` TopBar trailing slot + the import.
+- Removed the corresponding e2e probe in `smoke.spec.ts` (the badge-modal-dismiss-persist test).
+- `WhatsNew/` component files left in place (not deleted) — easy to re-mount later if the call reverses.
+
+Test count: 29 → 27 passing (lost 2 viewport variants of the badge test, no regressions).
+
+---
+
 ## [9.2.1] — 2026-04-30
 
 **Hotfix — ContextSwitcher dropdown was clipping on the left edge** (#46). On narrow viewports (and any TopBar layout where `.wrap` sat far left), the menu's `right: 0; min-width: 280px;` positioning could push its left edge to negative X, hiding the leftmost ~50-90px of every menu item. Pure CSS fix in `ContextSwitcher.module.css`:

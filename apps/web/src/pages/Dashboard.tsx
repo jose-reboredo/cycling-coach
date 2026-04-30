@@ -30,7 +30,6 @@ import { ContextSwitcher } from '../components/ContextSwitcher/ContextSwitcher';
 import { ClubDashboard } from '../components/ClubDashboard/ClubDashboard';
 import { useAppContext } from '../lib/AppContext';
 import { useClubsEnabled } from '../lib/featureFlags';
-import { WhatsNewBadge } from '../components/WhatsNew/WhatsNewBadge';
 import { useGoalEvent } from '../hooks/useGoalEvent';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
 import { AnimatePresence } from 'motion/react';
@@ -267,7 +266,6 @@ function DashboardView({
         trailing={
           <>
             <ContextSwitcher />
-            <WhatsNewBadge />
             <UserMenu
               username={`${firstName}${lastName ? ' ' + lastName : ''}`}
               onSync={onSync}
