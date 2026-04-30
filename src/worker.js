@@ -915,6 +915,16 @@ Respond ONLY with valid JSON, no markdown, no code fences:
     }
 
     if (url.pathname.startsWith('/api/')) {
+      // ADR-S3.4 Option B (#41): only forward GET and POST to Strava. DELETE,
+      // PUT, PATCH would mutate Strava data the app never intends to change.
+      // Per-path handlers (e.g. PATCH /api/training-prefs) are matched ABOVE
+      // this block and are unaffected.
+      if (!['GET', 'POST'].includes(request.method)) {
+        return new Response(JSON.stringify({ error: 'method not allowed' }), {
+          status: 405,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Allow': 'GET, POST' },
+        });
+      }
       const stravaPath = url.pathname.replace(/^\/api\//, '');
       const stravaUrl = `https://www.strava.com/api/v3/${stravaPath}${url.search}`;
       const auth = request.headers.get('Authorization');
