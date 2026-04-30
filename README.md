@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.5.0](./CHANGELOG.md#950--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.5.1](./CHANGELOG.md#951--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.5.1
+
+Sprint 3 Phase 2 — three security hardening fixes from the audit. **#41**: `/api/*` Strava proxy method allowlist (GET+POST only; DELETE/PUT/PATCH → 405). **#42**: per-athlete rate-limit on the three `/api/clubs*` POST endpoints (create/join/event), shared `clubs-write` scope at 30/min/athlete via the existing `checkRateLimit` helper. **#15**: full security header set on every Worker response (CSP, HSTS 2-year+preload, X-Frame-Options:DENY, X-Content-Type-Options:nosniff, Referrer-Policy:strict-origin-when-cross-origin, Permissions-Policy disabling camera/mic/geolocation). Same headers applied to static assets via `apps/web/public/_headers`. CSP starts permissive enough not to break the app (`'unsafe-inline'` on style-src for React inline styles, `*.cloudfront.net` for Strava avatars, Google Fonts) and can be tightened later. Worker fetch handler restructured into a thin wrapper + `handleRequest()` so headers wrap every response without touching the 1400+ lines of route handlers.
 
 ## What's new in v9.5.0
 

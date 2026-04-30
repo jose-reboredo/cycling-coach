@@ -4,6 +4,62 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.5.1] — 2026-04-30
+
+**Sprint 3 Phase 2 — three security hardening fixes covering method allowlist, clubs-write rate-limit, and full security header set.**
+
+### `#41` — `/api/*` Strava proxy method allowlist
+
+The generic `/api/*` Strava proxy fall-through was forwarding **all HTTP methods** to Strava — including `DELETE`, `PUT`, `PATCH`. Per ADR-S3.4 Option B (founder approved), only `GET` and `POST` are allowed; everything else returns 405 with `Allow: GET, POST`. Per-path explicit handlers (e.g. `PATCH /api/training-prefs`) match earlier in the routing chain and are unaffected.
+
+Commit: `1dad86d`. ~10 lines in `worker.js`.
+
+### `#42` — clubs-write rate-limit (30/min/athlete shared scope)
+
+Per ADR-S3.3 — scope reduced to `/api/clubs*` writes only. `/coach`, `/coach-ride`, `/api/routes/discover` were already rate-limited in Sprint 1 + v9.3.1. The remaining gap was the clubs surface.
+
+Three POST endpoints now share a single `clubs-write` rate-limit scope per athlete (30/min):
+- `POST /api/clubs` (create)
+- `POST /api/clubs/join/:code` (join via invite)
+- `POST /api/clubs/:id/events` (create event — only the POST branch; GET stays unmetered)
+
+Shared scope (not per-endpoint) means the 30/min budget covers all clubs-write activity for that athlete combined — an attacker can't triple their burst by fanning across endpoints. Reuses `checkRateLimit` on `DOCS_KV`.
+
+Commit: `1b15122`.
+
+### `#15` — security headers (CSP / HSTS / X-Frame-Options / etc.)
+
+None of these headers were on Worker responses or static assets pre-v9.5.1. Now all of them, on both surfaces:
+
+- `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` (2-year, preload-eligible)
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY` (legacy clickjack protection)
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()` (deny by default)
+- `Content-Security-Policy` — provisional, app-tested:
+  - `default-src 'self'`
+  - `script-src 'self'` (no inline scripts in index.html)
+  - `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com` (React inline styles + Google Fonts)
+  - `font-src 'self' https://fonts.gstatic.com`
+  - `img-src 'self' data: https://*.cloudfront.net https://*.googleusercontent.com` (Strava CDN avatars + future Google avatars)
+  - `connect-src 'self'` (all API calls go through the Worker proxy, same-origin)
+  - `frame-ancestors 'none'` (modern equivalent of X-Frame-Options:DENY)
+  - `base-uri 'self'`, `form-action 'self'` (defensive)
+
+Implementation: new `SECURITY_HEADERS` const + `withSecurityHeaders(res)` helper at the top of `worker.js`. The Worker's `fetch` handler is now a thin wrapper that calls `handleRequest()` and wraps the response — existing route handlers untouched. Same headers applied to static assets via `apps/web/public/_headers` (Cloudflare Workers Static Assets reads it).
+
+CSP can be tightened later by dropping `'unsafe-inline'` on `style-src` once React inline styles migrate to nonce-based or external CSS, and by removing the wildcards on `img-src` once Strava image hosts stabilise.
+
+Commit: `e390d47`. New file `apps/web/public/_headers`.
+
+### Test totals
+
+27/27 unit pass (unchanged from v9.5.0). Mobile-tabs Playwright gate from Sprint 2 still green (4/4) — verified post-deploy.
+
+### Versions: 9.5.0 → 9.5.1 in 5 places.
+
+---
+
 ## [9.5.0] — 2026-04-30
 
 **Sprint 3 Phase 1 — three frontend stability fixes from the 2026-04-30 audit's HIGH backlog + backlog triage. No worker, no schema, no security-surface change.**
