@@ -4,6 +4,47 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.3.5] — 2026-04-30
+
+**Sprint 2 Phase 1 — two regression hotfixes from Sprint 1's BYOK flow + the mobile-viewport CI gate that should have been there from day one.**
+
+### FB-R1 — `/coach` + `/coach-ride` bearer never sent by frontend
+
+v9.3.0 closed the open-Anthropic-proxy CRITICAL (`#33`) by gating `/coach` + `/coach-ride` behind `resolveAthleteId` (Strava bearer). The fix on the worker side was correct. The fix on the frontend was missing: `apps/web/src/lib/coachApi.ts:89` `postJson()` only sent `Content-Type: application/json` — no `Authorization` header. Every BYOK call to `/coach` (Generate plan) and `/coach-ride` (per-ride feedback) therefore arrived without credentials and got 401 "authentication required". User saw a generic auth error after entering their Anthropic key.
+
+**The bearer gate is correct and stays.** Reverting it would re-open `#33`. The actual UX bug was always the missing header.
+
+Fix (commit `343f8a3`):
+
+- `coachApi.ts` `postJson()` now calls `ensureValidToken()` first (the same helper `useStravaData` and `RoutesPicker` use — IR-R1 in BA doc). Attaches `Authorization: Bearer ${tokens.access_token}` to the fetch.
+- If `ensureValidToken()` returns `null` (no Strava session, or refresh failed), `postJson` throws `CoachError` with a new `stravaExpired: true` flag. `CoachError`'s constructor signature: `(message, invalidKey = false, stravaExpired = false)`.
+- `useAiReport`, `useRideFeedback`, `AiCoachCard` callers now branch on `stravaExpired` parallel to the existing `invalidKey` branch — surface a "Reconnect Strava" CTA instead of generic auth error (IR-R2: reuses the existing `/authorize` flow, no second reconnect UI).
+- New Vitest unit at `coachApi.test.ts` — 2 cases: `ensureValidToken → null` rejects with `stravaExpired=true, invalidKey=false`; valid tokens resolve through to fetch.
+- 20/20 unit tests green (was 18; +2).
+
+### FB-R2 — You-tab lost the "Get a key →" link
+
+The legacy `AiCoachCard.tsx:90` showed *"Your key stays in this browser. [Get a key →](https://console.anthropic.com/settings/keys)"*. The v9.3.0 You-tab rewrite (`dashboard.you.tsx:142-144`) replaced it with a stripped-down *"Bring your own Anthropic key to generate a weekly training plan. Each plan ≈ $0.02."* — link gone, privacy reassurance gone. Persona C (non-technical) had no path to obtain an Anthropic key without leaving the app.
+
+Fix (commit `48d2222`):
+
+- Hint copy in `dashboard.you.tsx` now mirrors `AiCoachCard.tsx:90` verbatim — same link to `https://console.anthropic.com/settings/keys`, same `target="_blank" rel="noopener noreferrer"`, same "your key stays in this browser" reassurance.
+- `TabShared.module.css` `.apiKeyHint a` rule added (4 lines) so the link gets accent color + underline + opacity-on-hover. Matches the legacy emptyLede style.
+- Frontend copy + CSS only. No worker, no schema.
+
+### Sprint 1 retro rule #2 — mobile-viewport CI gate
+
+`apps/web/tests/mobile-tabs.spec.ts` (commit `a289dcc`) lands as the FIRST commit of Sprint 2. Two Playwright tests at 390×844 viewport with `cc_tabsEnabled='true'`:
+
+1. Navigate `/dashboard` → asserts redirect to `/dashboard/today`, `header` element count ≥ 1, `#root` populated, no `pageerror`.
+2. Navigate `/dashboard/today` directly → asserts URL stays at `/dashboard/today` (no redirect bounce).
+
+Tests run against `E2E_TARGET_PROD` like the existing smoke spec. Anything that breaks the mobile mount path now fails CI before deploy. This is exactly the test that would have caught the v9.3.1 redirect-loop, the v9.3.3 missing TopBar, and the v9.3.4 missing ContextSwitcher in one shot.
+
+### Versions: 9.3.4 → 9.3.5 in 5 places.
+
+---
+
 ## [9.3.4] — 2026-04-30
 
 **Clubs feature restored in the mobile tabs layout. v9.3.3 added `<TopBar />` + `<UserMenu />` but missed `<ContextSwitcher />` and the club-mode rendering branch — clubs went invisible on mobile.**

@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.3.4](./CHANGELOG.md#934--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.3.5](./CHANGELOG.md#935--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.3.5
+
+Sprint 2 Phase 1 — two regression hotfixes from Sprint 1's BYOK flow. **FB-R1**: `coachApi.ts` `postJson()` now reads the Strava token via `ensureValidToken` and attaches `Authorization: Bearer` — the v9.3.0 `/coach` + `/coach-ride` bearer gate (CRITICAL #33) was correct, but the frontend never sent the bearer, so every "Generate plan" click 401'd. New `CoachError.stravaExpired` flag surfaces a "Reconnect Strava" CTA when the session expires. **FB-R2**: You-tab API key form restored the legacy "Your key stays in this browser. [Get a key →](https://console.anthropic.com/settings/keys)" copy + link that v9.3.0 dropped — non-technical personas couldn't complete BYOK setup without it. Sprint 1 retro improvement #2 also lands: new `tests/mobile-tabs.spec.ts` Playwright spec gates every Sprint 2 deploy (mobile viewport + tabs flag, no redirect loop, `<header>` + populated `#root`). 20/20 unit tests green.
 
 ## What's new in v9.3.4
 
