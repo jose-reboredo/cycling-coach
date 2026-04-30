@@ -344,15 +344,15 @@ export const SPEC_PAGES = [
 <h3>2.12d <code>POST /api/clubs/:id/events</code></h3>
 <table><tbody>
 <tr><th>Auth</th><td>Must be a member; any member may create (no admin required)</td></tr>
-<tr><th>Body</th><td><code>{ title: string, scheduled_at: ISO8601, description?: string, location?: string }</code></td></tr>
-<tr><th>Response</th><td><code>{ id, club_id, title, scheduled_at, created_by, created_at }</code></td></tr>
+<tr><th>Body</th><td><code>{ title: string, event_date: ISO8601 | unix_seconds, description?: string, location?: string }</code></td></tr>
+<tr><th>Response</th><td><code>{ id, club_id, created_by, title, description, location, event_date, created_at }</code></td></tr>
 <tr><th>Note</th><td>RSVPs deferred to Phase B</td></tr>
 </tbody></table>
 
 <h3>2.12e <code>GET /api/clubs/:id/events</code></h3>
 <table><tbody>
 <tr><th>Auth</th><td>Must be a member; returns 404 if not</td></tr>
-<tr><th>Response</th><td><code>[{ id, club_id, title, scheduled_at, created_by, created_at }, ...]</code></td></tr>
+<tr><th>Response</th><td><code>[{ id, club_id, created_by, title, description, location, event_date, created_at, creator_firstname, creator_lastname }, ...]</code> · upcoming-only by default; <code>?include=past</code> for full history</td></tr>
 </tbody></table>
 
 <h3>2.12f <code>POST /api/clubs/join/:code</code></h3>
@@ -845,10 +845,10 @@ npm run deploy
     <tr><td><code>training_prefs</code></td><td><code>athlete_id</code> PK · <code>sessions_per_week, surface_pref, start_address, updated_at</code></td><td>AI Coach prompts + Routes picker (issue #11 — D1 sync)</td></tr>
     <tr><td><code>ai_reports</code></td><td><code>id, athlete_id, generated_at, sessions_per_week, surface_pref, report_json, prompt_version, model_used</code></td><td>Cached AI weekly plans (server-side, complement to localStorage)</td></tr>
     <tr><td><code>ride_feedback</code></td><td><code>activity_id</code> PK · <code>athlete_id, feedback_json, generated_at, prompt_version, model_used</code></td><td>Per-ride AI verdicts (server-side cache)</td></tr>
-    <tr><td><code>clubs</code></td><td><code>id, name, invite_code, description, created_by, created_at</code></td><td>Club creation + invite-code join (Clubs MVP)</td></tr>
+    <tr><td><code>clubs</code></td><td><code>id, name, description, owner_athlete_id, is_public, invite_code, created_at</code></td><td>Club creation + invite-code join (Clubs MVP)</td></tr>
     <tr><td><code>club_members</code></td><td><code>club_id, athlete_id, role, joined_at</code></td><td>Membership tracking; gates member-only reads</td></tr>
     <tr><td><code>club_goals</code></td><td>Schema present; no active feature yet</td><td>Future: collective goals</td></tr>
-    <tr><td><code>club_events</code></td><td><code>id, club_id, title, scheduled_at, description, location, created_by, created_at</code></td><td>Club events Phase A (migration 0002)</td></tr>
+    <tr><td><code>club_events</code></td><td><code>id, club_id, created_by, title, description, event_date, location, created_at</code></td><td>Club events Phase A (migration 0002)</td></tr>
   </tbody>
 </table>
 <p>Schema policy (v9.2.0): <code>schema.sql</code> is the <strong>cumulative</strong> current state (all tables + columns). Incremental changes land in numbered migrations under <code>migrations/</code>. <code>db/README.md</code> documents the apply order and remote D1 commands. Current migrations: <code>0001_pmc_and_events.sql</code> (FTP/TSS columns, daily_load, goals extensions), <code>0002_club_events.sql</code> (club_events table).</p>
