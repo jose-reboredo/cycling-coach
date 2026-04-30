@@ -41,11 +41,17 @@ export function useAiReport() {
         setReport(fresh);
         return fresh;
       } catch (e) {
-        const err = e as CoachError;
-        setError(err.message);
-        setInvalidKey(err.invalidKey ?? false);
-        setStravaExpired(err.stravaExpired === true);
-        throw err;
+        if (e instanceof CoachError) {
+          setError(e.message);
+          setInvalidKey(e.invalidKey);
+          setStravaExpired(e.stravaExpired);
+        } else {
+          // network / unknown error: show generic message, NOT invalidKey (#40)
+          setError(e instanceof Error ? e.message : 'Network error');
+          setInvalidKey(false);
+          setStravaExpired(false);
+        }
+        throw e;
       } finally {
         setLoading(false);
       }

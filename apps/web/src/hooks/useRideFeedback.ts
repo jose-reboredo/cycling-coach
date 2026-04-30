@@ -48,10 +48,15 @@ export function useRideFeedback() {
         });
         return feedback;
       } catch (e) {
-        const err = e as CoachError;
-        setErrors((es) => ({ ...es, [id]: err.message }));
-        setStravaExpired(err.stravaExpired === true);
-        throw err;
+        if (e instanceof CoachError) {
+          setErrors((es) => ({ ...es, [id]: e.message }));
+          setStravaExpired(e.stravaExpired);
+        } else {
+          // network / unknown error: generic message, stravaExpired stays false (#40)
+          setErrors((es) => ({ ...es, [id]: e instanceof Error ? e.message : 'Network error' }));
+          setStravaExpired(false);
+        }
+        throw e;
       } finally {
         setLoadingId(null);
       }
