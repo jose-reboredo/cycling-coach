@@ -371,8 +371,9 @@
   transition: border-color var(--d-fast) var(--e-out);
 }
 
-.apiKeyInput:focus {
-  outline: none;
+.apiKeyInput:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
   border-color: var(--c-accent);
 }
 

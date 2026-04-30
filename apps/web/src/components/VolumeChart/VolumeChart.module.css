@@ -62,7 +62,8 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--c-text-muted);
-  padding: 7px 12px;
+  min-height: var(--hit-min);
+  padding: 4px 12px;
   border-radius: 4px;
   transition: all var(--d-fast) var(--e-out);
 }

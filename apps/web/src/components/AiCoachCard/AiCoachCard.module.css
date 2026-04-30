@@ -122,9 +122,9 @@
   font: 500 14px/1 var(--font-mono);
   letter-spacing: 0.04em;
 }
-.keyInput:focus {
-  outline: 2px solid var(--c-accent);
-  outline-offset: 2px;
+.keyInput:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
   border-color: var(--c-accent);
 }
 

@@ -108,9 +108,9 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.012em;
 }
-.input:focus {
-  outline: 2px solid var(--c-accent);
-  outline-offset: 2px;
+.input:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
   border-color: var(--c-accent);
 }
 

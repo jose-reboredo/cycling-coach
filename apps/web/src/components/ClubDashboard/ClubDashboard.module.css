@@ -86,7 +86,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-2) 0 var(--s-3);
+  min-height: var(--hit-min);
+  padding: var(--s-1) 0 var(--s-2);
   background: transparent;
   border: none;
   font: 500 11px/1 var(--font-mono);
@@ -620,9 +621,9 @@
   font: 500 14px/1 var(--font-mono);
   letter-spacing: 0.02em;
 }
-.coachInput:focus {
-  outline: 2px solid var(--c-accent);
-  outline-offset: 2px;
+.coachInput:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
   border-color: var(--c-accent);
 }
 

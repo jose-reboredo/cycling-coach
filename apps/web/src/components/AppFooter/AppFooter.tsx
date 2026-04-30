@@ -29,7 +29,6 @@ export function AppFooter() {
             ]} />
             <FootCol title="Trust" links={[
               { href: '/privacy', label: 'Privacy' },
-              { href: 'https://www.strava.com/settings/apps', label: 'Revoke access', external: true },
             ]} />
             <FootCol title="Powered by" links={[
               { href: 'https://www.strava.com', label: 'Strava API', external: true },

@@ -104,6 +104,11 @@
   border-color: var(--c-text-faint);
 }
 
+.secondary:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
 .ghost {
   background: transparent;
   color: var(--c-text-muted);
@@ -114,6 +119,11 @@
   color: var(--c-text);
 }
 
+.ghost:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
 .strava {
   background: var(--c-strava);
   color: #fff;
@@ -121,4 +131,9 @@
 
 .strava:hover {
   filter: brightness(1.08);
+}
+
+.strava:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
 }

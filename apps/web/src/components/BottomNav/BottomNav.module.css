@@ -29,9 +29,15 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.item:hover,
+.item:hover {
+  color: var(--c-text-muted);
+}
+
 .item:focus-visible {
   color: var(--c-text-muted);
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+  border-radius: var(--r-sm);
 }
 
 .item.active {

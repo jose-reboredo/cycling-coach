@@ -114,6 +114,10 @@
   --hit-comfy: 48px;
   --hit-big: 56px;
 
+  /* Focus ring */
+  --ring-focus: 2px solid var(--c-accent);
+  --ring-focus-offset: 2px;
+
   /* Z-index */
   --z-base: 0;
   --z-raised: 1;
