@@ -136,7 +136,32 @@ export default {
  
     if (url.pathname === '/refresh' && request.method === 'POST') {
       try {
-        const { refresh_token } = await request.json();
+        const body = await request.json();
+        const refresh_token = body?.refresh_token;
+        if (!refresh_token || typeof refresh_token !== 'string') {
+          return new Response(JSON.stringify({ error: 'refresh_token required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        // v9.2.0 (#36): verify the refresh_token corresponds to a known athlete
+        // before forwarding to Strava. user_connections.credentials_json is a
+        // JSON blob containing { access_token, refresh_token, expires_at, ... };
+        // we look for the literal refresh_token substring. Bounds the attack
+        // surface to athletes whose tokens we've previously seen and gives us
+        // a log trail. Doesn't prevent token theft, but slows brute-forcing
+        // and rejects garbage requests before they hit Strava.
+        const known = await env.cycling_coach_db
+          .prepare(
+            "SELECT athlete_id FROM user_connections WHERE source = 'strava' AND credentials_json LIKE ? LIMIT 1",
+          )
+          .bind(`%"refresh_token":"${refresh_token}"%`)
+          .first();
+        if (!known) {
+          safeWarn(`[refresh] unknown refresh_token from IP ${request.headers.get('cf-connecting-ip') || 'unknown'}`);
+          return new Response(JSON.stringify({ error: 'invalid refresh_token' }), {
+            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         const refreshRes = await fetch('https://www.strava.com/oauth/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -152,10 +177,12 @@ export default {
           await updateConnectionTokens(env.cycling_coach_db, data.athlete.id, data);
         }
         return new Response(JSON.stringify(data), {
+          status: refreshRes.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       } catch (e) {
-        return new Response(JSON.stringify({ error: e.message }), {
+        safeWarn(`[refresh] error: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'refresh failed' }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
