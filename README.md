@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.2.0](./CHANGELOG.md#920--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.2.1](./CHANGELOG.md#921--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.2.1
+
+Hotfix for #46 — ContextSwitcher dropdown was clipping content on the left edge when the trigger sat far left in `TopBar.trailing` (narrow viewports especially). The menu now caps `max-width` at `min(360px, viewport-16px)` and switches to viewport-anchored `position: fixed` on mobile (`@media max-width: 600px`). Pure CSS, no TSX changes.
 
 ## What's new in v9.2.0
 

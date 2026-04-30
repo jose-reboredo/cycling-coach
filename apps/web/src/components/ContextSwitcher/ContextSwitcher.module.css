@@ -85,6 +85,10 @@
   top: calc(100% + 6px);
   right: 0;
   min-width: 280px;
+  /* v9.2.1 (#46) — cap natural width so the menu never extends past viewport.
+   * Without this the menu's left edge could land at negative X when .wrap sits
+   * far left in TopBar.trailing on narrow viewports, clipping leftmost chars. */
+  max-width: min(360px, calc(100vw - var(--s-4)));
   background: var(--c-surface-elev);
   border: 1px solid var(--c-line-strong);
   border-radius: var(--r-md);
@@ -93,15 +97,34 @@
   padding: var(--s-2);
 }
 
+/* Mobile: detach from .wrap's positioning context. position:fixed anchors
+ * to the viewport so the menu always stays visible regardless of trigger
+ * placement. left+right both set → fills viewport minus 12px gutters. */
+@media (max-width: 600px) {
+  .menu {
+    position: fixed;
+    top: calc(64px + env(safe-area-inset-top, 0));
+    right: var(--s-3);
+    left: var(--s-3);
+    min-width: 0;
+    max-width: none;
+  }
+}
+
 .head {
   padding: var(--s-2) var(--s-3) var(--s-1);
+  overflow: hidden;
 }
 
 .headLabel {
+  display: block;
   font: 500 10px/1.4 var(--font-mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--c-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item {

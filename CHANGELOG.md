@@ -4,6 +4,18 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.2.1] — 2026-04-30
+
+**Hotfix — ContextSwitcher dropdown was clipping on the left edge** (#46). On narrow viewports (and any TopBar layout where `.wrap` sat far left), the menu's `right: 0; min-width: 280px;` positioning could push its left edge to negative X, hiding the leftmost ~50-90px of every menu item. Pure CSS fix in `ContextSwitcher.module.css`:
+
+- Added `max-width: min(360px, calc(100vw - var(--s-4)))` to cap natural width so the menu never exceeds viewport on desktop.
+- New `@media (max-width: 600px)` switches the menu to `position: fixed` anchored to viewport edges (`left: var(--s-3); right: var(--s-3); top: 64px + safe-area`). On mobile the menu now spans the full viewport minus 12px gutters, completely independent of where the trigger sits in `TopBar.trailing`.
+- Defensive overflow + ellipsis chain on `.head` / `.headLabel` so the "Active context" header ellipsises cleanly if it ever extends.
+
+No JS/TSX changes. Existing UserMenu-pattern keyboard nav unaffected.
+
+---
+
 ## [9.2.0] — 2026-04-30
 
 **Sprint 2 of the 2026-04-30 overnight audit.** Four CRITICAL items closed in one release: OAuth state CSRF (issue #14, deferred 3×), `/refresh` auth gate (#36), v9.1.3 events test coverage (#35), and `schema.sql` consolidation (#37). v9.1.4 (commit `b4e6395`, never released as a tagged version) shipped Sprint 1 fixes (invite_code generation + contrast tokens) — those carry forward into v9.2.0.
