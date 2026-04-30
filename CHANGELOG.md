@@ -4,6 +4,52 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.6.0] — 2026-04-30
+
+**Sprint 4 Phase 1 — clubs expansion (`#53`). 4-tab IA, slim sticky header (cover hero dropped), Overview tab fully wired, Schedule/Members/Metrics placeholders for Phases 2-5.**
+
+### `#53` — Clubs expansion, Phase 1 of 5
+
+The post-demo-sprint-4 plan is documented end-to-end in `docs/post-demo-sprint/sprint-4/`:
+- `01-clubs-experience-design.md` — BA + UX (6 stories, 6 AI embedding points, 4-tab UX flows)
+- `02-cto-review.md` — 5-phase plan, 5 ADRs S4.1–S4.5 (founder approved 2026-04-30)
+- `03-architecture-changes.md` — 3 new tables (Phases 2 + 5), 7 new endpoints, first cron handler in this codebase, 4 LLM moments with privacy-safe prompt shapes
+
+This release is Phase 1 only: 4-tab shell + Overview tab + the new `GET /api/clubs/:id/overview` endpoint. **No new schema, no AI calls, no cron** — those land in Phases 2-5.
+
+### Backend
+
+`GET /api/clubs/:id/overview` — single D1 batch returning:
+
+- Club row + caller's role (membership-gated 404 per OWASP — don't leak existence of clubs the caller isn't in)
+- 28-day stat aggregations from `activities`: `hours_28d` (sum of `moving_time` ÷ 3600), `distance_28d` (sum of `distance` ÷ 1000), `ride_count_28d`, `new_members_28d` (count of `club_members` joined in window)
+- Upcoming events from `club_events` (next 20 by `event_date`, `confirmed_count: 0` placeholder until Phase 2 lands `event_rsvps`)
+- `circle_note: null` (table lands Phase 5)
+
+Auth via `resolveAthleteId` (same pattern as `/api/clubs/:id/members`). Errors: 401, 404 (not member or unknown club), 500.
+
+Two SQL bugs from the initial Sonnet dispatch caught + fixed pre-commit during CTO review:
+- `SUM(a.elapsed_time)` → `SUM(a.moving_time)` (no `elapsed_time` column in our schema)
+- Cutoff bind: `activities.start_date_local` is TEXT (ISO) and `club_members.joined_at` is INTEGER (unix epoch) — needed two cutoff values, not one
+
+### Frontend
+
+`apps/web/src/components/ClubDashboard/ClubDashboard.tsx` rewritten for Phase 1:
+
+- **Cover hero dropped** per founder mid-stream directive 2026-04-30 (~280 px reclaimed). Replaced with a slim sticky header above the tabs row showing club name + metadata band: `EST. {year} · {N MEMBERS} · PRIVATE`. Year derived from `club.created_at`; member count from `useClubMembers`. Privacy hardcoded `PRIVATE` (no public clubs feature).
+- **4-tab IA**: Overview / Schedule / Members / Metrics. Tab navigation uses local component state (not nested routes — clubs is a sub-view of the dashboard). Schedule / Members / Metrics tabs render placeholder content showing the version where they'll ship (`Coming in v9.6.{2,1,4}`).
+- **Overview tab**: invite link (admin-only), stat tiles section (rewired to `/overview` endpoint), Upcoming section with placeholder RSVP button (Phase 2 wires the write), Circle Note section as plain text (Phase 5 adds AI draft + editor), Members rail.
+- **`useClubOverview` hook** added to `apps/web/src/hooks/useClubs.ts` (TanStack Query, 5 min stale, 30 min gc — same pattern as `useStravaData`).
+- **`clubsApi.overview(clubId)`** added to `apps/web/src/lib/clubsApi.ts` with `ClubOverview`, `ClubStatTiles`, `UpcomingEvent` types.
+
+### Test totals
+
+27/27 unit pass. Mobile-tabs Playwright gate from Sprint 2 still green (verified post-deploy).
+
+### Versions: 9.5.2 → 9.6.0 in 5 places.
+
+---
+
 ## [9.5.2] — 2026-04-30
 
 **Sprint 3 Phase 3 — accessibility + UI polish. Four CSS-only / single-component fixes batched into one release theme.**

@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.5.2](./CHANGELOG.md#952--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.6.0](./CHANGELOG.md#960--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.6.0
+
+Sprint 4 Phase 1 — clubs expansion (issue `#53`). The 4-tab IA is live: **Overview / Schedule / Members / Metrics**. The cover hero from v9.1.2 is dropped per founder directive (~280 px reclaimed); a slim sticky header replaces it (`EST. {year} · {N MEMBERS} · PRIVATE`). The Overview tab is the only fully-built tab in v9.6.0 — Schedule / Members / Metrics show "Coming in v9.6.{2,1,4}" placeholders that map to Phases 2-5. New backend endpoint `GET /api/clubs/:id/overview` (single D1 batch, membership-gated 404 OWASP) returns the club row, 28-day stat aggregations from `activities` (hours, distance, ride count, new members), upcoming events, and the Circle Note (null until Phase 5). New `useClubOverview` TanStack Query hook with the project's standard staleTime/gcTime. No new schema this phase — Phase 2 lands `event_rsvps`. No AI calls — Phase 4-5 land the AI moments.
 
 ## What's new in v9.5.2
 
