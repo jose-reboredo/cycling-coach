@@ -183,3 +183,6 @@ apps/web/coverage/
 apps/web/playwright-report/
 apps/web/test-results/
 apps/web/playwright/.cache/
+
+# macOS metadata
+.DS_Store
