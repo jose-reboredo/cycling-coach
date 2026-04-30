@@ -543,6 +543,210 @@ export default {
       });
     }
 
+    // ============= ROUTES (#47 Phase 1, v9.3.0) =============
+    // GET /api/routes/saved — proxies Strava /athlete/routes with worker-side
+    // filtering by surface, distance (±20% band), and difficulty (m/km bands).
+    // Strava's saved-routes shape doesn't always carry a surface attribute;
+    // we infer from sub_type when present and fall back to 'unknown'.
+    // 'unknown' surface always passes the filter (graceful degradation per spec).
+    if (url.pathname === '/api/routes/saved' && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const auth = request.headers.get('Authorization');
+      const surface = (url.searchParams.get('surface') || 'any').toLowerCase();
+      const distanceParam = url.searchParams.get('distance');
+      const distanceKm = distanceParam ? parseInt(distanceParam, 10) : null;
+      const difficulty = (url.searchParams.get('difficulty') || '').toLowerCase();
+
+      let stravaRoutes;
+      try {
+        const stravaResp = await fetch(
+          'https://www.strava.com/api/v3/athlete/routes?per_page=200',
+          { headers: { Authorization: auth } },
+        );
+        if (!stravaResp.ok) {
+          safeWarn(`[routes] Strava /athlete/routes returned ${stravaResp.status}`);
+          return new Response(JSON.stringify({ error: 'strava unavailable' }), {
+            status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        stravaRoutes = await stravaResp.json();
+      } catch (e) {
+        safeWarn(`[routes] Strava fetch error: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'internal error' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!Array.isArray(stravaRoutes)) {
+        safeWarn('[routes] Strava response was not an array');
+        return new Response(JSON.stringify({ error: 'strava unavailable' }), {
+          status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Strava SummaryRoute.sub_type: 1 road, 2 MTB, 3 cross, 4 trail, 5 mixed.
+      // Best-effort map to our surface vocabulary.
+      const inferSurface = (route) => {
+        if (route.surface_type) {
+          const t = typeof route.surface_type === 'number' ? route.surface_type : null;
+          if (t === 2 || t === 3) return 'paved';
+          if (t === 4 || t === 5) return 'gravel';
+        }
+        if (typeof route.surface === 'string') {
+          const lower = route.surface.toLowerCase();
+          if (lower.includes('paved')) return 'paved';
+          if (lower.includes('dirt') || lower.includes('gravel') || lower.includes('unpaved')) return 'gravel';
+        }
+        if (route.sub_type === 1) return 'paved';
+        if (route.sub_type === 2 || route.sub_type === 4) return 'gravel';
+        return 'unknown';
+      };
+
+      const mapped = stravaRoutes.map((r) => {
+        const distance_m = Number(r.distance) || 0;
+        const elevation_gain_m = Number(r.elevation_gain) || 0;
+        const idStr = r.id_str || (r.id != null ? String(r.id) : null);
+        return {
+          id: r.id,
+          name: r.name || 'Untitled route',
+          distance_m,
+          elevation_gain_m,
+          surface: inferSurface(r),
+          map_url: r.map?.summary_polyline || null,
+          strava_url: idStr ? `https://www.strava.com/routes/${idStr}` : null,
+        };
+      });
+
+      const filtered = mapped.filter((r) => {
+        // Surface filter — 'unknown' always passes (graceful degradation)
+        if (surface !== 'any' && r.surface !== 'unknown' && r.surface !== surface) return false;
+        // Distance filter — ±20% band around target km
+        if (distanceKm !== null && Number.isFinite(distanceKm) && distanceKm > 0) {
+          const km = r.distance_m / 1000;
+          if (km < distanceKm * 0.8 || km > distanceKm * 1.2) return false;
+        }
+        // Difficulty filter — elevation gain per km bands
+        if (difficulty === 'flat' || difficulty === 'rolling' || difficulty === 'hilly') {
+          const km = r.distance_m / 1000;
+          if (km > 0) {
+            const elevPerKm = r.elevation_gain_m / km;
+            if (difficulty === 'flat' && elevPerKm >= 5) return false;
+            if (difficulty === 'rolling' && (elevPerKm < 5 || elevPerKm > 15)) return false;
+            if (difficulty === 'hilly' && elevPerKm <= 15) return false;
+          }
+        }
+        return true;
+      });
+
+      return new Response(JSON.stringify({ routes: filtered }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // PATCH /api/training-prefs — partial-update of training_prefs row keyed
+    // by athlete_id. Powers the routes filter persistence (#47): the picker
+    // saves the user's home_region / preferred_distance_km / preferred_difficulty
+    // / surface_pref so subsequent visits load with the same defaults.
+    // UPSERT pattern: INSERT on first save, ON CONFLICT update only provided fields.
+    if (url.pathname === '/api/training-prefs' && request.method === 'PATCH') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const athleteId = authResult.athleteId;
+
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const ALLOWED_DIFFICULTY = ['flat', 'rolling', 'hilly'];
+      const ALLOWED_SURFACE = ['paved', 'gravel', 'any'];
+      const updates = {};
+      const reject = (msg) => new Response(JSON.stringify({ error: msg }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+
+      if (body?.home_region !== undefined) {
+        if (typeof body.home_region !== 'string' || body.home_region.length > 100) {
+          return reject('invalid value for home_region');
+        }
+        updates.home_region = body.home_region.trim();
+      }
+      if (body?.preferred_distance_km !== undefined) {
+        const n = Number(body.preferred_distance_km);
+        if (!Number.isInteger(n) || n < 1 || n > 500) {
+          return reject('invalid value for preferred_distance_km (integer 1-500)');
+        }
+        updates.preferred_distance_km = n;
+      }
+      if (body?.preferred_difficulty !== undefined) {
+        if (!ALLOWED_DIFFICULTY.includes(body.preferred_difficulty)) {
+          return reject('invalid value for preferred_difficulty');
+        }
+        updates.preferred_difficulty = body.preferred_difficulty;
+      }
+      if (body?.surface_pref !== undefined) {
+        if (!ALLOWED_SURFACE.includes(body.surface_pref)) {
+          return reject('invalid value for surface_pref');
+        }
+        updates.surface_pref = body.surface_pref;
+      }
+      if (body?.sessions_per_week !== undefined) {
+        const n = Number(body.sessions_per_week);
+        if (!Number.isInteger(n) || n < 1 || n > 14) {
+          return reject('invalid value for sessions_per_week (integer 1-14)');
+        }
+        updates.sessions_per_week = n;
+      }
+      if (body?.start_address !== undefined) {
+        if (typeof body.start_address !== 'string' || body.start_address.length > 200) {
+          return reject('invalid value for start_address');
+        }
+        updates.start_address = body.start_address.trim();
+      }
+
+      const fields = Object.keys(updates);
+      if (fields.length === 0) return reject('no fields provided');
+
+      const db = env.cycling_coach_db;
+      const now = Math.floor(Date.now() / 1000);
+      try {
+        const insertCols = ['athlete_id', ...fields, 'updated_at'];
+        const placeholders = insertCols.map(() => '?').join(', ');
+        const values = [athleteId, ...fields.map((f) => updates[f]), now];
+        const setClause = [...fields.map((f) => `${f} = excluded.${f}`), 'updated_at = excluded.updated_at'].join(', ');
+        const sql = `
+          INSERT INTO training_prefs (${insertCols.join(', ')})
+          VALUES (${placeholders})
+          ON CONFLICT(athlete_id) DO UPDATE SET ${setClause}
+        `;
+        await db.prepare(sql).bind(...values).run();
+
+        const row = await db.prepare(
+          'SELECT athlete_id, sessions_per_week, surface_pref, start_address, home_region, preferred_distance_km, preferred_difficulty, updated_at FROM training_prefs WHERE athlete_id = ?',
+        ).bind(athleteId).first();
+
+        return new Response(JSON.stringify(row), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (e) {
+        safeError(`[training-prefs] PATCH error: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'internal error' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     if (url.pathname.startsWith('/api/')) {
       const stravaPath = url.pathname.replace(/^\/api\//, '');
       const stravaUrl = `https://www.strava.com/api/v3/${stravaPath}${url.search}`;
