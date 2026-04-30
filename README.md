@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.6.0](./CHANGELOG.md#960--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.6.1](./CHANGELOG.md#961--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.6.1
+
+**Hotfix.** v9.5.1 (#15 security headers) set CSP `script-src 'self'`, which silently blocked the inline `<script>` on `/callback` that writes Strava tokens to `localStorage` and redirects to `/dashboard`. Symptom: users completing Strava OAuth landed on a "Loading dashboard…" page that never advanced. Fix: per-request nonce CSP for `/callback` only — `crypto.randomUUID()` generates a nonce per response, embedded in the `<script nonce="…">` tag and added to that response's `Content-Security-Policy: script-src 'self' 'nonce-…'`. Strict CSP preserved on every other route. New helper `cspWithScriptNonce()` + `htmlResponse()` extended to accept extra headers. **Should have been caught by a legacy-parity audit during Sprint 3 #15** — exactly the regression the Sprint 1 retro rule warned about. Adding `/callback` to the post-deploy smoke list going forward.
 
 ## What's new in v9.6.0
 

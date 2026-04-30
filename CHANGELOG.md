@@ -4,6 +4,35 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.6.1] — 2026-04-30
+
+**Hotfix — `/callback` inline script blocked by CSP from v9.5.1 (#15). Strava OAuth completion was hanging at "Loading dashboard…" forever.**
+
+### What broke
+
+v9.5.1 (Sprint 3 #15) introduced strict security headers including `Content-Security-Policy: script-src 'self'`. The `/callback` page renders an inline `<script>` that runs after Strava OAuth: it writes the access/refresh tokens to `localStorage` (`cc_tokens`) and then `window.location.href = '…/dashboard'`. The strict CSP **silently blocked** that script — the page sat showing "Loading dashboard…" with the throbber animation, while neither the localStorage write nor the redirect ever ran. Users couldn't complete Strava authentication.
+
+The bug was latent from v9.5.1 deploy (a few hours ago), masked because nobody re-tested the OAuth flow end-to-end after Phase 2 of Sprint 3. The Sprint 1 retro improvement #1 (legacy-parity audit) and #5 (smoke what changed) would have caught it — `/callback` is exactly the kind of inline-script edge case a CSP rollout has to verify. Filing this miss into the post-deploy smoke list going forward.
+
+### Fix (commit pending)
+
+Per-request nonce CSP, applied only to `/callback`:
+
+- New helper `cspWithScriptNonce(nonce)` builds a CSP string by replacing `script-src 'self'` with `script-src 'self' 'nonce-{value}'` and leaving all other directives (style-src, img-src, connect-src, frame-ancestors, etc.) unchanged.
+- `htmlResponse()` extended to accept an optional `extraHeaders` arg so the callback can override CSP for its response only.
+- `/callback` handler generates `crypto.randomUUID().replace(/-/g, '')` per request, passes the nonce to `callbackPage()`, and sets the response's CSP to `cspWithScriptNonce(nonce)`. The `withSecurityHeaders` wrapper from #15 already respects existing headers (`if (!headers.has(k)) headers.set(k, v)`), so the per-response CSP wins.
+- `callbackPage()` gained a `nonce` param; both inline `<script>` tags now render as `<script nonce="{value}">`.
+
+Strict CSP is preserved on every other route — only `/callback` carries the nonce. This is the correct trade-off vs adding `'unsafe-inline'` globally to `script-src`, which would weaken CSP everywhere for one edge case.
+
+### Process note
+
+Sprint 1 retro rules need to apply at sprint boundaries (we did legacy-parity for `routes/dashboard.tsx`) AND at security-policy rollouts. Adding to the next backlog grooming: a "policy-rollout pre-flight" checklist that explicitly tests inline-style/inline-script flows before deploying CSP changes.
+
+### Versions: 9.6.0 → 9.6.1 in 5 places.
+
+---
+
 ## [9.6.0] — 2026-04-30
 
 **Sprint 4 Phase 1 — clubs expansion (`#53`). 4-tab IA, slim sticky header (cover hero dropped), Overview tab fully wired, Schedule/Members/Metrics placeholders for Phases 2-5.**

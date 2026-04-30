@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.6.0';
+const WORKER_VERSION = 'v9.6.1';
 const BUILD_DATE = '2026-04-30';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -234,7 +234,15 @@ async function handleRequest(request, env) {
         const data = await tokenRes.json();
         if (data.access_token) {
           await persistUserAndTokens(env.cycling_coach_db, data);
-          return htmlResponse(callbackPage(data, callbackOrigin, fromPwa));
+          // v9.6.1 hotfix — generate per-request nonce so the inline script
+          // that writes tokens to localStorage + redirects to /dashboard can
+          // run despite the strict global CSP script-src 'self' (#15). Without
+          // this, the OAuth callback hangs at "Loading dashboard…" forever
+          // because the inline script is silently blocked.
+          const cbNonce = crypto.randomUUID().replace(/-/g, '');
+          return htmlResponse(callbackPage(data, callbackOrigin, fromPwa, cbNonce), {
+            'Content-Security-Policy': cspWithScriptNonce(cbNonce),
+          });
         }
         return htmlResponse(errorPage(data.message || 'Token exchange failed'));
       } catch (e) {
@@ -2885,8 +2893,24 @@ async function updateConnectionTokens(db, athleteId, tokenData) {
     safeError('[D1] updateConnectionTokens failed:', e.message);
   }
 
-}function htmlResponse(body) {
-  return new Response(body, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}function htmlResponse(body, extraHeaders) {
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      ...(extraHeaders || {}),
+    },
+  });
+}
+
+// v9.6.1 (#53 Phase 1 hotfix) — Build a per-request CSP that allows ONE
+// inline script identified by nonce. Used by /callback so the
+// localStorage.setItem('cc_tokens', …) + redirect inline script can run
+// despite the strict global script-src 'self' policy from #15. Other CSP
+// directives are inherited verbatim from SECURITY_HEADERS so the rest of
+// the page surface stays as locked-down as everywhere else.
+function cspWithScriptNonce(nonce) {
+  return SECURITY_HEADERS['Content-Security-Policy']
+    .replace("script-src 'self'", `script-src 'self' 'nonce-${nonce}'`);
 }
 
 // ============================================================
@@ -2897,13 +2921,14 @@ async function updateConnectionTokens(db, athleteId, tokenData) {
 // Static Assets. The legacy landingPage / dashboardPage / privacyPage
 // functions (~2,700 lines) were pruned in v8.2.0.
 
-function callbackPage(tokenData, origin, fromPwa) {
+function callbackPage(tokenData, origin, fromPwa, nonce) {
   const blob = JSON.stringify({
     access_token: tokenData.access_token,
     refresh_token: tokenData.refresh_token,
     expires_at: tokenData.expires_at,
   });
   const escaped = blob.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
   if (fromPwa) {
     return `<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2933,7 +2958,7 @@ p{color:#7d8290;line-height:1.5;margin:0 0 16px}
 <details style="margin-top:16px"><summary style="color:#7d8290;cursor:pointer;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase">Show raw tokens</summary>
 <div class="tokens" id="rawTokens"></div></details>
 </div>
-<script>
+<script${nonceAttr}>
 const tokens='${escaped}';
 document.getElementById('rawTokens').textContent=tokens;
 document.getElementById('copyBtn').addEventListener('click',async()=>{
@@ -2951,7 +2976,7 @@ document.getElementById('copyBtn').addEventListener('click',async()=>{
 <style>html,body{background:#08090b;color:#f0f1f3;font-family:-apple-system,sans-serif;margin:0;height:100vh;display:flex;align-items:center;justify-content:center}.dot{width:8px;height:8px;background:#ff4d00;border-radius:50%;animation:p 1.2s ease-in-out infinite;margin-right:10px}@keyframes p{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}</style>
 </head><body>
 <div style="display:flex;align-items:center"><span class="dot"></span><span style="color:#7d8290;font-size:14px">Loading dashboard…</span></div>
-<script>try{localStorage.setItem('cc_tokens','${escaped}');}catch(e){}setTimeout(()=>{window.location.href='${origin}/dashboard';},400);</script>
+<script${nonceAttr}>try{localStorage.setItem('cc_tokens','${escaped}');}catch(e){}setTimeout(()=>{window.location.href='${origin}/dashboard';},400);</script>
 </body></html>`;
 }
 
