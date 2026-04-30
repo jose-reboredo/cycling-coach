@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.3.5](./CHANGELOG.md#935--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.5.0](./CHANGELOG.md#950--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.5.0
+
+Sprint 3 Phase 1 — three frontend stability fixes from the 2026-04-30 audit's HIGH backlog. **#38**: `useRides` was calling `clearTokens()` during render, which under React 19 Strict Mode + React Query retry could wipe tokens that the retry was about to refresh successfully — booting users to ConnectScreen on every near-expiry load. Moved the call to `useEffect`. **#39**: `auth.ts` `writeTokens`/`clearTokens` had no `try/catch`; Safari Private Browsing throws `QuotaExceededError` and stranded users mid-OAuth with no error UI. Wrapped both in `try/catch` mirroring the read-side pattern. **#40**: `useAiReport` and `useRideFeedback` cast caught errors via `as CoachError`; network `TypeError` (offline/CORS) became a fake `invalidKey: true` UX. Replaced with `instanceof CoachError` type-guard. Plus a backlog triage: closed `#6` (route picker, superseded by Sprint 1+2 work); kept `#8` open with a status comment (TSS backfill never ran — 11 nulls / 0 populated). 27/27 unit tests green (was 20; +7 new across `auth.test.ts` + `useCoachHooks.test.ts`).
 
 ## What's new in v9.3.5
 

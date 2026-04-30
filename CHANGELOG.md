@@ -4,6 +4,43 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.5.0] — 2026-04-30
+
+**Sprint 3 Phase 1 — three frontend stability fixes from the 2026-04-30 audit's HIGH backlog + backlog triage. No worker, no schema, no security-surface change.**
+
+### `#38` — `useRides` cleared tokens during render
+
+`apps/web/src/hooks/useStravaData.ts:61` called `clearTokens()` directly in the render body when `actsQ.error?.message?.includes('not_authenticated')`. Under React 19 Strict Mode the render fires twice in dev; combined with React Query's `retry: 1`, the second render could wipe tokens that the retry was about to refresh successfully. User reproducer: open the dashboard with a token nearing expiry, get booted to ConnectScreen even though tokens were valid through the refresh path.
+
+Fix (commit `a333576`): extracted `is401` to a derived value, wrapped the `clearTokens()` call in `useEffect(..., [is401])`. Strict Mode's second render no longer re-fires the effect (same dep value).
+
+### `#39` — `writeTokens` / `clearTokens` no `try/catch`
+
+`auth.ts:24-30` called `localStorage.setItem` / `removeItem` without a guard. Safari Private Browsing throws `QuotaExceededError` on `setItem`; the throw was uncaught, so users completing OAuth landed on `/dashboard` with no tokens written and no error UI. Stuck on ConnectScreen with no signal as to why their flow "failed".
+
+Fix (commit `fa9121d`): wrapped both functions in `try/catch` matching the existing read-side pattern at `auth.ts:17-19`. Write attempt still happens; throw is silently absorbed (Safari private mode is a known constraint, not an actionable user error). Vitest unit `auth.test.ts` (3 cases) covers writeTokens + clearTokens under throwing localStorage mocks.
+
+### `#40` — Unsafe `as CoachError` cast misclassified network errors
+
+`apps/web/src/hooks/useAiReport.ts:42` and `apps/web/src/hooks/useRideFeedback.ts:49` cast caught errors via `e as CoachError`. A network `TypeError` (offline / CORS) got cast to `CoachError`; the consuming code checked `err.invalidKey` (undefined on TypeError) and showed *"your API key may be invalid"* for actual network failures. UX bug masquerading as a security signal.
+
+Fix (commit `0d3d2fc`): replaced cast with `e instanceof CoachError` type-guard. Real CoachError still gets the existing `invalidKey` + `stravaExpired` (Sprint 2) branches. Any other thrown value gets a generic error message with `invalidKey=false`, `stravaExpired=false`. Vitest unit `useCoachHooks.test.ts` (4 cases) covers TypeError and DOMException paths surfacing as generic errors, not invalid-key.
+
+### Backlog triage — `#6`, `#8`
+
+Phase 1 also burned 1h on triage of two older HIGH-priority issues per ADR-S3.2:
+
+- **`#6` (suggested routes broken)** — closed as superseded. v9.3.0 (`b8e6280`) replaced MOCK_ROUTES with `GET /api/routes/saved`; v9.3.1 (`687bfce` / `818dd88`) shipped `POST /api/routes/discover` for AI fallback; surface labels were renamed `dirt → gravel` per architect spec. All three sub-points covered.
+- **`#8` (retroactive TSS backfill)** — kept open. Verified D1 state: `activities` has 11 rows, **all `tss IS NULL`**; `daily_load` is empty. Schema v2 columns exist (migration 0001 applied) but the backfill never ran — natural sync didn't fill values because rides were synced before FTP was set. Deferring to a later sprint or a one-shot data-ops slot; out of v9.5.0 stability scope.
+
+### Test totals
+
+27/27 unit pass (was 20; +7 across `auth.test.ts` and `useCoachHooks.test.ts`). Mobile-tabs Playwright gate from Sprint 2 still green against prod (4/4).
+
+### Versions: 9.3.5 → 9.5.0 in 5 places.
+
+---
+
 ## [9.3.5] — 2026-04-30
 
 **Sprint 2 Phase 1 — two regression hotfixes from Sprint 1's BYOK flow + the mobile-viewport CI gate that should have been there from day one.**
