@@ -4,6 +4,75 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.2.0] — 2026-04-30
+
+**Sprint 2 of the 2026-04-30 overnight audit.** Four CRITICAL items closed in one release: OAuth state CSRF (issue #14, deferred 3×), `/refresh` auth gate (#36), v9.1.3 events test coverage (#35), and `schema.sql` consolidation (#37). v9.1.4 (commit `b4e6395`, never released as a tagged version) shipped Sprint 1 fixes (invite_code generation + contrast tokens) — those carry forward into v9.2.0.
+
+### Fixed — security
+
+- **OAuth state nonce** (#14) — `/authorize` now generates `crypto.randomUUID()` per call, stores `{pwa, origin, issued_at}` in a new `OAUTH_STATE` KV namespace with `expirationTtl: 600` (10 min). Only the UUID goes on the wire. `/callback` validates the UUID format, reads the KV record, deletes it immediately on success (single-use, prevents replay), then parses the stored `pwa` + `origin` payload — `origin` no longer crosses the wire so an attacker can't construct a working `/callback` URL even if they guess a nonce. Closes the CSRF / token-confusion attack vector documented in issue #14. **Hard cutover**: in-flight OAuth flows issued before the deploy fail with "OAuth session expired" — users just click Connect again.
+- **`/refresh` auth gate** (#36) — endpoint now verifies the supplied `refresh_token` corresponds to a known athlete by `LIKE` matching `user_connections.credentials_json`. Unknown tokens get 401 + `safeWarn` with source IP, no Strava round-trip. Doesn't prevent token theft but bounds the attack surface to athletes whose tokens we've seen and gives us a log trail. Bonus: passes through Strava's actual response status (was hardcoded 200), wraps error response so raw `e.message` isn't echoed back, validates `refresh_token` is a non-empty string before any DB call.
+
+### Fixed — data
+
+- **`schema.sql` consolidation** (#37) — file is now the cumulative post-0002 state (12 tables). Was missing migrations 0001 (FTP/weight/HR on users; TSS/NP/IF/duration on activities; `daily_load`; goal-event extensions) + 0002 (`club_events`). Fresh `wrangler d1 execute --local --file=schema.sql` against a clean DB now produces a working schema; was producing a broken one.
+- **New `db/README.md`** documents the two-files-one-schema policy: `schema.sql` is canonical for fresh bootstrap, `migrations/` are the authoritative incremental change log. Establishes the v9.2.0+ process rule: every migration commit MUST also update `schema.sql` in the same commit.
+
+### Added — tests
+
+- **Club + events auth-gate e2e probes** (#35) — `apps/web/tests/smoke.spec.ts` now covers `GET/POST /api/clubs`, `GET/POST /api/clubs/:id/events`, `GET /api/clubs/:id/members`, `POST /api/clubs/join/:code`, OPTIONS preflight, plus a `/version` endpoint shape probe. 8 new probes × 2 viewports → 16 new test runs. Total: **29 passing / 1 skipped** (was 13/1). Gated on `E2E_TARGET_PROD=1` (same gate as `/whats-next` + `/roadmap`); locally without the env var they skip cleanly because vite preview doesn't proxy `/api`.
+
+### Carried forward from v9.1.4 (commit b4e6395)
+
+These four CRITICAL fixes shipped as a fix-only commit immediately before v9.2.0 — included in this release:
+- `POST /api/clubs` now generates `invite_code` via `crypto.randomUUID().replace(/-/g,'').slice(0,16)` and writes it as the 5th column. Until the fix the INSERT omitted `invite_code`, leaving every club with `NULL` and silently breaking F4 (invite-by-link).
+- `--c-text-faint` lifted from `#454a55` (2.16:1 fail) to `#7a8290` (5.11:1 ✓ AA body) — affected 49 use sites.
+- `--c-z7` lifted from `#6b21a8` (2.23:1 fail) to `#a55be0` (4.87:1 ✓ AA body).
+- `--c-bg-deep` defined as `#000` (was undefined, silently fell back to the inline `#000` fallback in `Landing.module.css`).
+
+### Wrangler config
+
+- New KV namespace `OAUTH_STATE` (id `9b77ecf8836240db9f1c126ce715414d`) added to `wrangler.jsonc` `kv_namespaces`. Required for #14.
+
+### Verified
+
+- `npm run build:web` clean (vite + tsc -b)
+- `E2E_TARGET_PROD=1 npm run test` → 29 passing / 1 skipped, zero regressions
+- Worker parses cleanly (node import smoke)
+- `wrangler d1 execute --local --file=schema.sql` against a fresh DB produces all 12 tables
+
+### Explicitly NOT in v9.2.0 (Sprint 3, tracked as separate GitHub issues)
+
+- `/coach` + `/coach-ride` zero auth (#33 — CRITICAL)
+- Open redirect via `X-Forwarded-Host` (#34 — CRITICAL)
+- Frontend Strict Mode bug in `useRides` (#38 — HIGH)
+- `auth.ts` localStorage try/catch (#39 — HIGH)
+- `as CoachError` cast safety (#40 — HIGH)
+- Strava proxy method whitelist (#41 — HIGH)
+- Rate limiting on AI/write endpoints (#42 — HIGH)
+- Missing `:focus-visible` rings (#43 — HIGH)
+- Sub-44px touch targets (#44 — HIGH)
+- AppFooter mobile grid (#45 — HIGH)
+
+### Post-deploy smoke (manual — won't run automatically)
+
+OAuth flow verification is **the** thing to test on prod after deploy:
+
+1. Sign out (click Disconnect in UserMenu, then Connect with Strava)
+2. Should redirect to Strava, complete consent, redirect back to `/callback?code=...&state=<uuid>`
+3. Verify in Cloudflare logs: `OAUTH_STATE.put` succeeded on `/authorize` and `OAUTH_STATE.get` + `OAUTH_STATE.delete` succeeded on `/callback`
+4. Verify Dashboard loads with your tokens
+
+If anything fails: `git revert 20e5353` (the OAuth nonce commit) + redeploy. The other Sprint 2 commits (schema, /refresh, tests) are independent and safe to keep.
+
+---
+
+## [9.1.4] — 2026-04-30 (internal — never tagged separately)
+
+Demo-blocker fix bundle (commit `b4e6395`). Folded into v9.2.0 above.
+
+---
+
 ## [9.1.3] — 2026-04-30
 
 **Club events — D1 table + create flow + Upcoming list (Phase A).** Any member can post a ride; admins are not gatekeepers per the BA spec. RSVPs deferred to Phase B (separate `event_rsvps` table, separate release).

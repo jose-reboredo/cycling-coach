@@ -2,7 +2,15 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.1.3](./CHANGELOG.md#913--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.2.0](./CHANGELOG.md#920--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.2.0
+
+**Sprint 2 of the 2026-04-30 audit.** Four CRITICAL items closed: OAuth state CSRF (issue #14, deferred 3×), `/refresh` auth gate (#36), events test coverage (#35), and `schema.sql` consolidation (#37). Plus the v9.1.4 demo-blocker fix bundle (invite_code generation + contrast tokens) carried forward.
+
+OAuth state is now a KV-backed single-use UUID with 10-min TTL — closes the CSRF / token-confusion vector. `/refresh` verifies the supplied token is in `user_connections` before forwarding to Strava. Test count: 29 passing (was 13). New `db/README.md` documents the schema-vs-migrations policy.
+
+Sprint 3 items remain open: `/coach` zero-auth (#33), `X-Forwarded-Host` open redirect (#34), and 8 HIGH-severity items across frontend/CSS — all tracked as GitHub issues.
 
 ## What's new in v9.1.3
 
