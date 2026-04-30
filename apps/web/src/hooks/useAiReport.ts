@@ -15,6 +15,7 @@ export function useAiReport() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invalidKey, setInvalidKey] = useState(false);
+  const [stravaExpired, setStravaExpired] = useState(false);
 
   const generate = useCallback(
     async (args: {
@@ -27,6 +28,7 @@ export function useAiReport() {
       setLoading(true);
       setError(null);
       setInvalidKey(false);
+      setStravaExpired(false);
       try {
         const fresh = await generateWeeklyReport({
           athlete: args.athlete,
@@ -41,7 +43,8 @@ export function useAiReport() {
       } catch (e) {
         const err = e as CoachError;
         setError(err.message);
-        setInvalidKey(err.invalidKey);
+        setInvalidKey(err.invalidKey ?? false);
+        setStravaExpired(err.stravaExpired === true);
         throw err;
       } finally {
         setLoading(false);
@@ -55,5 +58,5 @@ export function useAiReport() {
     setReport(null);
   }, []);
 
-  return { report, loading, error, invalidKey, generate, clear };
+  return { report, loading, error, invalidKey, stravaExpired, generate, clear };
 }

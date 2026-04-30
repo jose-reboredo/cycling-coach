@@ -1,6 +1,8 @@
 // Anthropic Claude proxy — talks to the Worker's /coach + /coach-ride endpoints.
 // BYOK: every request carries the user's own Anthropic API key.
 
+import { ensureValidToken } from './auth';
+
 export type DayName =
   | 'monday'
   | 'tuesday'
@@ -80,16 +82,25 @@ export interface RideContext {
 
 export class CoachError extends Error {
   invalidKey: boolean;
-  constructor(message: string, invalidKey = false) {
+  stravaExpired: boolean;
+  constructor(message: string, invalidKey = false, stravaExpired = false) {
     super(message);
     this.invalidKey = invalidKey;
+    this.stravaExpired = stravaExpired;
   }
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const tokens = await ensureValidToken();          // from auth.ts:49
+  if (!tokens) {
+    throw new CoachError('strava-session-expired', false, true);
+  }
   const res = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${tokens.access_token}`,
+    },
     body: JSON.stringify(body),
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;

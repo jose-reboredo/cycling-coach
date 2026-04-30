@@ -14,6 +14,7 @@ interface AiCoachCardProps {
   loading: boolean;
   error: string | null;
   invalidKey: boolean;
+  stravaExpired?: boolean;
   sessionsPerWeek: number;
   onSetSessions: (n: number) => void;
   onSetApiKey: (key: string) => void;
@@ -57,6 +58,7 @@ export function AiCoachCard(props: AiCoachCardProps) {
           loading={props.loading}
           error={props.error}
           invalidKey={props.invalidKey}
+          stravaExpired={props.stravaExpired ?? false}
           sessionsPerWeek={props.sessionsPerWeek}
           onSetSessions={props.onSetSessions}
           onGenerate={props.onGenerate}
@@ -121,6 +123,7 @@ function NoReportState({
   loading,
   error,
   invalidKey,
+  stravaExpired,
   sessionsPerWeek,
   onSetSessions,
   onGenerate,
@@ -128,6 +131,7 @@ function NoReportState({
   loading: boolean;
   error: string | null;
   invalidKey: boolean;
+  stravaExpired: boolean;
   sessionsPerWeek: number;
   onSetSessions: (n: number) => void;
   onGenerate: () => void | Promise<unknown>;
@@ -147,7 +151,12 @@ function NoReportState({
           {loading ? 'Generating…' : 'Generate weekly plan'}
         </Button>
       </div>
-      {error ? (
+      {stravaExpired ? (
+        <p className={styles.errorMsg}>
+          Your Strava session has expired —{' '}
+          <a href="/authorize" target="_blank" rel="noopener noreferrer">Reconnect Strava</a>
+        </p>
+      ) : error ? (
         <p className={styles.errorMsg}>
           {error}
           {invalidKey ? <span> — your API key may be invalid. Use "Change API key" above.</span> : null}

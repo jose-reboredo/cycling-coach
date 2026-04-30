@@ -16,6 +16,7 @@ export function useRideFeedback() {
   );
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [stravaExpired, setStravaExpired] = useState(false);
 
   const get = useCallback((rideId: string | number) => map[String(rideId)], [map]);
 
@@ -31,6 +32,7 @@ export function useRideFeedback() {
     ) => {
       const id = String(rideId);
       setLoadingId(id);
+      setStravaExpired(false);
       setErrors((e) => ({ ...e, [id]: '' }));
       try {
         const feedback = await generateRideFeedback({
@@ -48,6 +50,7 @@ export function useRideFeedback() {
       } catch (e) {
         const err = e as CoachError;
         setErrors((es) => ({ ...es, [id]: err.message }));
+        setStravaExpired(err.stravaExpired === true);
         throw err;
       } finally {
         setLoadingId(null);
@@ -66,5 +69,5 @@ export function useRideFeedback() {
     });
   }, []);
 
-  return { get, fetch, loadingId, errors, clear };
+  return { get, fetch, loadingId, errors, stravaExpired, clear };
 }
