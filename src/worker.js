@@ -272,6 +272,15 @@ export default {
         });
       }
       const athleteId = authResult.athleteId;
+      // #42 — clubs-write rate-limit (30/min/athlete shared across all
+      // clubs POST endpoints). 31st write inside the 60s bucket → 429.
+      const rl = await checkRateLimit(env, 'clubs-write', String(athleteId), 30, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
       let body;
       try { body = await request.json(); } catch {
         return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
@@ -366,6 +375,14 @@ export default {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+      // #42 — clubs-write rate-limit (shared 30/min/athlete scope).
+      const rl = await checkRateLimit(env, 'clubs-write', String(authResult.athleteId), 30, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
       const code = joinMatch[1];
       const db = env.cycling_coach_db;
       const club = await db
@@ -436,6 +453,15 @@ export default {
       }
 
       if (request.method === 'POST') {
+        // #42 — clubs-write rate-limit (shared 30/min/athlete scope). Only
+        // gates POST; the GET branch above is read-only and unmetered.
+        const rl = await checkRateLimit(env, 'clubs-write', String(authResult.athleteId), 30, 60);
+        if (rl) {
+          return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+          });
+        }
         let body;
         try { body = await request.json(); } catch {
           return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
