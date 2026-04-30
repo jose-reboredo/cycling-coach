@@ -1,5 +1,5 @@
 -- =============================================================
--- Cadence Club DB Schema — cumulative state through v9.3.0
+-- Cadence Club DB Schema — cumulative state through v9.6.2
 -- =============================================================
 -- Source of truth for fresh-bootstrap parity. Every column added by
 -- migrations/0001_pmc_and_events.sql, /0002_club_events.sql,
@@ -29,7 +29,9 @@ CREATE TABLE users (
   ftp_w INTEGER,
   weight_kg REAL,
   hr_max INTEGER,
-  ftp_set_at INTEGER
+  ftp_set_at INTEGER,
+  -- v9.6.2 (migration 0005) — ADR-S4.4 privacy opt-in; 'private'|'public'
+  ftp_visibility TEXT NOT NULL DEFAULT 'private'
 );
 
 -- ============= USER CONNECTIONS =============
@@ -175,6 +177,9 @@ CREATE TABLE club_members (
   athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
   role TEXT DEFAULT 'member',
   joined_at INTEGER NOT NULL,
+  -- v9.6.2 (migration 0005) — Phase 4 cron populates; NULL until first cron run
+  trend_arrow TEXT,
+  trend_updated_at INTEGER,
   PRIMARY KEY (club_id, athlete_id)
 );
 
@@ -208,3 +213,20 @@ CREATE TABLE club_events (
 
 CREATE INDEX idx_club_events_club_date ON club_events(club_id, event_date);
 CREATE INDEX idx_club_events_creator ON club_events(created_by, event_date);
+
+-- ============= EVENT RSVPs (v9.6.2, migration 0005) =============
+-- Per-member RSVP state for club events. UNIQUE(event_id, athlete_id)
+-- enforces idempotency — UPSERT on (event_id, athlete_id) is re-entrant.
+-- Phase 4 confirmed_count is SELECT COUNT(*) WHERE status='going'.
+CREATE TABLE event_rsvps (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id    INTEGER NOT NULL REFERENCES club_events(id)   ON DELETE CASCADE,
+  athlete_id  INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  status      TEXT    NOT NULL DEFAULT 'going',
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,
+  UNIQUE (event_id, athlete_id)
+);
+
+CREATE INDEX idx_rsvps_event   ON event_rsvps(event_id, status);
+CREATE INDEX idx_rsvps_athlete ON event_rsvps(athlete_id, event_id);
