@@ -4,6 +4,43 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.6.4] — 2026-04-30
+
+**Hotfix-of-hotfix. v9.6.3's `LEFT JOIN event_rsvps` was technically correct, but D1 verified `event_rsvps` had 0 rows ever — RSVPs never actually persisted in Phase 2. Real cause: a misuse of `checkRateLimit` in two endpoints. Plus: Club tabs typography aligned with BottomNav labels per founder feedback.**
+
+### Bug — `checkRateLimit` shape mismatch (CRITICAL, blocked all RSVPs since v9.6.2)
+
+Phase 2 added two new rate-limited endpoints (`POST /rsvp`, `PATCH /api/users/me/profile`) using `checkRateLimit`. The helper (added Sprint 1 #33) returns:
+
+- `null` when under threshold (proceed)
+- `{ retryAfter: N }` when over threshold (return 429)
+
+But Phase 2 wrote `if (!rl.ok)` — `rl.ok` doesn't exist in either case. When `rl === null`, accessing `null.ok` throws a `TypeError`. The worker `try`-less control flow meant every first `POST /rsvp` returned 500. Frontend's optimistic-revert kicked in on error → "shows 1 then 0".
+
+Symptom 100% confirmed via D1: `SELECT COUNT(*) FROM event_rsvps;` = 0 across all time. Not a single RSVP had ever persisted.
+
+Fix: changed both call sites (worker.js:813, worker.js:909) to `if (rl)` and aligned the response shape to the rest of the codebase (`{ error: 'rate-limited', retry_after_seconds }`). Verified other 4 `checkRateLimit` callers (`/coach`, `/coach-ride`, `/discover`, the existing `/clubs*` writes) all use the correct `if (rl)` pattern; the bug is isolated to the two new Phase 2 endpoints.
+
+### Tabs typography aligned with BottomNav (#53 Phase 2 polish — UX coherence)
+
+Founder asked: "alinea el diseño de los tabs de Clubs con los tabs de My Account". My Account's mobile tabs are `BottomNav` labels: `10px / 0.14em` mono uppercase, active state via accent COLOR (no border). Club tabs were `11px / 0.16em` with a heavy 2 px accent border-bottom on active.
+
+Aligned to the BottomNav typography:
+
+| Was | Now |
+|---|---|
+| `font: 500 11px/1` | `font: 500 10px/1.2` |
+| `letter-spacing: 0.16em` | `letter-spacing: 0.14em` |
+| `color: var(--c-text-muted)` (default) | `color: var(--c-text-faint)` (default) |
+| `border-bottom: 2px solid` | `border-bottom: 1px solid` |
+| Active: `--c-text` color + accent border | Active: `--c-accent` color + 1 px accent border |
+
+Position retained at top of the club page (semantically correct — these are sub-views within a single club, not primary app navigation). Visual treatment now coherent with the rest of the app.
+
+### Versions: 9.6.3 → 9.6.4 in 5 places.
+
+---
+
 ## [9.6.3] — 2026-04-30
 
 **Three Phase 2 polish bugs from founder feedback. Fixed in one commit.**

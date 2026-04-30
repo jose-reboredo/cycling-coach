@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.6.3](./CHANGELOG.md#963--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.6.4](./CHANGELOG.md#964--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.6.4
+
+**v9.6.3 hotfix-of-hotfix.** Real cause of the "RSVP shows 1 then drops to 0" bug surfaced after v9.6.3 deploy. The `LEFT JOIN event_rsvps` on `/overview` was correct — but no RSVP had ever actually persisted (D1 verified `event_rsvps` had 0 rows ever). Phase 2's `POST /api/clubs/:id/events/:eventId/rsvp` had a misuse of `checkRateLimit`: `if (!rl.ok)` — the helper returns `null` when under-limit / `{ retryAfter }` when over, never an `{ ok }` shape. So `null.ok` threw a `TypeError` for every first request, returning 500 from the worker; the frontend's optimistic update reverted on the error response, hence "shows 1 then 0". Same misuse fixed on `PATCH /api/users/me/profile` (silently 500'd too). Plus: ClubDashboard tabs typography aligned with the BottomNav labels for app-wide UX coherence per founder feedback — `10px / 0.14em` mono uppercase matching the My Account bottom-tabs labels, active state uses accent COLOR + 1 px underline (was 11px / 0.16em with a heavy 2 px border).
 
 ## What's new in v9.6.3
 

@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.6.3';
+const WORKER_VERSION = 'v9.6.4';
 const BUILD_DATE = '2026-04-30';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -808,11 +808,13 @@ async function handleRequest(request, env) {
         });
       }
 
-      // Rate limit — shared clubs-write scope (30/min/athlete)
+      // Rate limit — shared clubs-write scope (30/min/athlete).
+      // checkRateLimit returns null when under threshold; { retryAfter } when over.
       const rl = await checkRateLimit(env, 'clubs-write', String(athleteId), 30, 60);
-      if (!rl.ok) {
-        return new Response(JSON.stringify({ error: 'rate limit exceeded' }), {
-          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
         });
       }
 
@@ -905,10 +907,12 @@ async function handleRequest(request, env) {
       const { athleteId } = authResult;
       const db = env.cycling_coach_db;
 
+      // checkRateLimit returns null when under threshold; { retryAfter } when over.
       const rl = await checkRateLimit(env, 'profile-write', String(athleteId), 10, 60);
-      if (!rl.ok) {
-        return new Response(JSON.stringify({ error: 'rate limit exceeded' }), {
-          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
         });
       }
 

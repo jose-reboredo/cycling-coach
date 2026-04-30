@@ -65,18 +65,23 @@
   padding: var(--s-1) 0 var(--s-2);
   background: transparent;
   border: none;
-  font: 500 11px/1 var(--font-mono);
-  letter-spacing: 0.16em;
+  /* v9.6.4 — typography aligned to BottomNav labels for app-wide UX coherence:
+   * 10px / 0.14em mono uppercase matches the My Account bottom-tabs labels
+   * (BottomNav.module.css .label). Active state uses accent COLOR (matches
+   * BottomNav .item.active) plus a subtle 1 px accent underline so the bar
+   * still reads as a tab strip — not just colored words. */
+  font: 500 10px/1.2 var(--font-mono);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--c-text-muted);
+  color: var(--c-text-faint);
   cursor: pointer;
   white-space: nowrap;
   margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
+  border-bottom: 1px solid transparent;
   transition: color var(--d-fast) var(--e-out), border-color var(--d-fast) var(--e-out);
 }
 .tab:hover:not(:disabled) {
-  color: var(--c-text);
+  color: var(--c-text-muted);
 }
 .tab:disabled {
   cursor: not-allowed;
@@ -84,7 +89,7 @@
 }
 
 .tabActive {
-  color: var(--c-text);
+  color: var(--c-accent);
   border-bottom-color: var(--c-accent);
 }
 
