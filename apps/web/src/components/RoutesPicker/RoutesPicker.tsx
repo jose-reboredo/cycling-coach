@@ -6,37 +6,53 @@ import { Button } from '../Button/Button';
 import { ensureValidToken } from '../../lib/auth';
 import styles from './RoutesPicker.module.css';
 
-/** Surface preference values that match the /api/routes/saved query param vocabulary */
-type SurfacePref = 'paved' | 'gravel' | 'any';
+export type SurfacePref = 'paved' | 'gravel' | 'any';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface LiveRoute {
+export interface SavedRoute {
+  source: 'strava';
   id: number | string;
   name: string;
   distance_m: number;
   elevation_gain_m: number;
   surface: string;
-  map_url?: string;
-  strava_url?: string;
+  strava_url?: string | undefined;
 }
 
-type Difficulty = 'any' | 'flat' | 'rolling' | 'hilly';
+export interface AiRoute {
+  source: 'ai';
+  name: string;
+  narrative: string;
+  start_address: string;
+  target_distance_km: number;
+  estimated_elevation_m: number;
+}
+
+export type SelectableRoute = SavedRoute | AiRoute;
+
+export function routeKey(route: SelectableRoute): string {
+  return route.source === 'strava' ? `strava:${route.id}` : `ai:${route.name}`;
+}
+
+interface TodaysSession {
+  /** workout text from the AI plan — e.g. "Tempo 4×4 min, 1h15" */
+  intent?: string;
+  /** ideal route distance for today (km) — used to filter saved routes ±20% */
+  target_km?: number;
+  /** terrain band derived from intent — passed to AI discover */
+  difficulty?: 'flat' | 'rolling' | 'hilly';
+}
 
 interface RoutesPickerProps {
-  /** today's workout text from the AI plan, used to score routes */
-  todaysPlanText?: string | undefined;
+  /** Today's session — drives saved-route filtering + seeds the AI prompt. */
+  todaysSession?: TodaysSession;
   surface: SurfacePref;
   onSurfaceChange: (s: SurfacePref) => void;
   startAddress: string;
   onStartAddressChange: (s: string) => void;
+  /** Optional — when present, route rows show a Pick/Selected button. */
+  onRouteSelected?: ((route: SelectableRoute | null) => void) | undefined;
+  selectedRouteKey?: string | null | undefined;
 }
-
-// ---------------------------------------------------------------------------
-// Filter chip options
-// ---------------------------------------------------------------------------
 
 const SURFACE_OPTIONS: { id: SurfacePref; label: string; em: string }[] = [
   { id: 'any', label: 'Any', em: '·' },
@@ -44,23 +60,7 @@ const SURFACE_OPTIONS: { id: SurfacePref; label: string; em: string }[] = [
   { id: 'gravel', label: 'Gravel', em: '⚞' },
 ];
 
-const DISTANCE_OPTIONS: { id: number | 'any'; label: string }[] = [
-  { id: 'any', label: 'Any' },
-  { id: 30, label: '30 km' },
-  { id: 60, label: '60 km' },
-  { id: 100, label: '100 km' },
-];
-
-const DIFFICULTY_OPTIONS: { id: Difficulty; label: string }[] = [
-  { id: 'any', label: 'Any' },
-  { id: 'flat', label: 'Flat' },
-  { id: 'rolling', label: 'Rolling' },
-  { id: 'hilly', label: 'Hilly' },
-];
-
-// ---------------------------------------------------------------------------
-// PATCH /api/training-prefs helper (fire-and-forget, debounced)
-// ---------------------------------------------------------------------------
+const DISTANCE_TOLERANCE = 0.2;
 
 async function patchTrainingPrefs(patch: Record<string, unknown>) {
   try {
@@ -82,126 +82,107 @@ async function patchTrainingPrefs(patch: Record<string, unknown>) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 /**
- * RoutesPicker — surfaces top saved Strava routes ranked against today's plan.
- * Fetches from /api/routes/saved with surface/distance/difficulty filters;
- * persists filter changes via PATCH /api/training-prefs (debounced).
+ * RoutesPicker — surfaces top saved Strava routes filtered by surface +
+ * matched against today's session distance. When zero saved routes match,
+ * a "Discover AI routes near you" CTA generates 3-5 narrative briefs via
+ * POST /api/routes/discover (system-paid Haiku, rate-limited 10/h/athlete).
  */
 export function RoutesPicker({
-  todaysPlanText,
+  todaysSession,
   surface,
   onSurfaceChange,
   startAddress,
   onStartAddressChange,
+  onRouteSelected,
+  selectedRouteKey,
 }: RoutesPickerProps) {
   const [editingAddress, setEditingAddress] = useState(false);
-  const [showAll, setShowAll] = useState(false);
 
-  // Filter state — distance and difficulty are internal (not lifted)
-  const [distance, setDistance] = useState<number | 'any'>('any');
-  const [difficulty, setDifficulty] = useState<Difficulty>('any');
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [savedError, setSavedError] = useState<string | null>(null);
 
-  // Fetch state
-  const [routes, setRoutes] = useState<LiveRoute[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [aiRoutes, setAiRoutes] = useState<AiRoute[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
-  const target = useMemo(() => deriveTarget(todaysPlanText), [todaysPlanText]);
+  const targetKm = todaysSession?.target_km ?? null;
 
-  // -------------------------------------------------------------------------
-  // Live fetch: on mount and whenever filters change
-  // -------------------------------------------------------------------------
+  // Fetch saved routes on mount + when surface changes.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setFetchError(null);
+    setSavedLoading(true);
+    setSavedError(null);
+    setAiRoutes([]);
+    setAiError(null);
 
     async function load() {
       try {
         const tokens = await ensureValidToken();
-
         if (!tokens) {
           if (!cancelled) {
-            setFetchError("Couldn't load your Strava routes — try again later.");
-            setRoutes([]);
-            setLoading(false);
+            setSavedError("Couldn't load your Strava routes — try again later.");
+            setSavedRoutes([]);
+            setSavedLoading(false);
           }
           return;
         }
-
         const params = new URLSearchParams();
         if (surface !== 'any') params.set('surface', surface);
-        if (distance !== 'any') params.set('distance', String(distance));
-        if (difficulty !== 'any') params.set('difficulty', difficulty);
-
         const url = `/api/routes/saved${params.toString() ? `?${params}` : ''}`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${tokens.access_token}` },
         });
-
-        if (!cancelled) {
-          if (res.status === 401) {
-            setFetchError("Couldn't load your Strava routes — try again later.");
-            setRoutes([]);
-          } else if (!res.ok) {
-            setFetchError("Couldn't load your Strava routes — try again later.");
-            setRoutes([]);
-          } else {
-            const data = (await res.json()) as { routes: LiveRoute[] };
-            setRoutes(data.routes ?? []);
-            setFetchError(null);
-          }
-          setLoading(false);
+        if (cancelled) return;
+        if (!res.ok) {
+          setSavedError("Couldn't load your Strava routes — try again later.");
+          setSavedRoutes([]);
+        } else {
+          const data = (await res.json()) as { routes?: unknown };
+          const list = Array.isArray(data.routes) ? data.routes : [];
+          const mapped: SavedRoute[] = list
+            .filter((r: any) => r && typeof r.id !== 'undefined')
+            .map((r: any) => ({
+              source: 'strava',
+              id: r.id,
+              name: typeof r.name === 'string' && r.name.trim() ? r.name : 'Untitled route',
+              distance_m: Number(r.distance_m) || 0,
+              elevation_gain_m: Number(r.elevation_gain_m) || 0,
+              surface: typeof r.surface === 'string' ? r.surface : 'unknown',
+              strava_url: typeof r.strava_url === 'string' ? r.strava_url : undefined,
+            }));
+          setSavedRoutes(mapped);
+          setSavedError(null);
         }
+        setSavedLoading(false);
       } catch {
         if (!cancelled) {
-          setFetchError("Couldn't load your Strava routes — try again later.");
-          setRoutes([]);
-          setLoading(false);
+          setSavedError("Couldn't load your Strava routes — try again later.");
+          setSavedRoutes([]);
+          setSavedLoading(false);
         }
       }
     }
-
-    // DEV fallback: use mock routes when no tokens and running in dev mode
-    if (import.meta.env.DEV) {
-      import('../../lib/mockRoutes').then(({ MOCK_ROUTES }) => {
-        ensureValidToken().then((tokens) => {
-          if (tokens) {
-            // Real tokens exist in dev — run the real fetch
-            load();
-          } else if (!cancelled) {
-            // No tokens in dev — fall back to mocks
-            const mapped: LiveRoute[] = MOCK_ROUTES.map((r) => ({
-              id: r.id,
-              name: r.name,
-              distance_m: r.distanceKm * 1000,
-              elevation_gain_m: r.elevationM,
-              surface: r.surface,
-            }));
-            setRoutes(mapped);
-            setFetchError(null);
-            setLoading(false);
-          }
-        });
-      });
-    } else {
-      load();
-    }
-
+    void load();
     return () => {
       cancelled = true;
     };
-  }, [surface, distance, difficulty]);
+  }, [surface]);
 
-  // -------------------------------------------------------------------------
-  // Debounced PATCH /api/training-prefs on filter changes
-  // -------------------------------------------------------------------------
+  // Filter saved routes against today's session target distance (±20%).
+  // When no session target is known, show all saved routes (browse mode).
+  const matchingRoutes = useMemo(() => {
+    if (!targetKm) return savedRoutes;
+    const minKm = targetKm * (1 - DISTANCE_TOLERANCE);
+    const maxKm = targetKm * (1 + DISTANCE_TOLERANCE);
+    return savedRoutes.filter((r) => {
+      const km = r.distance_m / 1000;
+      return km >= minKm && km <= maxKm;
+    });
+  }, [savedRoutes, targetKm]);
+
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   function schedulePatch(patch: Record<string, unknown>) {
     if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
     patchTimerRef.current = setTimeout(() => {
@@ -212,52 +193,90 @@ export function RoutesPicker({
   function handleSurfaceChange(s: SurfacePref) {
     onSurfaceChange(s);
     schedulePatch({ surface_pref: s });
-  }
-
-  function handleDistanceChange(d: number | 'any') {
-    setDistance(d);
-    schedulePatch({ preferred_distance_km: d === 'any' ? null : d });
-  }
-
-  function handleDifficultyChange(d: Difficulty) {
-    setDifficulty(d);
-    schedulePatch({ preferred_difficulty: d === 'any' ? null : d });
+    onRouteSelected?.(null);
   }
 
   function handleStartAddressBlur() {
     setEditingAddress(false);
-    schedulePatch({ start_address: startAddress });
+    if (startAddress.trim()) {
+      schedulePatch({ start_address: startAddress, home_region: startAddress });
+    }
   }
 
-  // -------------------------------------------------------------------------
-  // Scoring — applied on live routes; zones/starred degrade gracefully
-  // -------------------------------------------------------------------------
-  const ranked = useMemo(() => {
-    return routes
-      .map((r) => ({ route: r, score: scoreRoute(r, target, surface) }))
-      .filter(({ score }) => score > 0)
-      .sort((a, b) => b.score - a.score);
-  }, [routes, target, surface]);
+  async function discoverAiRoutes() {
+    if (!startAddress.trim()) {
+      setAiError('Set your start address first to discover routes near you.');
+      return;
+    }
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const tokens = await ensureValidToken();
+      if (!tokens) {
+        setAiError("Sign in to Strava first — can't generate routes without auth.");
+        setAiLoading(false);
+        return;
+      }
+      const res = await fetch('/api/routes/discover', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokens.access_token}`,
+        },
+        body: JSON.stringify({
+          location: startAddress,
+          surface,
+          distance_km: targetKm ?? 40,
+          difficulty: todaysSession?.difficulty ?? 'rolling',
+        }),
+      });
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        const mins = Math.max(1, Math.ceil((data.retry_after_seconds || 60) / 60));
+        setAiError(`Hit the AI rate limit — try again in ${mins} min.`);
+        setAiLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        setAiError('AI routes unavailable right now — try again later.');
+        setAiLoading(false);
+        return;
+      }
+      const data = (await res.json()) as { routes?: unknown[] };
+      const routes: AiRoute[] = (data.routes ?? [])
+        .filter((r: any): r is Record<string, unknown> => r && typeof r === 'object')
+        .map(
+          (r: any): AiRoute => ({
+            source: 'ai',
+            name: String(r.name ?? 'Untitled'),
+            narrative: String(r.narrative ?? ''),
+            start_address: String(r.start_address ?? ''),
+            target_distance_km: Number(r.target_distance_km) || 0,
+            estimated_elevation_m: Number(r.estimated_elevation_m) || 0,
+          }),
+        );
+      setAiRoutes(routes);
+      setAiLoading(false);
+    } catch {
+      setAiError('AI routes unavailable right now — try again later.');
+      setAiLoading(false);
+    }
+  }
 
-  const visible = showAll ? ranked : ranked.slice(0, 3);
+  const showAiSection = !savedLoading && !savedError && matchingRoutes.length === 0;
 
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
   return (
     <section className={styles.root}>
       <header className={styles.head}>
-        <Eyebrow rule>Routes for today</Eyebrow>
-        {target.label ? <Pill tone="accent">{target.label}</Pill> : <Pill>No plan</Pill>}
+        <Eyebrow rule>Pick a route</Eyebrow>
+        {targetKm ? (
+          <Pill tone="accent">{`~${Math.round(targetKm)} km target`}</Pill>
+        ) : (
+          <Pill>Browse</Pill>
+        )}
       </header>
 
-      <p className={styles.lede}>
-        {target.intent ?? 'Generate your AI plan to match routes against today’s workout target.'}
-      </p>
-
-      {/* Filters */}
       <div className={styles.controls}>
-        {/* Surface */}
         <div className={styles.controlGroup}>
           <Eyebrow>Surface</Eyebrow>
           <div className={styles.surfaceRow}>
@@ -269,50 +288,15 @@ export function RoutesPicker({
                 onClick={() => handleSurfaceChange(s.id)}
                 aria-pressed={surface === s.id}
               >
-                <span className={styles.surfaceEm} aria-hidden="true">{s.em}</span>
+                <span className={styles.surfaceEm} aria-hidden="true">
+                  {s.em}
+                </span>
                 <span>{s.label}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Distance */}
-        <div className={styles.controlGroup}>
-          <Eyebrow>Distance</Eyebrow>
-          <div className={styles.surfaceRow}>
-            {DISTANCE_OPTIONS.map((d) => (
-              <button
-                key={String(d.id)}
-                type="button"
-                className={`${styles.surfaceBtn} ${distance === d.id ? styles.surfaceActive : ''}`}
-                onClick={() => handleDistanceChange(d.id)}
-                aria-pressed={distance === d.id}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Difficulty */}
-        <div className={styles.controlGroup}>
-          <Eyebrow>Difficulty</Eyebrow>
-          <div className={styles.surfaceRow}>
-            {DIFFICULTY_OPTIONS.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                className={`${styles.surfaceBtn} ${difficulty === d.id ? styles.surfaceActive : ''}`}
-                onClick={() => handleDifficultyChange(d.id)}
-                aria-pressed={difficulty === d.id}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Start from */}
         <div className={styles.controlGroup}>
           <Eyebrow>Start from</Eyebrow>
           {editingAddress ? (
@@ -327,7 +311,7 @@ export function RoutesPicker({
                 value={startAddress}
                 onChange={(e) => onStartAddressChange(e.target.value)}
                 onBlur={handleStartAddressBlur}
-                placeholder="Zürich, Switzerland"
+                placeholder="e.g. Zürich, Switzerland"
                 className={styles.addressInput}
                 aria-label="Start address"
                 autoFocus
@@ -358,47 +342,93 @@ export function RoutesPicker({
         </div>
       </div>
 
-      {/* Loading state */}
-      {loading ? (
-        <p className={styles.empty}>Loading routes…</p>
-      ) : fetchError ? (
-        /* Error state */
-        <p className={styles.empty}>{fetchError}</p>
+      {savedLoading ? (
+        <p className={styles.empty}>Loading your saved routes…</p>
+      ) : savedError ? (
+        <p className={styles.empty}>{savedError}</p>
       ) : (
         <>
-          {/* Route list */}
-          <ol className={styles.list}>
-            <AnimatePresence initial={false}>
-              {visible.map(({ route, score }) => (
-                <motion.li
-                  key={route.id}
-                  layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                  className={styles.item}
-                >
-                  <RouteRow route={route} score={score} />
-                </motion.li>
-              ))}
-            </AnimatePresence>
-          </ol>
-
-          {ranked.length > 3 ? (
-            <button
-              type="button"
-              className={styles.showAll}
-              onClick={() => setShowAll((s) => !s)}
-            >
-              {showAll ? `Hide all` : `Show all ${ranked.length} routes`}
-            </button>
+          {matchingRoutes.length > 0 ? (
+            <ol className={styles.list}>
+              <AnimatePresence initial={false}>
+                {matchingRoutes.slice(0, 5).map((route) => {
+                  const key = routeKey(route);
+                  const selected = selectedRouteKey === key;
+                  return (
+                    <motion.li
+                      key={key}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                      className={`${styles.item} ${selected ? styles.selected : ''}`}
+                    >
+                      <SavedRouteRow
+                        route={route}
+                        selected={selected}
+                        onSelect={onRouteSelected ? () => onRouteSelected(route) : undefined}
+                      />
+                    </motion.li>
+                  );
+                })}
+              </AnimatePresence>
+            </ol>
           ) : null}
 
-          {ranked.length === 0 ? (
-            <p className={styles.empty}>
-              No routes match these filters. Try widening the distance band or surface.
-            </p>
+          {showAiSection ? (
+            <div className={styles.aiSection}>
+              {aiRoutes.length === 0 ? (
+                <>
+                  <p className={styles.empty}>
+                    {targetKm
+                      ? `No saved routes near ~${Math.round(targetKm)} km for this filter.`
+                      : 'No saved routes match this filter.'}
+                  </p>
+                  <Button
+                    size="md"
+                    variant="primary"
+                    onClick={() => void discoverAiRoutes()}
+                    disabled={aiLoading || !startAddress.trim()}
+                  >
+                    {aiLoading ? 'Generating…' : 'Discover AI routes near you'}
+                  </Button>
+                  {!startAddress.trim() ? (
+                    <p className={styles.aiHint}>Set your start address above first.</p>
+                  ) : null}
+                  {aiError ? <p className={styles.aiError}>{aiError}</p> : null}
+                </>
+              ) : (
+                <>
+                  <Eyebrow rule tone="accent">
+                    AI-suggested routes
+                  </Eyebrow>
+                  <ol className={styles.list}>
+                    {aiRoutes.map((route, idx) => {
+                      const key = `${routeKey(route)}:${idx}`;
+                      const selected = selectedRouteKey === key;
+                      return (
+                        <li
+                          key={key}
+                          className={`${styles.item} ${selected ? styles.selected : ''}`}
+                        >
+                          <AiRouteRow
+                            route={route}
+                            selected={selected}
+                            onSelect={
+                              onRouteSelected ? () => onRouteSelected(route) : undefined
+                            }
+                          />
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  <p className={styles.aiHint}>
+                    Briefs only — plan one in Strava routes or Komoot, then tap Start workout.
+                  </p>
+                </>
+              )}
+            </div>
           ) : null}
         </>
       )}
@@ -406,19 +436,20 @@ export function RoutesPicker({
   );
 }
 
-// ---------------------------------------------------------------------------
-// RouteRow
-// ---------------------------------------------------------------------------
-
-function RouteRow({ route, score }: { route: LiveRoute; score: number }) {
-  const matchClass = score >= 80 ? styles.matchHigh : score >= 50 ? styles.matchMed : styles.matchLow;
+function SavedRouteRow({
+  route,
+  selected,
+  onSelect,
+}: {
+  route: SavedRoute;
+  selected: boolean;
+  onSelect?: (() => void) | undefined;
+}) {
   const distanceKm = Math.round(route.distance_m / 1000);
   return (
     <article className={styles.row}>
       <div className={styles.rowMain}>
-        <div className={styles.rowName}>
-          <h4>{route.name}</h4>
-        </div>
+        <h4 className={styles.rowName}>{route.name}</h4>
         <div className={styles.rowMeta}>
           <span>{distanceKm} km</span>
           <span>·</span>
@@ -434,123 +465,48 @@ function RouteRow({ route, score }: { route: LiveRoute; score: number }) {
                 rel="noopener noreferrer"
                 className={styles.stravaLink}
               >
-                View on Strava
+                View on Strava ↗
               </a>
             </>
           ) : null}
         </div>
       </div>
-      <div className={styles.rowMatch}>
-        <span className={`${styles.match} ${matchClass}`}>{score}%</span>
-        <span className={styles.matchLabel}>match</span>
-      </div>
+      {onSelect ? (
+        <Button size="sm" variant={selected ? 'primary' : 'secondary'} onClick={onSelect}>
+          {selected ? 'Selected' : 'Pick'}
+        </Button>
+      ) : null}
     </article>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Scoring
-// ---------------------------------------------------------------------------
-
-interface Target {
-  label?: string;
-  intent?: string;
-  /** ideal route distance for today */
-  idealKm: number;
-  /** range tolerance */
-  toleranceKm: number;
-  /** preferred zones — kept for future zone data; gracefully empty */
-  zones: number[];
+function AiRouteRow({
+  route,
+  selected,
+  onSelect,
+}: {
+  route: AiRoute;
+  selected: boolean;
+  onSelect?: (() => void) | undefined;
+}) {
+  return (
+    <article className={styles.row}>
+      <div className={styles.rowMain}>
+        <h4 className={styles.rowName}>{route.name}</h4>
+        <p className={styles.rowNarrative}>{route.narrative}</p>
+        <div className={styles.rowMeta}>
+          <span>~{route.target_distance_km} km</span>
+          <span>·</span>
+          <span>~{route.estimated_elevation_m} m</span>
+          <span>·</span>
+          <span>From {route.start_address}</span>
+        </div>
+      </div>
+      {onSelect ? (
+        <Button size="sm" variant={selected ? 'primary' : 'secondary'} onClick={onSelect}>
+          {selected ? 'Selected' : 'Pick'}
+        </Button>
+      ) : null}
+    </article>
+  );
 }
-
-function deriveTarget(planText: string | undefined): Target {
-  if (!planText) return { idealKm: 50, toleranceKm: 25, zones: [2, 3] };
-  const t = planText.toLowerCase();
-
-  if (/long\s*ride|long ride/.test(t)) {
-    return {
-      label: 'Long ride',
-      intent: 'Looking for a sustained Z2 loop with rolling terrain.',
-      idealKm: 80,
-      toleranceKm: 30,
-      zones: [2, 3],
-    };
-  }
-  if (/threshold|tempo|sweet[- ]spot|interval|hard/.test(t)) {
-    return {
-      label: 'Intervals',
-      intent: 'Need climbs or sustained drags to hold target watts.',
-      idealKm: 35,
-      toleranceKm: 15,
-      zones: [3, 4],
-    };
-  }
-  if (/hill|climb/.test(t)) {
-    return {
-      label: 'Hill repeats',
-      intent: 'Routes with climbs you can repeat — bonus for big VAM.',
-      idealKm: 30,
-      toleranceKm: 15,
-      zones: [4, 5],
-    };
-  }
-  if (/recovery|easy|gentle/.test(t)) {
-    return {
-      label: 'Recovery',
-      intent: 'Flat, conversational pace — keep it boring.',
-      idealKm: 25,
-      toleranceKm: 15,
-      zones: [1, 2],
-    };
-  }
-  if (/^rest/.test(t)) {
-    return {
-      label: 'Rest',
-      intent: 'Today is rest day. Browsing routes for tomorrow?',
-      idealKm: 50,
-      toleranceKm: 30,
-      zones: [2, 3],
-    };
-  }
-  return {
-    label: 'Ride',
-    intent: 'Pick what feels right.',
-    idealKm: 50,
-    toleranceKm: 25,
-    zones: [2, 3],
-  };
-}
-
-/**
- * Score a live route against today's target. zones/starred are not present
- * on the live response — degrade gracefully (route still ranks by distance
- * fit + surface fit only).
- */
-function scoreRoute(route: LiveRoute, target: Target, surface: SurfacePref): number {
-  let score = 0;
-
-  const distanceKm = route.distance_m / 1000;
-
-  // Distance fit (40 pts)
-  const dist = Math.abs(distanceKm - target.idealKm);
-  const distFit = Math.max(0, 1 - dist / target.toleranceKm);
-  score += distFit * 40;
-
-  // Zone overlap — live routes don't carry zone data; award baseline points
-  // so routes aren't penalised for missing metadata (30 pts max → 15 pts floor)
-  score += 15;
-
-  // Surface fit (20 pts)
-  if (surface === 'any') {
-    score += 15;
-  } else if (route.surface === surface) {
-    score += 20;
-  } else if (route.surface === 'mixed') {
-    score += 10;
-  }
-
-  // No starred bonus without metadata — leave the 10 pts unawarded
-
-  return Math.round(Math.max(0, Math.min(100, score)));
-}
-

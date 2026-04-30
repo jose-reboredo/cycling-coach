@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { Container } from '../components/Container/Container';
@@ -6,12 +6,19 @@ import { Eyebrow } from '../components/Eyebrow/Eyebrow';
 import { Pill } from '../components/Pill/Pill';
 import { StatTile } from '../components/StatTile/StatTile';
 import { Card } from '../components/Card/Card';
+import { Button } from '../components/Button/Button';
 import { WorkoutCard } from '../components/WorkoutCard/WorkoutCard';
 import { ProgressRing } from '../components/ProgressRing/ProgressRing';
 import { PmcStrip } from '../components/PmcStrip/PmcStrip';
+import {
+  RoutesPicker,
+  routeKey,
+  type SelectableRoute,
+} from '../components/RoutesPicker/RoutesPicker';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
 import { useAiReport } from '../hooks/useAiReport';
 import { useRides } from '../hooks/useStravaData';
+import { useTrainingPrefs } from '../hooks/useTrainingPrefs';
 import { computePmcDelta } from '../lib/pmc';
 import { todayKey } from '../lib/coachUtils';
 import { daysBetween } from '../lib/format';
@@ -23,6 +30,51 @@ import {
   TODAYS_WORKOUT,
 } from '../lib/mockMarco';
 import styles from './TabShared.module.css';
+
+// ---------------------------------------------------------------------------
+// Derive today's session signals from the AI plan text — distance band,
+// terrain, intent. Powers the saved-route filter and the AI discover prompt.
+// ---------------------------------------------------------------------------
+function deriveTodaysSession(text: string | undefined): {
+  intent: string;
+  target_km: number;
+  difficulty: 'flat' | 'rolling' | 'hilly';
+} | undefined {
+  if (!text) return undefined;
+  const t = text.toLowerCase();
+
+  let target_km: number | undefined;
+  const km = t.match(/(\d{1,3})\s*km/);
+  if (km && km[1]) target_km = parseInt(km[1], 10);
+  if (!target_km) {
+    const hr = t.match(/(\d+)\s*h(\d{1,2})?/);
+    if (hr && hr[1]) {
+      const h = parseInt(hr[1], 10);
+      const m = hr[2] ? parseInt(hr[2], 10) : 0;
+      target_km = Math.round((h + m / 60) * 25);
+    } else {
+      const min = t.match(/(\d{2,3})\s*min/);
+      if (min && min[1]) target_km = Math.round((parseInt(min[1], 10) / 60) * 25);
+    }
+  }
+  if (!target_km) target_km = /long\s*ride/.test(t) ? 80 : /tempo|interval/.test(t) ? 35 : 40;
+
+  let difficulty: 'flat' | 'rolling' | 'hilly' = 'rolling';
+  if (/recovery|easy|gentle|conversational/.test(t)) difficulty = 'flat';
+  else if (/hill|climb/.test(t)) difficulty = 'hilly';
+
+  return { intent: text, target_km, difficulty };
+}
+
+function startStravaForRoute(route: SelectableRoute) {
+  if (route.source === 'strava' && route.strava_url) {
+    window.open(route.strava_url, '_blank', 'noopener,noreferrer');
+  } else {
+    // AI routes have no Strava ID — open the create-route page so the user
+    // can plan it before recording. Universal links jump to app on mobile.
+    window.open('https://www.strava.com/athlete/routes/new', '_blank', 'noopener,noreferrer');
+  }
+}
 
 export const Route = createFileRoute('/dashboard/today')({
   component: TodayTab,
@@ -82,6 +134,10 @@ function TodayTab() {
   const todays = todayKey();
   const todaysAiText = aiReport.report?.weeklyPlan?.[todays];
   const greeting = greetingForHour(new Date().getHours());
+
+  const { prefs, update: updatePrefs } = useTrainingPrefs();
+  const [selectedRoute, setSelectedRoute] = useState<SelectableRoute | null>(null);
+  const todaysSession = useMemo(() => deriveTodaysSession(todaysAiText), [todaysAiText]);
 
   return (
     <div className={styles.tabRoot}>
@@ -174,6 +230,29 @@ function TodayTab() {
                 <Pill tone="accent">From your plan</Pill>
               </header>
               <p className={styles.todayText}>{todaysAiText}</p>
+
+              <div className={styles.sessionRoutes}>
+                <RoutesPicker
+                  todaysSession={todaysSession}
+                  surface={prefs.surface_pref ?? 'any'}
+                  onSurfaceChange={(s) => updatePrefs({ surface_pref: s })}
+                  startAddress={prefs.start_address ?? ''}
+                  onStartAddressChange={(s) => updatePrefs({ start_address: s })}
+                  onRouteSelected={setSelectedRoute}
+                  selectedRouteKey={selectedRoute ? routeKey(selectedRoute) : null}
+                />
+              </div>
+
+              <div className={styles.startWorkoutRow}>
+                <Button
+                  size="lg"
+                  variant="primary"
+                  disabled={!selectedRoute}
+                  onClick={() => selectedRoute && startStravaForRoute(selectedRoute)}
+                >
+                  {selectedRoute ? 'Start workout in Strava ↗' : 'Pick a route to start'}
+                </Button>
+              </div>
             </Card>
           ) : (
             <WorkoutCard
@@ -181,7 +260,7 @@ function TodayTab() {
               day={todays.charAt(0).toUpperCase() + todays.slice(1)}
               badge="Sample · generate plan in Train tab"
               onStart={() => {
-                // On mobile tabs, navigating to the Train tab is the equivalent action
+                // No AI plan yet — direct user to Train tab to generate one.
               }}
             />
           )}

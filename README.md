@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.3.0](./CHANGELOG.md#930--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.3.1](./CHANGELOG.md#931--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.3.1
+
+Sprint 1 follow-up. Tabs default ON for mobile (<1024px), OFF for desktop — viewport-aware kill-switch, no more DevTools flip needed for the demo. RoutesPicker stripped back to surface filter only (distance and difficulty chips were over-spec — removed) and moved INLINE inside the Today session card, between the AI plan and a new "Start workout in Strava ↗" CTA. Saved Strava routes now filtered against today's session distance (±20%); when zero match, a "Discover AI routes near you" panel calls the new `POST /api/routes/discover` endpoint (system-paid Haiku, 10/h/athlete rate limit) — Phase 2 lifted forward from Sprint 3 because the saved-route flow needs an AI fallback to be useful for new users.
 
 ## What's new in v9.3.0
 
