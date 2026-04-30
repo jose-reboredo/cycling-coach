@@ -4,6 +4,36 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.3.3] — 2026-04-30
+
+**Stabilization release. Adds the `<TopBar />` brand bar that was missing from the mobile 4-tab layout shell since v9.3.1.**
+
+### Background
+
+v9.3.1 introduced the tabbed mobile dashboard via a new `routes/dashboard.tsx` layout that rendered `<Outlet />` + `<BottomNav />` when `cc_tabsEnabled` was on. It never rendered `<TopBar />` — the brand bar was only inside the legacy `pages/Dashboard.tsx`, never lifted into the new shell. The omission was masked in v9.3.1 by the redirect-loop bug (the page never mounted, so nobody noticed the missing header). v9.3.2 fixed the redirect loop and the missing TopBar surfaced as soon as the tabs view became visible: no brand mark, no UserMenu, no way to sync/disconnect/edit-profile from tab mode.
+
+### Fix
+
+`apps/web/src/routes/dashboard.tsx` now renders a `<TabsLayout />` component when the flag is on. TabsLayout wires the same hooks the legacy `Dashboard.tsx` uses for header state (`useAthleteProfile`, `useRides`, `readTokens`, `useQueryClient`) and renders:
+
+```
+<TopBar variant="app" trailing={<UserMenu …>{userPill}</UserMenu>} />
+<Outlet />
+<BottomNav />
+```
+
+UserMenu props match legacy: `username`, `onSync` (invalidates athlete + activities query keys), `onDisconnect` (clearTokens + window.location.href = '/'), `onEditProfile` (resets onboarding dismissal). The trigger pill imports from `pages/Dashboard.module.css` to match legacy styling exactly — same avatar/name/city block.
+
+Mock-data fallback (`MARCO`) wired the same way as `Dashboard.tsx`; demo mode (`?demo=1`) also works in tabs mode.
+
+### Everything else
+
+All v9.3.2 features unchanged — viewport-aware `useTabsEnabled()`, RoutesPicker rework (surface-only chips, inline placement in Today session card, AI fallback panel, `Start workout in Strava ↗` button), `POST /api/routes/discover` endpoint, Migration 0004 columns. See the v9.3.2 entry below for context, the v9.3.1 entry for the full feature description.
+
+### Versions: 9.3.2 → 9.3.3 in 5 places.
+
+---
+
 ## [9.3.2] — 2026-04-30
 
 **Hotfix-of-hotfix. Ships v9.3.1's features with the redirect-loop regression fixed.**

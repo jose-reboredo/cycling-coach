@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.3.2](./CHANGELOG.md#932--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.3.3](./CHANGELOG.md#933--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.3.3
+
+Stabilization release. v9.3.1 introduced the mobile 4-tab layout but its new shell — `routes/dashboard.tsx` — never rendered the `<TopBar />` brand bar that legacy `pages/Dashboard.tsx` had. The miss carried into v9.3.2 (which fixed the redirect loop but not the layout) and surfaced the moment the redirect-loop fix made the tabs view actually visible: brand mark gone, no UserMenu, no way to disconnect from tab mode. v9.3.3 wires `<TopBar variant="app" />` into the tabs layout shell with the same `<UserMenu />` trailing the legacy dashboard uses (avatar, name, sync, disconnect, edit profile). All v9.3.2 features carry over unchanged.
 
 ## What's new in v9.3.2
 
