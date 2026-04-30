@@ -39,16 +39,25 @@ function safeLog(...args) { console.log(...args.map(safeArg)); }
 function safeWarn(...args) { console.warn(...args.map(safeArg)); }
 function safeError(...args) { console.error(...args.map(safeArg)); }
  
+// v9.3.0 (#34) — allowlist of origins the Worker will mint OAuth redirect URLs
+// to and accept browser CORS calls from on the AI proxy endpoints (/coach,
+// /coach-ride). The list is canonical: anything outside it is treated as
+// hostile (open-redirect/phishing vector).
+const ALLOWED_ORIGINS = [
+  'https://cycling-coach.josem-reboredo.workers.dev',
+  'https://cadenceclub.cc',
+  'http://localhost:5173',
+  'http://localhost:8787',
+  'http://127.0.0.1:8787',
+];
+
 // Resolve the user-facing origin so OAuth redirect_uri lands where the user
-// actually is.
+// actually is. Returns null if the origin can't be trusted.
 //
-// Priority:
-//   1. ?origin=… query param (explicit, set by the React client in dev)
-//   2. X-Forwarded-Host header (in case any proxy honors xfwd)
-//   3. url.origin (production: Workers Static Assets — request hits Worker directly)
-//
-// We only honor the query-param origin when it's a localhost loopback to keep
-// it from being abused as an open redirect.
+// v9.3.0 (#34): X-Forwarded-Host is ignored entirely — trusting it created an
+// open-redirect / OAuth-phishing vector. The actual origin Cloudflare received
+// (url.origin) is gated against ALLOWED_ORIGINS. Localhost dev keeps an
+// explicit ?origin=… loopback override (still bound to the loopback hostname).
 function userOrigin(request, url) {
   const explicit = url.searchParams.get('origin');
   if (explicit) {
@@ -59,10 +68,8 @@ function userOrigin(request, url) {
       }
     } catch {}
   }
-  const fwdHost = request.headers.get('x-forwarded-host');
-  const fwdProto = request.headers.get('x-forwarded-proto');
-  if (fwdHost) return `${fwdProto || 'http'}://${fwdHost}`;
-  return url.origin;
+  const requested = url.origin;
+  return ALLOWED_ORIGINS.includes(requested) ? requested : null;
 }
 
 export default {
@@ -87,6 +94,13 @@ export default {
       // origin + pwa flag round-trip via the KV value, never on the wire,
       // so an attacker can't construct a valid /callback URL even if they
       // can guess a state nonce.
+      // v9.3.0 (#34): origin is allowlist-gated. Reject OAuth init from
+      // any host not on the list to prevent phishing-redirect setup.
+      if (!origin) {
+        const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+        safeWarn(`[oauth] /authorize rejected — host not in allowlist from IP ${ip}, host="${url.host}"`);
+        return new Response('Forbidden — origin not allowed', { status: 400 });
+      }
       const stravaAuth = new URL('https://www.strava.com/oauth/authorize');
       stravaAuth.searchParams.set('client_id', env.STRAVA_CLIENT_ID);
       stravaAuth.searchParams.set('redirect_uri', `${origin}/callback`);
