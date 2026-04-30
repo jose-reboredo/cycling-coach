@@ -57,6 +57,7 @@ Always test against `--local` first.
 |---|---|---|---|
 | 0001 | `migrations/0001_pmc_and_events.sql` | v9.0.x | FTP/weight/HR on users; TSS/NP/IF/duration on activities; `daily_load` table; goal-event extensions |
 | 0002 | `migrations/0002_club_events.sql` | v9.1.3 | `club_events` table + `(club_id, event_date)` and `(created_by, event_date)` indexes |
+| 0004 | `migrations/0004_training_prefs_route_filters.sql` | v9.3.0 | `training_prefs.home_region`, `preferred_distance_km`, `preferred_difficulty` columns for #47 route-filter defaults |
 
 ## Backups
 

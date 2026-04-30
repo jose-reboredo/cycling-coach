@@ -1,11 +1,12 @@
 -- =============================================================
--- Cadence Club DB Schema — cumulative state through v9.2.0
+-- Cadence Club DB Schema — cumulative state through v9.3.0
 -- =============================================================
 -- Source of truth for fresh-bootstrap parity. Every column added by
--- migrations/0001_pmc_and_events.sql, /0002_club_events.sql is mirrored
--- here so a fresh `wrangler d1 execute --file=schema.sql` produces a
--- working DB. The migration files are kept as the authoritative
--- record of the change history; this file is the snapshot.
+-- migrations/0001_pmc_and_events.sql, /0002_club_events.sql,
+-- /0004_training_prefs_route_filters.sql is mirrored here so a fresh
+-- `wrangler d1 execute --file=schema.sql` produces a working DB. The
+-- migration files are kept as the authoritative record of the change
+-- history; this file is the snapshot.
 --
 -- Process rule (v9.2.0 onward, see CONTRIBUTING.md):
 --   Every migration MUST also update schema.sql in the same commit.
@@ -128,6 +129,10 @@ CREATE TABLE training_prefs (
   sessions_per_week INTEGER DEFAULT 3,
   surface_pref TEXT,
   start_address TEXT,
+  -- v9.3.0 (migration 0004) — route-discovery filter defaults
+  home_region TEXT,                 -- preferred starting region (free text, e.g. "Madrid")
+  preferred_distance_km INTEGER,    -- default distance filter (km)
+  preferred_difficulty TEXT,        -- 'flat' | 'rolling' | 'hilly'
   updated_at INTEGER NOT NULL
 );
 
