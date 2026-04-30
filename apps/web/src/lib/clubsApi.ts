@@ -3,6 +3,33 @@
 
 import { ensureValidToken } from './auth';
 
+// ---- Phase 2 types ----
+
+export interface RsvpResponse {
+  status: 'going' | 'not_going';
+  confirmed_count: number;
+}
+
+export interface RsvpAvatar {
+  athlete_id: number;
+  firstname: string | null;
+  profile_url: string | null;
+}
+
+export interface RsvpAvatarsResponse {
+  confirmed_count: number;
+  avatars: RsvpAvatar[];
+}
+
+export interface ProfilePatchInput {
+  ftp_visibility?: 'private' | 'public';
+}
+
+export interface ProfilePatchResponse {
+  athlete_id: number;
+  ftp_visibility: 'private' | 'public';
+}
+
 export interface Club {
   id: number;
   name: string;
@@ -20,6 +47,11 @@ export interface ClubMember {
   profile_url: string | null;
   role: 'admin' | 'member' | string;
   joined_at: number;
+  // Phase 2: server-side FTP mask per ADR-S4.4. ftp_w null until #52 ships.
+  ftp_w: number | null;
+  // Phase 4: cron-populated trend arrow. Null until Phase 4 ships.
+  trend_arrow: string | null;
+  trend_updated_at: number | null;
 }
 
 export interface CreateClubInput {
@@ -128,4 +160,17 @@ export const clubsApi = {
     }),
   overview: (clubId: number) =>
     call<ClubOverview>(`/api/clubs/${clubId}/overview`),
+  // Phase 2 additions
+  rsvp: (clubId: number, eventId: number, status: 'going' | 'not_going') =>
+    call<RsvpResponse>(`/api/clubs/${clubId}/events/${eventId}/rsvp`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    }),
+  rsvpAvatars: (clubId: number, eventId: number) =>
+    call<RsvpAvatarsResponse>(`/api/clubs/${clubId}/events/${eventId}/rsvps`),
+  updateProfile: (input: ProfilePatchInput) =>
+    call<ProfilePatchResponse>('/api/users/me/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
 };
