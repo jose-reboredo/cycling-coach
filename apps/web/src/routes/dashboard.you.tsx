@@ -140,7 +140,10 @@ function YouTab() {
                 }}
               >
                 <p className={styles.apiKeyHint}>
-                  Bring your own Anthropic key to generate a weekly training plan. Each plan ≈ $0.02.
+                  AI coaching is bring-your-own-key. Each plan costs ≈ $0.02. Your key stays in this browser.{' '}
+                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">
+                    Get a key →
+                  </a>
                 </p>
                 <input
                   type="password"

@@ -352,6 +352,13 @@
   font: italic 400 13px/1.5 var(--font-sans);
   color: var(--c-text-faint);
 }
+.apiKeyHint a {
+  color: var(--c-accent);
+  text-decoration: underline;
+}
+.apiKeyHint a:hover {
+  opacity: 0.8;
+}
 
 .apiKeyInput {
   width: 100%;
