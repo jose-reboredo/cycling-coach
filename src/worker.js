@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.6.2';
+const WORKER_VERSION = 'v9.6.3';
 const BUILD_DATE = '2026-04-30';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -635,12 +635,17 @@ async function handleRequest(request, env) {
             WHERE a.start_date_local >= ?
           `).bind(clubId, cutoffEpoch, clubId, cutoffIso),
 
-          // [2] Upcoming events (next 20)
+          // [2] Upcoming events (next 20) + live confirmed_count via LEFT JOIN
+          // event_rsvps (Phase 2 — was hardcoded 0 in Phase 1; v9.6.2 hotfix).
           db.prepare(`
-            SELECT id, title, event_date, location
-            FROM club_events
-            WHERE club_id = ? AND event_date >= ?
-            ORDER BY event_date ASC
+            SELECT
+              e.id, e.title, e.event_date, e.location,
+              COUNT(CASE WHEN r.status = 'going' THEN 1 END) AS confirmed_count
+            FROM club_events e
+            LEFT JOIN event_rsvps r ON r.event_id = e.id
+            WHERE e.club_id = ? AND e.event_date >= ?
+            GROUP BY e.id, e.title, e.event_date, e.location
+            ORDER BY e.event_date ASC
             LIMIT 20
           `).bind(clubId, now),
 
@@ -666,14 +671,15 @@ async function handleRequest(request, env) {
       // [1] Stat aggregations
       const stats = batchResults[1]?.results?.[0] ?? {};
 
-      // [2] Upcoming events — confirmed_count placeholder (0) until Phase 2 lands event_rsvps.
+      // [2] Upcoming events with live confirmed_count from event_rsvps
+      // (Phase 2 — v9.6.2 hotfix; Phase 1 had this hardcoded to 0).
       const upcomingRaw = batchResults[2]?.results ?? [];
       const upcomingEvents = upcomingRaw.map((e) => ({
         id: e.id,
         title: e.title,
         event_date: e.event_date,
         location: e.location ?? null,
-        confirmed_count: 0,
+        confirmed_count: Number(e.confirmed_count ?? 0),
       }));
 
       return new Response(JSON.stringify({

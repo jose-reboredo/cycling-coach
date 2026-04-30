@@ -4,6 +4,34 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.6.3] — 2026-04-30
+
+**Three Phase 2 polish bugs from founder feedback. Fixed in one commit.**
+
+### Bug 1 — RSVP confirmed_count drops back to 0 after click (HIGH)
+
+`GET /api/clubs/:id/overview` was returning `confirmed_count: 0` for every upcoming event because Phase 1 hardcoded the field as a placeholder ("until Phase 2 lands event_rsvps"). Phase 2 added `event_rsvps` and the RSVP endpoints, but the overview endpoint was never updated to use the table.
+
+Symptom: user clicks RSVP → optimistic increment to 1 → POST succeeds → React Query refetches the overview → server returns `confirmed_count: 0` (hardcoded) → UI snaps back to 0.
+
+Fix: rewrote the upcoming-events D1 query to LEFT JOIN `event_rsvps` and `COUNT(CASE WHEN r.status = 'going' THEN 1 END)` per event, GROUP BY event id. Now `confirmed_count` reflects live state.
+
+### Bug 2 — `ClubCreateModal` clipped on mobile
+
+The modal used `align-items: center` with `padding: var(--s-7)` (28 px) on small viewports. iOS soft keyboard opened on input focus → modal pushed off-screen with no recovery path.
+
+Fix: `align-items: flex-start` + `overflow-y: auto` on the backdrop, safe-area-aware top/bottom padding via `max(var(--s-6), env(safe-area-inset-…, 0))`. Modal padding reduced to `var(--s-5)` on `<600 px`, restored to `var(--s-7)` at `≥600 px`. Max-height capped at `calc(100dvh - 2 * var(--s-6))`.
+
+### Bug 3 — Members tab search input visually too tall (UX best-practice)
+
+`.membersSearch` had `padding: var(--s-2) var(--s-3)` + `font: 400 14px/1.4`. Felt heavier than the surrounding sort buttons.
+
+Fix: explicit `height: 36px` + `padding: 0 var(--s-3)` (height does the work, no vertical padding) + `font: 400 13px/1` + `border-color: var(--c-line)` for a calmer visual weight. `-webkit-appearance: none` strips iOS native search styling.
+
+### Versions: 9.6.2 → 9.6.3 in 5 places.
+
+---
+
 ## [9.6.2] — 2026-04-30
 
 **Sprint 4 Phase 2 — clubs Members tab + RSVP wiring + privacy-visibility plumbing.**

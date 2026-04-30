@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.6.2](./CHANGELOG.md#962--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.6.3](./CHANGELOG.md#963--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.6.3
+
+Three Phase 2 polish bugs from founder feedback: (1) `GET /api/clubs/:id/overview` was hardcoding `confirmed_count: 0` (Phase 1 placeholder) — now LEFT JOINs `event_rsvps` so RSVP counts persist across refetches (was incrementing optimistically to 1 then snapping back to 0). (2) `ClubCreateModal` could be clipped on mobile when the keyboard appeared — switched to `align-items: flex-start` with safe-area-aware padding, max-height accounts for `100dvh`, smaller padding on narrow viewports. (3) Members tab search input trimmed from inflated padding to a standard 36px search-input height — UX-best-practice subtle, not loud. No worker security surface change; no schema change.
 
 ## What's new in v9.6.2
 

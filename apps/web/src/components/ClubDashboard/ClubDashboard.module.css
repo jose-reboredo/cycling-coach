@@ -573,14 +573,17 @@
 .membersSearch {
   flex: 1 1 200px;
   min-width: 0;
-  padding: var(--s-2) var(--s-3);
+  height: 36px;
+  padding: 0 var(--s-3);
   background: var(--c-surface);
-  border: 1px solid var(--c-line-strong);
+  border: 1px solid var(--c-line);
   border-radius: var(--r-sm);
   color: var(--c-text);
-  font: 400 14px/1.4 var(--font-sans);
+  font: 400 13px/1 var(--font-sans);
   outline: none;
   transition: border-color var(--d-fast) var(--e-out);
+  -webkit-appearance: none;
+  appearance: none;
 }
 .membersSearch:focus {
   border-color: var(--c-accent);

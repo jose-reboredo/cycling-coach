@@ -6,21 +6,31 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: var(--s-4);
+  /* v9.6.3 — flex-start with safe-area-aware padding so the virtual keyboard
+   * on mobile doesn't push the modal off-screen. Was align-items: center +
+   * padding: var(--s-4), which clipped the bottom on iOS when input focused. */
+  padding: max(var(--s-6), env(safe-area-inset-top, 0)) var(--s-3)
+           max(var(--s-6), env(safe-area-inset-bottom, 0));
+  overflow-y: auto;
 }
 
 .modal {
   width: 100%;
   max-width: 480px;
-  max-height: 92dvh;
-  overflow-y: auto;
+  max-height: calc(100dvh - 2 * var(--s-6));
   background: var(--c-surface-elev);
   border: 1px solid var(--c-line-strong);
   border-radius: var(--r-lg);
-  padding: var(--s-7);
+  padding: var(--s-5);
   box-shadow: var(--sh-lg);
+}
+
+@media (min-width: 600px) {
+  .modal {
+    padding: var(--s-7);
+  }
 }
 
 .title {
