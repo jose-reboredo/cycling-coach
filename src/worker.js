@@ -2011,11 +2011,19 @@ function normalizeGhIssue(i) {
   if (i.state === 'closed') status = 'shipped';
   else if (inProgress) status = 'in-progress';
 
-  const body = String(i.body || '')
-    .replace(/\r/g, '')
-    .split(/\n\s*\n/)[0]
-    .replace(/^[#>*\-\s]+/, '')
-    .slice(0, 280);
+  // v9.2.5 (FIX 6) — strip fenced + inline code BEFORE splitting on paragraphs.
+  // Issues that opened with a ```sql ... ``` block leaked migration DDL into /whats-next.
+  const body = (() => {
+    const cleaned = String(i.body || '')
+      .replace(/\r/g, '')
+      .replace(/```[\s\S]*?```/g, '')   // fenced code blocks
+      .replace(/`[^`]+`/g, '');         // inline code
+    const firstPara = cleaned
+      .split(/\n\s*\n/)
+      .map((p) => p.replace(/^[#>*\-\s]+/, '').trim())
+      .find((p) => p.length > 0);
+    return firstPara ? firstPara.slice(0, 280) : '';
+  })();
 
   return {
     id: i.number,
