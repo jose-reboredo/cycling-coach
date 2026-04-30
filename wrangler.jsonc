@@ -57,11 +57,18 @@
 		"GITHUB_OWNER": "jose-reboredo",
 		"GITHUB_REPO": "jose-reboredo/cycling-coach"
 	},
-	// KV namespace for Confluence page-id caching (issue #23, deploy-doc agent).
 	"kv_namespaces": [
+		// Confluence page-id caching + admin rate-limit counters (#23, #18).
 		{
 			"binding": "DOCS_KV",
 			"id": "db369961d8d84acaac83d90ca9c438a8"
+		},
+		// OAuth state nonce store (#14 — single-use, 10-min TTL). Replaces
+		// the deterministic base64({pwa,origin}) state with a UUID stored
+		// here; /callback looks it up + deletes on use.
+		{
+			"binding": "OAUTH_STATE",
+			"id": "9b77ecf8836240db9f1c126ce715414d"
 		}
 	]
 }

@@ -81,38 +81,68 @@ export default {
     // wrangler.jsonc → assets.run_worker_first.
 
     if (url.pathname === '/authorize') {
+      // v9.2.0 (#14) — OAuth state is now a single-use nonce stored in KV
+      // with a 10-min TTL. Replaces the deterministic base64({pwa,origin})
+      // state which was vulnerable to CSRF / replay attacks. The actual
+      // origin + pwa flag round-trip via the KV value, never on the wire,
+      // so an attacker can't construct a valid /callback URL even if they
+      // can guess a state nonce.
       const stravaAuth = new URL('https://www.strava.com/oauth/authorize');
       stravaAuth.searchParams.set('client_id', env.STRAVA_CLIENT_ID);
       stravaAuth.searchParams.set('redirect_uri', `${origin}/callback`);
       stravaAuth.searchParams.set('response_type', 'code');
       stravaAuth.searchParams.set('approval_prompt', 'auto');
       stravaAuth.searchParams.set('scope', 'read,activity:read_all,profile:read_all');
-      // Strava round-trips the `state` param. We encode the user's origin and
-      // PWA flag so /callback can land them on the same dev port (or PWA flow).
       const isPwa = url.searchParams.get('pwa') === '1';
-      const state = btoa(JSON.stringify({ pwa: isPwa, origin }));
-      stravaAuth.searchParams.set('state', state);
+      const stateNonce = crypto.randomUUID();
+      try {
+        await env.OAUTH_STATE.put(
+          stateNonce,
+          JSON.stringify({ pwa: isPwa, origin, issued_at: Date.now() }),
+          { expirationTtl: 600 }, // 10 minutes — covers slow OAuth round-trips
+        );
+      } catch (e) {
+        safeError(`[oauth] failed to write state nonce to KV: ${e.message}`);
+        return htmlResponse(errorPage('Could not initiate OAuth — try again'));
+      }
+      stravaAuth.searchParams.set('state', stateNonce);
       return Response.redirect(stravaAuth.toString(), 302);
     }
 
     if (url.pathname === '/callback') {
       const code = url.searchParams.get('code');
       const error = url.searchParams.get('error');
-      // Decode state — supports both new JSON-encoded state and legacy 'pwa' string.
-      let stateData = { pwa: false, origin };
       const rawState = url.searchParams.get('state');
-      if (rawState === 'pwa') {
-        stateData.pwa = true;
-      } else if (rawState) {
-        try {
-          const decoded = JSON.parse(atob(rawState));
-          if (decoded && typeof decoded === 'object') {
-            stateData = { pwa: !!decoded.pwa, origin: decoded.origin || origin };
+
+      // v9.2.0 (#14) — verify state nonce against KV. Single-use: delete
+      // immediately after read. Reject missing/unknown/expired with 403.
+      let stateData = null;
+      if (rawState) {
+        // UUID-format check (avoids a pointless KV lookup for garbage values)
+        const isUuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawState);
+        if (isUuidLike) {
+          try {
+            const stored = await env.OAUTH_STATE.get(rawState);
+            if (stored) {
+              stateData = JSON.parse(stored);
+              // Single-use: delete immediately so a replay can't exchange
+              // the same code twice.
+              await env.OAUTH_STATE.delete(rawState);
+            }
+          } catch (e) {
+            safeWarn(`[oauth] KV read error during /callback: ${e.message}`);
           }
-        } catch {}
+        }
       }
-      const fromPwa = stateData.pwa;
-      const callbackOrigin = stateData.origin;
+
+      if (!stateData) {
+        const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+        safeWarn(`[oauth] /callback rejected — invalid/missing state from IP ${ip}, raw="${rawState ? rawState.slice(0, 16) : ''}"`);
+        return htmlResponse(errorPage('OAuth session expired or invalid. Please try connecting again.'));
+      }
+
+      const fromPwa = !!stateData.pwa;
+      const callbackOrigin = stateData.origin || origin;
       if (error || !code) return htmlResponse(errorPage(error || 'No authorization code'));
       try {
         const tokenRes = await fetch('https://www.strava.com/oauth/token', {
@@ -126,12 +156,14 @@ export default {
         });
         const data = await tokenRes.json();
         if (data.access_token) {
-          // Strangler Fig: dual-write phase. Persist to D1, frontend still uses localStorage.
           await persistUserAndTokens(env.cycling_coach_db, data);
           return htmlResponse(callbackPage(data, callbackOrigin, fromPwa));
         }
         return htmlResponse(errorPage(data.message || 'Token exchange failed'));
-      } catch (e) { return htmlResponse(errorPage(e.message)); }
+      } catch (e) {
+        safeWarn(`[oauth] token exchange error: ${e.message}`);
+        return htmlResponse(errorPage('Token exchange failed — try again'));
+      }
     }
  
     if (url.pathname === '/refresh' && request.method === 'POST') {
