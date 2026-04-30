@@ -72,8 +72,47 @@ function userOrigin(request, url) {
   return ALLOWED_ORIGINS.includes(requested) ? requested : null;
 }
 
+// v9.5.1 (#15) — security headers applied to every Worker response. CSP is
+// permissive enough not to break the running app: same-origin everything via
+// the proxy, Google Fonts (preconnect in index.html), Strava CDN images
+// (cloudfront), Google user-content (placeholder for future avatars),
+// React inline styles ('unsafe-inline' on style-src). Tighten later as the
+// app drops 'unsafe-inline' for nonce-based or external styles.
+const SECURITY_HEADERS = {
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https://*.cloudfront.net https://*.googleusercontent.com",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; '),
+};
+
+function withSecurityHeaders(res) {
+  const headers = new Headers(res.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+    if (!headers.has(k)) headers.set(k, v);
+  }
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
 export default {
   async fetch(request, env) {
+    const response = await handleRequest(request, env);
+    return withSecurityHeaders(response);
+  },
+};
+
+async function handleRequest(request, env) {
     const url = new URL(request.url);
     const origin = userOrigin(request, url);
     const corsHeaders = {
@@ -1480,8 +1519,7 @@ Respond ONLY with valid JSON, no markdown:
     }
 
     return Response.redirect(url.origin + '/', 302);
-  },
-};
+}
 
 // ============================================================
 // CONFLUENCE INTEGRATION (issue #23)
