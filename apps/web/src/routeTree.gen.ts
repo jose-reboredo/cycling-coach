@@ -14,6 +14,10 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
+import { Route as DashboardYouRouteImport } from './routes/dashboard.you'
+import { Route as DashboardTrainRouteImport } from './routes/dashboard.train'
+import { Route as DashboardTodayRouteImport } from './routes/dashboard.today'
+import { Route as DashboardRidesRouteImport } from './routes/dashboard.rides'
 
 const WhatsNextRoute = WhatsNextRouteImport.update({
   id: '/whats-next',
@@ -40,46 +44,100 @@ const JoinCodeRoute = JoinCodeRouteImport.update({
   path: '/join/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardYouRoute = DashboardYouRouteImport.update({
+  id: '/you',
+  path: '/you',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardTrainRoute = DashboardTrainRouteImport.update({
+  id: '/train',
+  path: '/train',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardTodayRoute = DashboardTodayRouteImport.update({
+  id: '/today',
+  path: '/today',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRidesRoute = DashboardRidesRouteImport.update({
+  id: '/rides',
+  path: '/rides',
+  getParentRoute: () => DashboardRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/dashboard/rides': typeof DashboardRidesRoute
+  '/dashboard/today': typeof DashboardTodayRoute
+  '/dashboard/train': typeof DashboardTrainRoute
+  '/dashboard/you': typeof DashboardYouRoute
   '/join/$code': typeof JoinCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/dashboard/rides': typeof DashboardRidesRoute
+  '/dashboard/today': typeof DashboardTodayRoute
+  '/dashboard/train': typeof DashboardTrainRoute
+  '/dashboard/you': typeof DashboardYouRoute
   '/join/$code': typeof JoinCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/dashboard/rides': typeof DashboardRidesRoute
+  '/dashboard/today': typeof DashboardTodayRoute
+  '/dashboard/train': typeof DashboardTrainRoute
+  '/dashboard/you': typeof DashboardYouRoute
   '/join/$code': typeof JoinCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/privacy' | '/whats-next' | '/join/$code'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/privacy'
+    | '/whats-next'
+    | '/dashboard/rides'
+    | '/dashboard/today'
+    | '/dashboard/train'
+    | '/dashboard/you'
+    | '/join/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/privacy' | '/whats-next' | '/join/$code'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/privacy'
+    | '/whats-next'
+    | '/dashboard/rides'
+    | '/dashboard/today'
+    | '/dashboard/train'
+    | '/dashboard/you'
+    | '/join/$code'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/privacy'
     | '/whats-next'
+    | '/dashboard/rides'
+    | '/dashboard/today'
+    | '/dashboard/train'
+    | '/dashboard/you'
     | '/join/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRoute
+  DashboardRoute: typeof DashboardRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   WhatsNextRoute: typeof WhatsNextRoute
   JoinCodeRoute: typeof JoinCodeRoute
@@ -122,12 +180,58 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JoinCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/you': {
+      id: '/dashboard/you'
+      path: '/you'
+      fullPath: '/dashboard/you'
+      preLoaderRoute: typeof DashboardYouRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/train': {
+      id: '/dashboard/train'
+      path: '/train'
+      fullPath: '/dashboard/train'
+      preLoaderRoute: typeof DashboardTrainRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/today': {
+      id: '/dashboard/today'
+      path: '/today'
+      fullPath: '/dashboard/today'
+      preLoaderRoute: typeof DashboardTodayRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/rides': {
+      id: '/dashboard/rides'
+      path: '/rides'
+      fullPath: '/dashboard/rides'
+      preLoaderRoute: typeof DashboardRidesRouteImport
+      parentRoute: typeof DashboardRoute
+    }
   }
 }
 
+interface DashboardRouteChildren {
+  DashboardRidesRoute: typeof DashboardRidesRoute
+  DashboardTodayRoute: typeof DashboardTodayRoute
+  DashboardTrainRoute: typeof DashboardTrainRoute
+  DashboardYouRoute: typeof DashboardYouRoute
+}
+
+const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardRidesRoute: DashboardRidesRoute,
+  DashboardTodayRoute: DashboardTodayRoute,
+  DashboardTrainRoute: DashboardTrainRoute,
+  DashboardYouRoute: DashboardYouRoute,
+}
+
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRoute,
+  DashboardRoute: DashboardRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   WhatsNextRoute: WhatsNextRoute,
   JoinCodeRoute: JoinCodeRoute,

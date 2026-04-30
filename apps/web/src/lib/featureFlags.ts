@@ -3,6 +3,7 @@
 // case a page refresh applies the new value (good enough for kill-switch use).
 
 const KEY_CLUBS = 'cc_clubsEnabled';
+const KEY_TABS = 'cc_tabsEnabled';
 
 function read(key: string, defaultValue: boolean): boolean {
   if (typeof window === 'undefined') return defaultValue;
@@ -21,4 +22,12 @@ function read(key: string, defaultValue: boolean): boolean {
  * guarantee. */
 export function useClubsEnabled(): boolean {
   return read(KEY_CLUBS, true);
+}
+
+/** Default: false. Set localStorage.cc_tabsEnabled = 'true' to enable the
+ * mobile 4-tab dashboard layout (Today / Train / Rides / You sub-routes).
+ * Kill-switch is OFF by default until the feature is demo-ready (#51).
+ * Demo flip via DevTools: localStorage.setItem('cc_tabsEnabled','true'). */
+export function useTabsEnabled(): boolean {
+  return read(KEY_TABS, false);
 }

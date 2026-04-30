@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import styles from './BottomNav.module.css';
+import { useTabsEnabled } from '../../lib/featureFlags';
 
 // Bottom-nav tabs are scroll-to-section anchors rather than routes — the
 // dashboard renders all sections in one scroll. When/if the dashboard splits
@@ -11,10 +13,47 @@ const ITEMS = [
   { id: 'you', label: 'You', icon: <YouIcon />, hash: '#you' },
 ] as const;
 
+// Tabs used when cc_tabsEnabled is on. Third tab is 'rides' (BA FB-5, #stats → rides).
+const LINK_ITEMS = [
+  { id: 'today', label: 'Today', icon: <TodayIcon />, to: '/dashboard/today' },
+  { id: 'train', label: 'Train', icon: <TrainIcon />, to: '/dashboard/train' },
+  { id: 'rides', label: 'Rides', icon: <StatsIcon />, to: '/dashboard/rides' },
+  { id: 'you', label: 'You', icon: <YouIcon />, to: '/dashboard/you' },
+] as const;
+
 /** BottomNav — mobile authenticated tab bar. Hidden on desktop (≥1024px).
- *  Active tab is synced to the section currently in view via IntersectionObserver
- *  (no longer just last-clicked). */
+ *  When cc_tabsEnabled is on, renders Tanstack Links to sub-routes.
+ *  When off, active tab is synced to the section currently in view via
+ *  IntersectionObserver (no longer just last-clicked). */
 export function BottomNav() {
+  const tabsEnabled = useTabsEnabled();
+
+  if (tabsEnabled) {
+    return (
+      <nav className={styles.root} aria-label="Primary">
+        <ul className={styles.list}>
+          {LINK_ITEMS.map((item) => (
+            <li key={item.id}>
+              <Link
+                to={item.to}
+                className={styles.item}
+                activeProps={{ className: `${styles.item} ${styles.active}`, 'aria-current': 'page' as const }}
+              >
+                <span className={styles.icon}>{item.icon}</span>
+                <span className={styles.label}>{item.label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    );
+  }
+
+  // Flag off — fall through to original hash-anchor + IntersectionObserver behaviour.
+  return <BottomNavHashAnchors />;
+}
+
+function BottomNavHashAnchors() {
   const [activeId, setActiveId] = useState<string>('today');
 
   useEffect(() => {
