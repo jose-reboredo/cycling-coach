@@ -2,6 +2,7 @@
 // Worker proxy, which already handles refresh on 401 and the Strangler-Fig
 // dual-write to D1.
 
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { stravaApi, type StravaAthlete, type StravaActivity } from '../lib/api';
 import { stravaToActivity, isRide } from '../lib/stravaConvert';
@@ -57,10 +58,16 @@ export function useRides(opts?: { ftp?: number | null; enabled?: boolean }): {
       return a.date >= cutoff.toISOString().slice(0, 10);
     });
 
-  // If the request 401s after refresh, clear tokens so the user re-authenticates
-  if (actsQ.error?.message?.includes('not_authenticated')) {
-    clearTokens();
-  }
+  // If the request 401s after refresh, clear tokens so the user re-authenticates.
+  // useEffect prevents React 19 Strict Mode's double-render from firing clearTokens()
+  // twice: the second render would wipe tokens that React Query's retry was about to
+  // refresh successfully, booting the user to ConnectScreen (#38).
+  const is401 = actsQ.error?.message?.includes('not_authenticated') ?? false;
+  useEffect(() => {
+    if (is401) {
+      clearTokens();
+    }
+  }, [is401]);
 
   return {
     rides,
