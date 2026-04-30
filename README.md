@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.6.1](./CHANGELOG.md#961--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.6.2](./CHANGELOG.md#962--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.6.2
+
+Sprint 4 Phase 2 — clubs Members tab + RSVP wiring + privacy-visibility plumbing. Migration `0005` adds `event_rsvps` (per-member RSVP state, idempotent UPSERT keyed by `(event_id, athlete_id)`), `users.ftp_visibility` (TEXT NOT NULL DEFAULT `'private'` per ADR-S4.4), and `club_members.trend_arrow` + `trend_updated_at` (Phase 4 cron columns). Three new endpoints + one extension: `POST /api/clubs/:id/events/:eventId/rsvp` (rate-limited 30/min on `clubs-write`), `GET /api/clubs/:id/events/:eventId/rsvps` (top-12 avatars + count, visible to all members per ADR-S4.5), `PATCH /api/users/me/profile` (column allowlist on `ftp_visibility`, rate-limited 10/min on a new `profile-write` scope), and `GET /api/clubs/:id/members` extended with server-side FTP mask (caller `'admin'` sees all; otherwise FTP visible only when target's `ftp_visibility='public'`). Members tab rendered fully — Name / Role / Joined columns, sort dropdown (default Joined desc), search-as-you-type, role chips with "NEW" badge for joined-within-30-days. Phase 1's disabled RSVP button on Overview is now live with optimistic confirmed-count + revert-on-error. FTP toggle UI deferred (no `ftp_w` column to toggle against until #52 ships in Sprint 5; backend masking is wired and ready). 27/27 unit pass; mobile-tabs + OAuth full-flow smoke green post-deploy.
 
 ## What's new in v9.6.1
 

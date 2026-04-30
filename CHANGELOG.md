@@ -4,6 +4,41 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.6.2] — 2026-04-30
+
+**Sprint 4 Phase 2 — clubs Members tab + RSVP wiring + privacy-visibility plumbing.**
+
+### Migration 0005 (commit `8fcd298`)
+
+- New `event_rsvps` table — `id PK, event_id FK club_events, athlete_id FK users, status DEFAULT 'going', created_at, updated_at`. `UNIQUE(event_id, athlete_id)` enforces idempotency. Two indexes: `(event_id, status)` for confirmed-count queries, `(athlete_id, event_id)` for "my RSVPs" reads.
+- `users.ftp_visibility TEXT NOT NULL DEFAULT 'private'` per ADR-S4.4 (privacy-first; existing rows backfill via the column default).
+- `club_members.trend_arrow TEXT, trend_updated_at INTEGER` — both nullable; populated by the Phase 4 cron (added now so the column is ready when Phase 4 ships).
+
+`schema.sql` updated per the v9.2.0 process rule. Applied to remote D1 in the same commit.
+
+### Three new endpoints + one extension (commit `ce88c3d`)
+
+- **`POST /api/clubs/:id/events/:eventId/rsvp`** — Strava-bearer auth, membership-gated 404. UPSERT on `event_rsvps`. Returns `{ status, confirmed_count }`. Rate-limited 30/min on the existing `clubs-write` scope.
+- **`GET /api/clubs/:id/events/:eventId/rsvps`** — top 12 avatars + total count. ADR-S4.5: visible to all members; no FTP exposed.
+- **`PATCH /api/users/me/profile`** — column allowlist (`['ftp_visibility']` for now). Rate-limited 10/min on a new `profile-write` scope. 422 on disallowed field; never interpolates user-supplied column names into SQL.
+- **`GET /api/clubs/:id/members` extended** — ADR-S4.4 server-side FTP mask. Caller role `'admin'` → FTP visible for all. Otherwise → FTP visible only when target's `ftp_visibility = 'public'`. Other members' `ftp_w` set to `null` in the JSON payload (absent from the DOM, not just CSS-hidden). New optional `sort` (allowlist `name | role | joined_at`, default `joined_at DESC`) + `dir` query params.
+
+`ftp_w` is not yet in the `users` schema (lands with `#52` in Sprint 5) — the masking logic returns `null` until then, but the wiring is complete.
+
+### Members tab full + Overview RSVP wiring (commit `9e5ea8c`)
+
+Members tab — Phase 1's placeholder replaced. Columns: Name / Role / Joined. Sort dropdown, search-as-you-type, role chips inline, "NEW" badge for joined-within-30-days, inline drawer on row click. FTP / Hours-per-month / Attended deferred.
+
+RSVP button on Overview now live: optimistic `confirmed_count` increment → `POST /rsvp` → revert on error. Re-click toggles to "Cancel RSVP". New `useRsvp` + `useUpdateProfile` mutation hooks invalidate relevant query keys.
+
+### Test totals + smoke
+
+27/27 unit pass. Mobile-tabs gate green. **OAuth full happy-path** added to the post-deploy smoke list per v9.6.1 hotfix retro tightening — verified before signing off.
+
+### Versions: 9.6.1 → 9.6.2 in 5 places.
+
+---
+
 ## [9.6.1] — 2026-04-30
 
 **Hotfix — `/callback` inline script blocked by CSP from v9.5.1 (#15). Strava OAuth completion was hanging at "Loading dashboard…" forever.**
