@@ -2,7 +2,11 @@
 
 Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
 
-**Current release: [v9.2.2](./CHANGELOG.md#922--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.2.3](./CHANGELOG.md#923--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+
+## What's new in v9.2.3
+
+Confluence spec pages content sync — surgical updates across all 6 pages (Systems & Architecture, APIs, Interfaces, Functional Spec, Technical Spec, Security) to reflect v9.2.x reality. ~151 net lines added in `src/docs.js`. Pushes to Confluence automatically via the `docs:sync` step of `npm run deploy`.
 
 ## What's new in v9.2.2
 

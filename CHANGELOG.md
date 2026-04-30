@@ -4,6 +4,23 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.2.3] — 2026-04-30
+
+**Confluence spec pages content sync.** Surgical updates across all 6 spec pages in `src/docs.js` to reflect current v9.2.x state — clubs MVP + events Phase A + OAuth nonce + /refresh auth gate + schema.sql consolidation + What's-new badge removal + ContextSwitcher dropdown fix. ~151 lines net added across the 6 pages. No code changes — `docs.js` is bundled into the worker, deployed, and `npm run docs:sync` (auto-step in `npm run deploy`) pushes the updated content to Confluence.
+
+### Per-page
+
+- **Systems & Architecture** — D1 row lists all 12 tables + db/README.md; KV row lists DOCS_KV + OAUTH_STATE; architecture diagram adds /api/clubs routes + KV node; §4.1 auth flow notes nonce shipped + /refresh auth gate; ADR Strangler-Fig row marked complete for tokens + activities + clubs.
+- **APIs** — Inventory adds 6 clubs rows (POST/GET clubs, members, events, join); /authorize + /callback + /refresh descriptions updated; new §2.12 Clubs detail block (2.12a-f) with body/response/error shapes; §2.1-2.3 detail sections updated for nonce + auth gate.
+- **Interfaces** — Surface tokens corrected (--c-text-faint #7a8290 5.11:1, --c-z7 #a55be0 4.87:1, --c-bg-deep added); Chrome list updated (TopBar trailing = ContextSwitcher + UserMenu only; #46 ContextSwitcher viewport-aware positioning noted).
+- **Functional Spec** — New §2.15 Clubs (MVP) table covering create, join, members list, events Phase A, RSVPs deferred; out-of-scope social bullet clarified.
+- **Technical Spec** — D1 schema split into 4 rows for clubs/club_members/club_goals/club_events; v9.2.0 cumulative-schema policy + db/README.md noted; KV stack lists both bindings; §9 Testing replaced "no automated tests" with "27 passing e2e".
+- **Security** — §2 auth flow #14 bullet flipped to shipped v8.6.0; refresh auth gate added (#36 closed); §11 backlog updated with #33, #34, #41, #42 status.
+
+No SECURITY.md changes (out of scope for this commit). No version bump beyond 9.2.3 patch.
+
+---
+
 ## [9.2.2] — 2026-04-30
 
 **Removed the "What's new" badge from TopBar.** Decision call: the auto-popping CHANGELOG modal in the header didn't fit the editorial restraint the brand is converging on (Soho House / Monocle, not Garmin). User can still read CHANGELOG.md directly.

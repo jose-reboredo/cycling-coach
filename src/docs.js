@@ -1,5 +1,5 @@
 // ============================================================
-// Cycling Coach — Confluence canonical documentation source
+// Cadence Club — Confluence canonical documentation source
 // ============================================================
 // Each entry below is a page that lives under the project homepage on
 // Confluence. The /admin/document-release endpoint upserts these on every
@@ -26,10 +26,10 @@ export const SPEC_PAGES = [
     slug: 'systems-architecture',
     title: '1. Systems & Architecture',
     storage: `<h1>Systems &amp; Architecture</h1>
-<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Authoritative picture of how Cycling Coach is built — components, data flows, deployment. <strong>Auto-managed</strong>: canonical content lives in <code>src/docs.js</code> in the repo and is upserted on every prod deploy. Don't edit in Confluence.</p></ac:rich-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Authoritative picture of how Cadence Club is built — components, data flows, deployment. <strong>Auto-managed</strong>: canonical content lives in <code>src/docs.js</code> in the repo and is upserted on every prod deploy. Don't edit in Confluence.</p></ac:rich-text-body></ac:structured-macro>
 
 <h2>1. Overview</h2>
-<p>Cycling Coach is a <strong>performance training intelligence app</strong> for serious cyclists (target persona: Marco — FTP-aware amateur, 8–12 h/week, training for a goal event). It pulls Strava activity data, computes the <strong>PMC</strong> (Performance Management Chart — CTL/ATL/TSB), surfaces structured workouts via an AI coach (Anthropic Claude), suggests routes that match today's workout, and tracks streaks / wins / volume.</p>
+<p>Cadence Club is a <strong>performance training intelligence app</strong> for serious cyclists (target persona: Marco — FTP-aware amateur, 8–12 h/week, training for a goal event). It pulls Strava activity data, computes the <strong>PMC</strong> (Performance Management Chart — CTL/ATL/TSB), surfaces structured workouts via an AI coach (Anthropic Claude), suggests routes that match today's workout, tracks streaks / wins / volume, and lets athletes create or join training clubs.</p>
 <p>The system is a single <strong>Cloudflare Worker</strong> serving both a <strong>React SPA</strong> (via Workers Static Assets) and a small set of dynamic API routes. State lives client-side in <code>localStorage</code> and (Strangler-Fig) in <strong>Cloudflare D1</strong> (SQLite at edge).</p>
 
 <h2>2. Components</h2>
@@ -38,8 +38,8 @@ export const SPEC_PAGES = [
     <tr><th>Component</th><th>Role</th><th>Tech / runtime</th><th>Source</th></tr>
     <tr><td><strong>Cloudflare Worker</strong></td><td>Edge compute: OAuth, Strava API proxy, AI proxy, webhook receiver, roadmap mirror, admin endpoints, doc-sync</td><td>Workers runtime (V8 isolate)</td><td><code>src/worker.js</code></td></tr>
     <tr><td><strong>React SPA</strong></td><td>UI: Landing, Dashboard, Privacy, What's next</td><td>React 19 + Vite + TypeScript + Tanstack Router/Query + Motion + CSS Modules</td><td><code>apps/web/src/</code></td></tr>
-    <tr><td><strong>Cloudflare D1</strong></td><td>SQLite at edge: <code>users</code>, <code>user_connections</code>, <code>activities</code>, <code>daily_load</code>, <code>goals</code>, <code>training_prefs</code>, <code>ai_reports</code>, <code>ride_feedback</code>, <code>clubs</code> (Phase 2)</td><td>D1 (SQLite)</td><td><code>schema.sql</code> + <code>migrations/0001_pmc_and_events.sql</code></td></tr>
-    <tr><td><strong>Cloudflare KV</strong></td><td>DOCS_KV — Confluence page-ID + content-hash cache. Future use: OAuth nonces (issue #14), training prefs (issue #11)</td><td>KV</td><td>Bound in <code>wrangler.jsonc</code></td></tr>
+    <tr><td><strong>Cloudflare D1</strong></td><td>SQLite at edge: <code>users</code>, <code>user_connections</code>, <code>activities</code>, <code>daily_load</code>, <code>goals</code>, <code>training_prefs</code>, <code>ai_reports</code>, <code>ride_feedback</code>, <code>clubs</code>, <code>club_members</code>, <code>club_goals</code>, <code>club_events</code> (12 tables total). Cumulative schema: <code>schema.sql</code> + <code>migrations/</code>.</td><td>D1 (SQLite)</td><td><code>schema.sql</code> + <code>migrations/</code> + <code>db/README.md</code></td></tr>
+    <tr><td><strong>Cloudflare KV</strong></td><td>DOCS_KV — Confluence page-ID + content-hash cache. OAUTH_STATE — single-use UUID nonces for OAuth CSRF protection (10-min TTL, shipped v8.6.0).</td><td>KV</td><td>Bound in <code>wrangler.jsonc</code></td></tr>
     <tr><td><strong>Anthropic Claude</strong></td><td>AI weekly plan (<code>/coach</code>) + per-ride verdict (<code>/coach-ride</code>) + auto-doc generation (when <code>SYSTEM_ANTHROPIC_KEY</code> set)</td><td>Sonnet 4.6 via REST</td><td>BYOK (user-provided) + optional system fallback</td></tr>
     <tr><td><strong>Strava API</strong></td><td>OAuth, athlete profile, activities, saved routes, webhooks</td><td>REST v3</td><td>External</td></tr>
     <tr><td><strong>GitHub Issues</strong></td><td>Roadmap source of truth; surfaced via <code>/roadmap</code> → <code>/whats-next</code></td><td>REST v3</td><td><code>jose-reboredo/cycling-coach</code></td></tr>
@@ -63,20 +63,25 @@ export const SPEC_PAGES = [
               │                                       │
               │  /authorize  /callback    /refresh    │
               │  /api/*      /coach       /coach-ride │
-              │  /webhook    /version     /roadmap    │
-              │  /admin/*  (gated by ADMIN_SECRET)    │
-              └─────┬───────────┬───────────┬─────────┘
-                    │           │           │
-                    ↓           ↓           ↓
+              │  /api/clubs  /webhook     /version    │
+              │  /roadmap    /admin/*                 │
+              └─────┬───────────┬─────────┬───────────┘
+                    │           │         │
+                    ↓           ↓         ↓
                ┌────────┐  ┌────────┐  ┌──────────┐
                │ Strava │  │ Claude │  │ GitHub   │
                │  API   │  │  API   │  │  Issues  │
                └────────┘  └────────┘  └──────────┘
                     ↓                       ↑
                ┌────────┐                   │
-               │   D1   │ ←─ Strangler-Fig dual-write
-               │(SQLite)│                   │
+               │   D1   │ ← Strangler-Fig (complete:
+               │(SQLite)│   tokens + activities + clubs)
                └────────┘                   │
+                                            │
+               ┌──────────────────────┐     │
+               │   KV (DOCS_KV +      │     │
+               │   OAUTH_STATE)       │     │
+               └──────────────────────┘     │
                                             │
                ┌──────────────────────┐     │
                │ Confluence Auto-Doc  │ ←───┘  (every deploy)
@@ -89,14 +94,14 @@ export const SPEC_PAGES = [
 <h3>4.1 Auth flow (Strava OAuth)</h3>
 <ol>
   <li>User clicks <strong>Connect</strong> → browser navigates to <code>/authorize</code>.</li>
-  <li>Worker constructs the Strava OAuth URL with <code>redirect_uri = &lt;origin&gt;/callback</code>. Origin is resolved by <code>userOrigin()</code> in priority: <code>?origin=</code> query param (only honored for localhost loopbacks — security), <code>X-Forwarded-Host</code> header, fallback to <code>url.origin</code>. State param is currently base64-JSON of <code>{pwa, origin}</code>; issue #14 tracks turning this into a CSRF nonce stored in KV.</li>
+  <li>Worker constructs the Strava OAuth URL with <code>redirect_uri = &lt;origin&gt;/callback</code>. Origin is resolved by <code>userOrigin()</code> in priority: <code>?origin=</code> query param (only honored for localhost loopbacks — security), <code>X-Forwarded-Host</code> header, fallback to <code>url.origin</code>. State param is a KV-backed UUID nonce (OAUTH_STATE namespace, 10-min TTL, single-use) that encodes <code>{pwa, origin}</code> — CSRF protection shipped in v8.6.0 (closed issue #14).</li>
   <li>User authorizes on Strava.</li>
-  <li>Strava redirects to <code>/callback?code=&hellip;&state=&hellip;</code>.</li>
+  <li>Strava redirects to <code>/callback?code=&hellip;&state=&hellip;</code>. Worker validates the nonce against OAUTH_STATE KV (single-use — consumes the key on success).</li>
   <li>Worker exchanges code for <code>access_token</code> + <code>refresh_token</code> via Strava's token endpoint.</li>
   <li>Worker writes tokens to D1 <code>user_connections</code> (Strangler-Fig persist) <strong>and</strong> returns a tiny HTML page that sets <code>cc_tokens</code> in <code>localStorage</code> and redirects to <code>/dashboard</code>. (PWA-mode: returns a copy-tokens UI instead of auto-redirect.)</li>
   <li>SPA reads <code>cc_tokens</code>, attaches <code>Authorization: Bearer</code> on every <code>/api/*</code> call.</li>
 </ol>
-<p><strong>Token refresh:</strong> SPA's <code>ensureValidToken()</code> runs before each authed call; if <code>expires_at &lt; now + 5 min</code>, it POSTs to <code>/refresh</code>; Worker calls Strava's refresh endpoint; updated tokens write back to localStorage <em>and</em> D1.</p>
+<p><strong>Token refresh:</strong> SPA's <code>ensureValidToken()</code> runs before each authed call; if <code>expires_at &lt; now + 5 min</code>, it POSTs to <code>/refresh</code>; Worker verifies the <code>refresh_token</code> exists in D1 <code>user_connections</code> before forwarding to Strava (auth gate shipped v9.2.0, closed issue #36); updated tokens write back to localStorage <em>and</em> D1.</p>
 
 <h3>4.2 Read path (Strava data)</h3>
 <ol>
@@ -178,7 +183,7 @@ export const SPEC_PAGES = [
     <tr><td>Single Worker for SPA + API (no separate Pages project)</td><td>Single origin → no CORS, single deploy, single CI. Workers Static Assets is the modern recommended path; Pages is in maintenance mode.</td></tr>
     <tr><td>localStorage for auth tokens (no server-side session)</td><td>Zero session infrastructure. Standard for OAuth-only apps. Trade-off: vulnerable to XSS — defended by React's default escaping + planned CSP (issue #15).</td></tr>
     <tr><td>BYOK for Anthropic (no pooled key)</td><td>No per-user billing on our side. User has full control + cost transparency. ≈ $0.02/report.</td></tr>
-    <tr><td>Strangler-Fig dual-write (localStorage + D1)</td><td>Migration path from browser-only to server-backed without breaking existing users. D1 will become source of truth once parity is verified.</td></tr>
+    <tr><td>Strangler-Fig dual-write (localStorage + D1)</td><td>Migration path from browser-only to server-backed without breaking existing users. Tokens, activities, and clubs are now fully persisted to D1; D1 is authoritative for those resources.</td></tr>
     <tr><td>GitHub Issues as roadmap source of truth</td><td>Single source. Worker mirrors via <code>/roadmap</code>, SPA renders at <code>/whats-next</code>. Confluence Roadmap page also mirrors. Avoids drift across surfaces.</td></tr>
     <tr><td>Confluence as project-doc source</td><td>Stakeholder-readable. Auto-updated. Pages structured by concern (this page, APIs, Interfaces, etc.) rather than by chronology.</td></tr>
     <tr><td>CSS Modules + design tokens (no Tailwind)</td><td>Distinctive design system (PARS — Performance Dark) is too custom for utility-first; tokens-driven CSS keeps the aesthetic intact across components.</td></tr>
@@ -200,16 +205,22 @@ export const SPEC_PAGES = [
     slug: 'apis',
     title: '2. APIs',
     storage: `<h1>APIs</h1>
-<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Authoritative endpoint inventory for the Cycling Coach Worker, plus the external APIs we consume. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code>, pushed on every deploy.</p></ac:rich-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Authoritative endpoint inventory for the Cadence Club Worker, plus the external APIs we consume. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code>, pushed on every deploy.</p></ac:rich-text-body></ac:structured-macro>
 
 <h2>1. Worker endpoint inventory</h2>
 <table>
   <tbody>
     <tr><th>Path</th><th>Method</th><th>Auth</th><th>Purpose</th></tr>
-    <tr><td><code>/authorize</code></td><td>GET</td><td>None</td><td>302 to Strava OAuth</td></tr>
-    <tr><td><code>/callback</code></td><td>GET</td><td>OAuth code</td><td>Exchange code → tokens, set localStorage, redirect to /dashboard</td></tr>
-    <tr><td><code>/refresh</code></td><td>POST</td><td>Refresh token in body</td><td>Refresh expired Strava access token</td></tr>
+    <tr><td><code>/authorize</code></td><td>GET</td><td>None</td><td>302 to Strava OAuth. Stores KV-backed UUID nonce (OAUTH_STATE, 10-min TTL) in the <code>state</code> param for CSRF protection.</td></tr>
+    <tr><td><code>/callback</code></td><td>GET</td><td>OAuth code + nonce</td><td>Validates nonce (single-use KV lookup), exchanges code → tokens, sets localStorage, redirects to /dashboard</td></tr>
+    <tr><td><code>/refresh</code></td><td>POST</td><td>Refresh token in body</td><td>Verifies <code>refresh_token</code> exists in D1 before forwarding to Strava (auth gate, v9.2.0 #36)</td></tr>
     <tr><td><code>/api/*</code></td><td>GET / POST</td><td>Bearer (Strava access token)</td><td>Generic Strava API proxy. Persists activities to D1 on the side.</td></tr>
+    <tr><td><code>/api/clubs</code></td><td>POST</td><td>Bearer</td><td>Create a new club. Generates a 16-char <code>invite_code</code> via <code>crypto.randomUUID()</code>.</td></tr>
+    <tr><td><code>/api/clubs</code></td><td>GET</td><td>Bearer</td><td>List clubs the authenticated athlete belongs to.</td></tr>
+    <tr><td><code>/api/clubs/:id/members</code></td><td>GET</td><td>Bearer (must be member)</td><td>List members of a club. Non-members receive 404.</td></tr>
+    <tr><td><code>/api/clubs/:id/events</code></td><td>POST</td><td>Bearer (must be member)</td><td>Create a club event. Any member may create.</td></tr>
+    <tr><td><code>/api/clubs/:id/events</code></td><td>GET</td><td>Bearer (must be member)</td><td>List events for a club. Non-members receive 404.</td></tr>
+    <tr><td><code>/api/clubs/join/:code</code></td><td>POST</td><td>Bearer</td><td>Join a club via invite link code.</td></tr>
     <tr><td><code>/coach</code></td><td>POST</td><td>BYOK (Anthropic key in body)</td><td>Generate weekly plan via Claude</td></tr>
     <tr><td><code>/coach-ride</code></td><td>POST</td><td>BYOK (Anthropic key in body)</td><td>Generate per-ride coach verdict via Claude</td></tr>
     <tr><td><code>/webhook</code></td><td>GET</td><td>Strava verify token (env)</td><td>Webhook subscription verification</td></tr>
@@ -223,27 +234,28 @@ export const SPEC_PAGES = [
 <h2>2. Endpoint detail</h2>
 
 <h3>2.1 <code>GET /authorize</code></h3>
-<p>Builds the Strava OAuth URL and 302s the browser to it. Encodes <code>{pwa, origin}</code> into the OAuth <code>state</code> param so <code>/callback</code> can route the user back to the right host (works for Vite dev on :5173 even though the Worker runs at :8787).</p>
+<p>Builds the Strava OAuth URL and 302s the browser to it. Generates a UUID nonce, stores it in OAUTH_STATE KV (10-min TTL), and passes it as the OAuth <code>state</code> param (alongside <code>{pwa, origin}</code>) so <code>/callback</code> can verify the round-trip and route the user back to the right host. Shipped: v8.6.0 (closed issue #14).</p>
 <table><tbody>
 <tr><th>Query params</th><td><code>?origin=&lt;localhost-only&gt;</code> (optional, dev-only), <code>?pwa=1</code> (optional)</td></tr>
-<tr><th>Response</th><td>302 Location: <code>https://www.strava.com/oauth/authorize?client_id=...&amp;redirect_uri=...&amp;state=...</code></td></tr>
+<tr><th>Response</th><td>302 Location: <code>https://www.strava.com/oauth/authorize?client_id=...&amp;redirect_uri=...&amp;state=&lt;nonce&gt;</code></td></tr>
 <tr><th>Errors</th><td>None expected; if <code>STRAVA_CLIENT_ID</code> missing, Strava returns the error.</td></tr>
 </tbody></table>
 
 <h3>2.2 <code>GET /callback</code></h3>
-<p>Strava redirects here after OAuth approval. We exchange the auth code for tokens, persist to D1 (Strangler-Fig), and return HTML that drops <code>cc_tokens</code> into <code>localStorage</code> and redirects to <code>/dashboard</code>.</p>
+<p>Strava redirects here after OAuth approval. Worker validates the <code>state</code> nonce against OAUTH_STATE KV (single-use — the key is deleted on success, returning 400 if absent or expired). Then exchanges the auth code for tokens, persists to D1, and returns HTML that drops <code>cc_tokens</code> into <code>localStorage</code> and redirects to <code>/dashboard</code>.</p>
 <table><tbody>
-<tr><th>Query params</th><td><code>?code=&lt;strava_code&gt;</code>, <code>?state=&lt;b64-json&gt;</code></td></tr>
+<tr><th>Query params</th><td><code>?code=&lt;strava_code&gt;</code>, <code>?state=&lt;nonce&gt;</code></td></tr>
 <tr><th>Response</th><td>HTML with inline JS — sets <code>localStorage.cc_tokens</code>, redirects to <code>/dashboard</code> (or, in PWA mode, shows copy-tokens UI)</td></tr>
-<tr><th>Errors</th><td>Renders <code>errorPage()</code> with Strava's error message if exchange fails</td></tr>
+<tr><th>Errors</th><td>400 if nonce missing/expired; renders <code>errorPage()</code> with Strava's error message if code exchange fails</td></tr>
 </tbody></table>
 
 <h3>2.3 <code>POST /refresh</code></h3>
 <table><tbody>
 <tr><th>Body</th><td><code>{ refresh_token: string }</code></td></tr>
+<tr><th>Auth gate</th><td>Worker looks up the <code>refresh_token</code> in D1 <code>user_connections</code> before forwarding to Strava — returns 401 if not found (shipped v9.2.0, closed issue #36)</td></tr>
 <tr><th>Response</th><td><code>{ access_token, refresh_token, expires_at, athlete? }</code> (Strava's token response)</td></tr>
-<tr><th>Side effect</th><td>If <code>data.athlete?.id</code> present, updates <code>user_connections</code> in D1</td></tr>
-<tr><th>Errors</th><td><code>{ error: &lt;message&gt; }</code> with status 500 on fetch failure</td></tr>
+<tr><th>Side effect</th><td>Updates <code>user_connections</code> in D1 with the new tokens</td></tr>
+<tr><th>Errors</th><td>401 if token not in D1; <code>{ error: &lt;message&gt; }</code> with status 500 on fetch failure</td></tr>
 </tbody></table>
 
 <h3>2.4 <code>GET /api/*</code> (Strava proxy)</h3>
@@ -288,7 +300,7 @@ export const SPEC_PAGES = [
 
 <h3>2.9 <code>GET /version</code></h3>
 <table><tbody>
-<tr><th>Response</th><td><code>{ service: "Cycling Coach", version: "v8.x.y", build_date: "YYYY-MM-DD", status: "ok" }</code></td></tr>
+<tr><th>Response</th><td><code>{ service: "Cadence Club", version: "v9.x.y", build_date: "YYYY-MM-DD", status: "ok" }</code></td></tr>
 <tr><th>Use</th><td>Health check, deploy verification, version pinning in deploy scripts</td></tr>
 </tbody></table>
 
@@ -306,6 +318,48 @@ export const SPEC_PAGES = [
 <tr><th>Headers</th><td><code>Authorization: Bearer $ADMIN_SECRET</code> required</td></tr>
 <tr><th>Response</th><td><code>{ version, date, spec_pages: [{slug, id, status}], legacy_removed: [], roadmap: {id, count, open, shipped}, releases_parent: {id}, release_entry: {id, title, status} }</code></td></tr>
 <tr><th>Errors</th><td>401 (missing/wrong auth), 503 (Confluence secrets unset), 500 (unexpected)</td></tr>
+</tbody></table>
+
+<h2>2.12 Clubs endpoints</h2>
+<p>All clubs endpoints require a valid Bearer (Strava access token). Membership-gated endpoints return 404 (not 403) to avoid leaking club existence to non-members.</p>
+
+<h3>2.12a <code>POST /api/clubs</code></h3>
+<table><tbody>
+<tr><th>Body</th><td><code>{ name: string, description?: string }</code></td></tr>
+<tr><th>Response</th><td><code>{ id, name, invite_code, created_at }</code></td></tr>
+<tr><th>Side effect</th><td>Generates <code>invite_code = crypto.randomUUID().replace(/-/g,'').slice(0,16)</code>; inserts into <code>clubs</code> + <code>club_members</code> (creator as first member)</td></tr>
+</tbody></table>
+
+<h3>2.12b <code>GET /api/clubs</code></h3>
+<table><tbody>
+<tr><th>Response</th><td><code>[{ id, name, invite_code, member_count, created_at }, ...]</code> — clubs the authed athlete belongs to</td></tr>
+</tbody></table>
+
+<h3>2.12c <code>GET /api/clubs/:id/members</code></h3>
+<table><tbody>
+<tr><th>Auth</th><td>Must be a member; returns 404 if not</td></tr>
+<tr><th>Response</th><td><code>[{ athlete_id, role, joined_at }, ...]</code></td></tr>
+</tbody></table>
+
+<h3>2.12d <code>POST /api/clubs/:id/events</code></h3>
+<table><tbody>
+<tr><th>Auth</th><td>Must be a member; any member may create (no admin required)</td></tr>
+<tr><th>Body</th><td><code>{ title: string, scheduled_at: ISO8601, description?: string, location?: string }</code></td></tr>
+<tr><th>Response</th><td><code>{ id, club_id, title, scheduled_at, created_by, created_at }</code></td></tr>
+<tr><th>Note</th><td>RSVPs deferred to Phase B</td></tr>
+</tbody></table>
+
+<h3>2.12e <code>GET /api/clubs/:id/events</code></h3>
+<table><tbody>
+<tr><th>Auth</th><td>Must be a member; returns 404 if not</td></tr>
+<tr><th>Response</th><td><code>[{ id, club_id, title, scheduled_at, created_by, created_at }, ...]</code></td></tr>
+</tbody></table>
+
+<h3>2.12f <code>POST /api/clubs/join/:code</code></h3>
+<table><tbody>
+<tr><th>Path param</th><td><code>:code</code> — 16-char invite code from the club's invite link</td></tr>
+<tr><th>Response</th><td><code>{ club_id, athlete_id, joined_at }</code></td></tr>
+<tr><th>Errors</th><td>404 if code not found; 409 if already a member</td></tr>
 </tbody></table>
 
 <h2>3. External APIs we consume</h2>
@@ -368,7 +422,7 @@ export const SPEC_PAGES = [
     slug: 'interfaces',
     title: '3. User Interfaces',
     storage: `<h1>User Interfaces</h1>
-<ac:structured-macro ac:name="info"><ac:rich-text-body><p>SPA route map, design system (PARS — Performance Dark), component inventory, breakpoints, accessibility posture. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code>.</p></ac:rich-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>SPA route map, design system (PARS — Performance Dark) for Cadence Club, component inventory, breakpoints, accessibility posture. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code>.</p></ac:rich-text-body></ac:structured-macro>
 
 <h2>1. Routes</h2>
 <table>
@@ -392,11 +446,11 @@ export const SPEC_PAGES = [
 <table>
   <tbody>
     <tr><th>Group</th><th>Tokens</th></tr>
-    <tr><td>Surface</td><td><code>--c-canvas</code> #0a0a0c · <code>--c-surface</code> #16181d · <code>--c-surface-elev</code> #1f232a · <code>--c-surface-pressed</code> #252a33 · <code>--c-surface-overlay</code></td></tr>
-    <tr><td>Text</td><td><code>--c-text</code> #f0f1f3 · <code>--c-text-muted</code> #7d8290 · <code>--c-text-faint</code> #454a55</td></tr>
+    <tr><td>Surface</td><td><code>--c-canvas</code> #0a0a0c · <code>--c-bg-deep</code> (deep underlay) · <code>--c-surface</code> #16181d · <code>--c-surface-elev</code> #1f232a · <code>--c-surface-pressed</code> #252a33 · <code>--c-surface-overlay</code></td></tr>
+    <tr><td>Text</td><td><code>--c-text</code> #f0f1f3 · <code>--c-text-muted</code> #7d8290 · <code>--c-text-faint</code> #7a8290 (5.11:1 contrast, lifted in v9.x)</td></tr>
     <tr><td>Line</td><td><code>--c-line</code> · <code>--c-line-strong</code> (1-px borders mostly)</td></tr>
     <tr><td>Accent</td><td><code>--c-accent</code> #ff4d00 (molten orange) · <code>--c-accent-deep</code> · <code>--c-accent-soft</code> · <code>--c-accent-glow</code></td></tr>
-    <tr><td>Coggan + Strava 7-zone palette</td><td><code>--c-z1</code> recovery #3b8ce8 · <code>--c-z2</code> endurance #4ade80 · <code>--c-z3</code> tempo #facc15 · <code>--c-z4</code> threshold #fb923c · <code>--c-z5</code> VO₂ #ef4444 · <code>--c-z6</code> anaerobic #a855f7 · <code>--c-z7</code> neuromuscular #6b21a8</td></tr>
+    <tr><td>Coggan + Strava 7-zone palette</td><td><code>--c-z1</code> recovery #3b8ce8 · <code>--c-z2</code> endurance #4ade80 · <code>--c-z3</code> tempo #facc15 · <code>--c-z4</code> threshold #fb923c · <code>--c-z5</code> VO₂ #ef4444 · <code>--c-z6</code> anaerobic #a855f7 · <code>--c-z7</code> neuromuscular #a55be0 (4.87:1 contrast, lifted in v9.x)</td></tr>
     <tr><td>Status</td><td><code>--c-success</code> #22c55e · <code>--c-warn</code> #f59e0b · <code>--c-danger</code> #ef4444 (each with <code>-soft</code> background variant)</td></tr>
     <tr><td>Strava brand</td><td><code>--c-strava</code> #fc4c02 — used <em>only</em> for Strava-specific UI</td></tr>
     <tr><td>Spacing</td><td>4-px base scale — <code>--s-1</code> 4 px → <code>--s-32</code> 128 px (mobile-first)</td></tr>
@@ -429,7 +483,8 @@ export const SPEC_PAGES = [
 
 <h3>3.2 Chrome</h3>
 <ul>
-  <li><code>TopBar</code> — sticky brand bar (marketing or app variant)</li>
+  <li><code>TopBar</code> — sticky brand bar (marketing or app variant). Trailing slot (app variant): <code>ContextSwitcher</code> + <code>UserMenu</code>. "What's new" badge removed in v9.2.2.</li>
+  <li><code>ContextSwitcher</code> — dropdown for switching between personal dashboard and clubs; viewport-aware positioning (fixed on mobile to prevent clipping, fixed issue #46).</li>
   <li><code>BottomNav</code> — mobile-only authed tab bar (Today · Train · Rides · You)</li>
   <li><code>UserMenu</code> — avatar-pill popover: Sync now · Edit profile · Revoke at Strava ↗ · Disconnect Strava</li>
 </ul>
@@ -504,7 +559,7 @@ export const SPEC_PAGES = [
     slug: 'functional-spec',
     title: '4. Functional Specification',
     storage: `<h1>Functional Specification</h1>
-<ac:structured-macro ac:name="info"><ac:rich-text-body><p>What the app does, for whom, and why — feature catalog with user stories grounded in the target persona. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code>.</p></ac:rich-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>What Cadence Club does, for whom, and why — feature catalog with user stories grounded in the target persona. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code>.</p></ac:rich-text-body></ac:structured-macro>
 
 <h2>1. Persona — Marco</h2>
 <table><tbody>
@@ -628,6 +683,16 @@ export const SPEC_PAGES = [
 <tr><th>Data</th><td><code>useRoadmap()</code> hook → <code>/roadmap</code> Worker endpoint → GitHub Issues API. 5-min edge cache + 5-min Tanstack stale-time.</td></tr>
 </tbody></table>
 
+<h3>2.15 Clubs (MVP)</h3>
+<table><tbody>
+<tr><th>Trigger</th><td>Authenticated athlete accesses clubs via <code>ContextSwitcher</code> or API.</td></tr>
+<tr><th>Create a club</th><td>POST /api/clubs with a name (and optional description). The Worker auto-generates a 16-char <code>invite_code</code>; creator is added as the first member. Clubs are private: member list and events visible to members only.</td></tr>
+<tr><th>Join by invite link</th><td>POST /api/clubs/join/:code. Any athlete with the 16-char invite code may join. Duplicate joins return 409.</td></tr>
+<tr><th>Members list</th><td>GET /api/clubs/:id/members. Non-members receive 404 (membership-gated read). Returns athlete_id, role, joined_at per member. Uses <code>resolveAthleteId</code> helper to look up the caller.</td></tr>
+<tr><th>Club events (Phase A)</th><td>Any member may POST /api/clubs/:id/events (title, scheduled_at, optional description + location). Events are stored in the <code>club_events</code> table (migration 0002). GET /api/clubs/:id/events lists all events for the club. RSVPs deferred to Phase B.</td></tr>
+<tr><th>Data</th><td>D1 tables: <code>clubs</code>, <code>club_members</code>, <code>club_events</code>. No SPA UI in current sprint — API-first.</td></tr>
+</tbody></table>
+
 <h2>3. User stories (Marco's voice)</h2>
 <ol>
   <li>"As Marco, I want to see CTL / ATL / TSB at a glance so I know if I'm fresh or fried — without three taps."</li>
@@ -654,7 +719,7 @@ export const SPEC_PAGES = [
 <h2>5. Out of scope (explicit non-goals)</h2>
 <ul>
   <li><strong>Casual fitness audience.</strong> "How many calories did I burn?" is not the question this app answers.</li>
-  <li><strong>Social / kudos / leaderboards.</strong> That's Strava's job. We surface your data without ranking it against others.</li>
+  <li><strong>Social feeds / kudos / leaderboards.</strong> That's Strava's job. Clubs feature enables shared training groups but not activity feeds or ranking against others.</li>
   <li><strong>Gamification, badges, streaks-as-rewards.</strong> The streak heatmap is data, not dopamine.</li>
   <li><strong>Multi-bike fleet management, gear tracking.</strong> Not yet — the data model supports it but no UI surfaces it.</li>
   <li><strong>Indoor-only workout libraries.</strong> Zwift / TrainerRoad own that space.</li>
@@ -715,7 +780,10 @@ cycling-coach/
 │       │                          # ConnectScreen, LoadingScreen
 │       └── routes/                # Tanstack Router file-based routes
 ├── migrations/                    # D1 schema migrations
-│   └── 0001_pmc_and_events.sql    # v2 schema (FTP, TSS columns, daily_load, events)
+│   ├── 0001_pmc_and_events.sql    # FTP/TSS columns, daily_load, goals extensions
+│   └── 0002_club_events.sql       # club_events table (Clubs Phase A)
+├── db/
+│   └── README.md                  # Migration apply order + remote D1 commands
 ├── scripts/
 │   ├── bootstrap-issues.sh        # Initial GitHub labels + milestones + backlog
 │   └── file-v8.4.0-issues.sh
@@ -743,7 +811,7 @@ cycling-coach/
     <tr><td>Lint / format</td><td>Biome</td><td>1.9</td></tr>
     <tr><td>Worker runtime</td><td>Cloudflare Workers</td><td>via wrangler 4.85</td></tr>
     <tr><td>Database</td><td>Cloudflare D1 (SQLite)</td><td>edge</td></tr>
-    <tr><td>Edge cache</td><td>Cloudflare <code>caches.default</code> + KV (DOCS_KV)</td><td>n/a</td></tr>
+    <tr><td>Edge cache / KV</td><td>Cloudflare <code>caches.default</code> + KV bindings: <code>DOCS_KV</code> (Confluence page-ID + content-hash cache), <code>OAUTH_STATE</code> (OAuth CSRF nonces, 10-min TTL)</td><td>n/a</td></tr>
     <tr><td>AI</td><td>Anthropic Claude Sonnet/Haiku 4.x</td><td>via REST</td></tr>
     <tr><td>Fonts</td><td>Geist + Geist Mono</td><td>via Google Fonts</td></tr>
   </tbody>
@@ -777,10 +845,13 @@ npm run deploy
     <tr><td><code>training_prefs</code></td><td><code>athlete_id</code> PK · <code>sessions_per_week, surface_pref, start_address, updated_at</code></td><td>AI Coach prompts + Routes picker (issue #11 — D1 sync)</td></tr>
     <tr><td><code>ai_reports</code></td><td><code>id, athlete_id, generated_at, sessions_per_week, surface_pref, report_json, prompt_version, model_used</code></td><td>Cached AI weekly plans (server-side, complement to localStorage)</td></tr>
     <tr><td><code>ride_feedback</code></td><td><code>activity_id</code> PK · <code>athlete_id, feedback_json, generated_at, prompt_version, model_used</code></td><td>Per-ride AI verdicts (server-side cache)</td></tr>
-    <tr><td><code>clubs / club_members / club_goals</code></td><td>Phase 2 — schema present, no UI yet</td><td>Future: collective goals</td></tr>
+    <tr><td><code>clubs</code></td><td><code>id, name, invite_code, description, created_by, created_at</code></td><td>Club creation + invite-code join (Clubs MVP)</td></tr>
+    <tr><td><code>club_members</code></td><td><code>club_id, athlete_id, role, joined_at</code></td><td>Membership tracking; gates member-only reads</td></tr>
+    <tr><td><code>club_goals</code></td><td>Schema present; no active feature yet</td><td>Future: collective goals</td></tr>
+    <tr><td><code>club_events</code></td><td><code>id, club_id, title, scheduled_at, description, location, created_by, created_at</code></td><td>Club events Phase A (migration 0002)</td></tr>
   </tbody>
 </table>
-<p>Schema v1: <code>schema.sql</code>. Schema v2 migration: <code>migrations/0001_pmc_and_events.sql</code> (applied to local + remote D1 in issue #7).</p>
+<p>Schema policy (v9.2.0): <code>schema.sql</code> is the <strong>cumulative</strong> current state (all tables + columns). Incremental changes land in numbered migrations under <code>migrations/</code>. <code>db/README.md</code> documents the apply order and remote D1 commands. Current migrations: <code>0001_pmc_and_events.sql</code> (FTP/TSS columns, daily_load, goals extensions), <code>0002_club_events.sql</code> (club_events table).</p>
 
 <h2>5. Client-side state</h2>
 
@@ -837,7 +908,7 @@ npm run deploy
 </ul>
 
 <h2>9. Testing</h2>
-<p>Currently no automated tests. Smoke tests are manual via <code>npm run dev:all</code> + cURL probes. <strong>Planned</strong> (no issue filed yet): Vitest for <code>lib/*</code> pure functions (PMC math, zone classification, polyline decoding, mock-data shaping); Playwright for the auth + onboarding + AI flows.</p>
+<p><strong>27 passing tests</strong> (e2e, as of v9.2.2). Coverage shipped in issue #35: 8 new e2e probes for club + events auth gates; earlier suites cover OAuth, Strava proxy, webhook, admin. Tests run via GitHub Actions on every push + PR (<code>.github/workflows/test.yml</code>). The "What's new" badge test was removed in v9.2.2 when the badge was dropped from TopBar. <strong>Planned</strong>: Vitest for <code>lib/*</code> pure functions (PMC math, zone classification, polyline decoding).</p>
 
 <h2>10. Local dev quick reference</h2>
 <ac:structured-macro ac:name="code"><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[
@@ -856,8 +927,9 @@ npm run dev:all
 # → http://localhost:5173 (SPA, Vite)
 # → http://localhost:8787 (Worker, wrangler)
 
-# Apply schema migration to local D1
+# Apply schema migrations to local D1
 npx wrangler d1 execute cycling_coach_db --file migrations/0001_pmc_and_events.sql
+npx wrangler d1 execute cycling_coach_db --file migrations/0002_club_events.sql
 
 # Deploy to prod
 source .deploy.env
@@ -888,9 +960,10 @@ npm run deploy
 <h2>2. Authentication flow</h2>
 <p>OAuth 2.0 authorization-code grant against Strava. See <strong>Systems &amp; Architecture · §4.1</strong> for the full sequence. Highlights:</p>
 <ul>
-  <li>State param round-trips PWA + origin metadata as base64-JSON. <strong>Issue #14</strong> (milestone v8.6.0): not yet a CSRF nonce; replay/CSRF risk exists today.</li>
+  <li>State param is a KV-backed UUID nonce (OAUTH_STATE, 10-min TTL, single-use). Shipped v8.6.0 — <strong>issue #14 closed</strong>.</li>
   <li>Tokens stored client-side in <code>localStorage</code> (XSS exposure — see §6).</li>
-  <li>Tokens dual-written to D1 <code>user_connections</code> (Strangler-Fig migration toward server-side session).</li>
+  <li>Tokens dual-written to D1 <code>user_connections</code> (Strangler-Fig — now complete for tokens + activities + clubs).</li>
+  <li>Refresh auth gate: <code>/refresh</code> verifies the <code>refresh_token</code> exists in D1 before forwarding to Strava. Prevents token stuffing against the refresh endpoint. Shipped v9.2.0 — <strong>issue #36 closed</strong>.</li>
   <li>Refresh: <code>ensureValidToken()</code> in <code>auth.ts</code> auto-refreshes when token has &lt; 5 min remaining.</li>
   <li>Disconnect: <code>clearTokens()</code> + <code>queryClient.clear()</code> on the client. <strong>Does not</strong> revoke the OAuth grant on Strava — user must revoke at <code>strava.com/settings/apps</code> (linked in User menu).</li>
 </ul>
@@ -966,7 +1039,7 @@ npm run deploy
 <table>
   <tbody>
     <tr><th>#</th><th>Title</th><th>Priority</th><th>Milestone</th><th>Status</th></tr>
-    <tr><td>14</td><td>OAuth state is predictable JSON, not a CSRF nonce</td><td>high</td><td>v8.6.0</td><td>open</td></tr>
+    <tr><td>14</td><td>OAuth state is predictable JSON, not a CSRF nonce</td><td>high</td><td>v8.6.0</td><td>shipped v8.6.0</td></tr>
     <tr><td>15</td><td>Add security headers to all Worker responses</td><td>high</td><td>v8.6.0</td><td>open</td></tr>
     <tr><td>16</td><td>Lock down CORS on /coach + /coach-ride</td><td>medium</td><td>v8.6.0</td><td>open</td></tr>
     <tr><td>17</td><td>/webhook POST has no source verification</td><td>medium</td><td>v8.5.0</td><td>shipped v8.5.2</td></tr>
@@ -975,6 +1048,11 @@ npm run deploy
     <tr><td>20</td><td>Redact api_key from logged errors</td><td>low</td><td>v8.5.0</td><td>shipped v8.5.1</td></tr>
     <tr><td>21</td><td>/admin/* explicit auth (requireAdmin)</td><td>low</td><td>—</td><td>shipped v8.3.0</td></tr>
     <tr><td>22</td><td>Document threat model in SECURITY.md</td><td>low</td><td>v8.5.0</td><td>shipped v8.5.1</td></tr>
+    <tr><td>33</td><td>/coach zero-auth — no token verification before Claude call</td><td>high</td><td>Sprint 3</td><td>open</td></tr>
+    <tr><td>34</td><td>X-Forwarded-Host open redirect in userOrigin()</td><td>high</td><td>Sprint 3</td><td>open</td></tr>
+    <tr><td>36</td><td>/refresh forwarded without verifying token in D1</td><td>high</td><td>v9.2.0</td><td>shipped v9.2.0</td></tr>
+    <tr><td>41</td><td>Strava proxy method whitelist missing (any HTTP verb forwarded)</td><td>high</td><td>Sprint 3</td><td>open</td></tr>
+    <tr><td>42</td><td>Rate-limit on /coach + /api/* (currently unguarded on Workers Free)</td><td>medium</td><td>Sprint 3</td><td>open</td></tr>
   </tbody>
 </table>
 <p>Live issue status: see the <strong>Roadmap</strong> page (auto-regenerated on every <code>npm run deploy</code> from GitHub Issues).</p>
