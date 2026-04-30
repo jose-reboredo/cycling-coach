@@ -31,9 +31,11 @@ test.describe('Mobile tabs — viewport 390×844', () => {
     });
 
     await page.goto(`${BASE}/dashboard`);
-    await page.waitForLoadState('domcontentloaded');
 
-    // beforeLoad redirect must have moved us to /dashboard/today.
+    // beforeLoad redirect runs AFTER the JS bundle loads — wait for the URL
+    // to settle at /dashboard/today rather than checking on domcontentloaded
+    // (which fires before TanStack Router has a chance to redirect).
+    await page.waitForURL(/\/dashboard\/today/, { timeout: 10000 });
     expect(page.url()).toMatch(/\/dashboard\/today/);
 
     // At least one <header> element must be in the DOM.
@@ -56,26 +58,28 @@ test.describe('Mobile tabs — viewport 390×844', () => {
   });
 
   test('No redirect loop on /dashboard/today', async ({ page }) => {
+    // The v9.3.1 redirect-loop bug manifested as Tanstack's parent beforeLoad
+    // re-firing on every nested-route nav, sending /dashboard/today back to
+    // /dashboard/today repeatedly. Detection: navigate, count framenavigated
+    // events for ~2s, assert ≤1 in-place navigation occurred (the initial
+    // domcontentloaded one). A loop would generate many.
+    let navCount = 0;
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) navCount += 1;
+    });
+
     await page.goto(`${BASE}/dashboard/today`);
     await page.waitForLoadState('domcontentloaded');
 
-    // URL must stay on /dashboard/today — must NOT bounce back to /dashboard.
-    expect(page.url()).toMatch(/\/dashboard\/today/);
-    expect(page.url()).not.toMatch(/\/dashboard(?!\/today)/);
+    // Give any pending async redirects 2s to fire if a loop exists.
+    await page.waitForTimeout(2000);
 
-    // Page is interactive — clicking on a nav element must not throw.
-    const nav = page.locator('nav').first();
-    const navCount = await nav.count();
-    if (navCount > 0) {
-      // Click the nav — any unhandled promise rejection would surface as a
-      // pageerror and fail the test; we simply assert the click doesn't throw.
-      await nav.click({ force: true }).catch(() => {
-        // Ignore click errors (e.g. element not interactable); we only care
-        // that the page itself doesn't explode.
-      });
-    }
+    // URL must be settled at /dashboard/today.
+    expect(page.url()).toMatch(/\/dashboard\/today$/);
 
-    // URL must still be on /dashboard/today after interaction.
-    expect(page.url()).toMatch(/\/dashboard\/today/);
+    // No more than 2 mainframe navigations expected: the initial goto + at
+    // most one TanStack-router-driven settle. A redirect loop would push
+    // navCount well above 2 within 2s.
+    expect(navCount, `unexpectedly many mainframe navigations (loop?): ${navCount}`).toBeLessThanOrEqual(2);
   });
 });
