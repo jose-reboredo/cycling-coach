@@ -18,6 +18,11 @@ Created 2026-04-30 from the Sprint-3 backlog review (`docs/post-demo-sprint/spri
 - [ ] DELETE/PUT/PATCH on `/api/<random>` return 405 (method allowlist working — `#41`)
 - [ ] **OAuth round-trip on releases that touch Worker headers** (post-mortem `v9.6.1`): load `/authorize` → complete Strava OAuth → land on `/dashboard` with non-empty data within 5s. Block deploy on regression.
 - [ ] **POST → GET round-trip on any new POST endpoint with optimistic UI** (post-mortem `v9.6.4`): POST valid payload → wait 1s → GET the surface that reads back persisted state → assert state matches. For UPSERT-shape endpoints, `SELECT COUNT(*) FROM <table>;` via `wrangler d1 execute` after smoke POST should be ≥ 1.
+- [ ] **iPhone Safari real-device test** (v9.7.5 / `#67`/`#68`/`#69`) — for any release touching mobile layout. Real device, not Simulator. Test in bottom-toolbar Safari mode, both portrait + landscape:
+  - BottomNav fully visible above Safari toolbar; all 4 tabs tappable
+  - Open Create Club + Create Event modals — Name input visible without scrolling
+  - Tap date/time input — native picker opens; doesn't break modal layout
+  - Open keyboard from any input — modal height shrinks to keep focused input in view
 
 ### 2. iOS Add-to-Home-Screen validation (formerly part of `#10`, now lives here)
 

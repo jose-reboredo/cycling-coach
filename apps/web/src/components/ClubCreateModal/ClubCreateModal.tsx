@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useVisualViewportHeight } from '../../hooks/useVisualViewportHeight';
 import { Button } from '../Button/Button';
 import { useCreateClub } from '../../hooks/useClubs';
 import type { CreateClubResponse } from '../../lib/clubsApi';
@@ -18,6 +19,10 @@ export function ClubCreateModal({ open, onClose, onCreated }: ClubCreateModalPro
   const [error, setError] = useState<string | null>(null);
   const modalRef = useFocusTrap<HTMLDivElement>(open);
   const createClub = useCreateClub();
+  // v9.7.5 (#69) — track visual viewport so modal max-height shrinks when
+  // the iOS keyboard opens. Without this, the focused input slides above
+  // the visible viewport on iPhone Safari.
+  const vvh = useVisualViewportHeight();
 
   // ESC dismiss + scroll lock + reset on open
   useEffect(() => {
@@ -77,6 +82,9 @@ export function ClubCreateModal({ open, onClose, onCreated }: ClubCreateModalPro
             role="dialog"
             aria-modal="true"
             aria-labelledby="club-create-title"
+            // v9.7.5 (#69) — clamp modal height to visual viewport so the
+            // top stays in view when the iOS keyboard is open.
+            style={vvh != null ? { maxHeight: `${vvh - 16}px` } : undefined}
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}

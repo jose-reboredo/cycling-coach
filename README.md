@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.7.4](./CHANGELOG.md#974--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.7.5](./CHANGELOG.md#975--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.7.5
+
+**iOS Safari hardening.** Closes 3 P0/P1 bugs from the v9.7.4 visual verification (`#67`/`#68`/`#69`) — all iOS-Safari-specific edge cases that the v9.7.4 hotfix didn't fully cover. **`#67` BottomNav Safari toolbar fix:** restored `bottom: 0` + added `padding-bottom: max(env(safe-area-inset-bottom, 0), 12px)` — bar background extends to viewport bottom while buttons sit above the safe-area inset, with a 12px minimum fallback for when env() returns 0. **`#68` date/time native input strip:** added `-webkit-appearance: none` + `min-width: 0` + `-webkit-min-logical-width: 0` on `.input[type='date']` and `.input[type='time']` — iOS Safari was rendering native date/time controls that ignored the modal's CSS width and overflowed the right edge. **`#69` visualViewport-aware modal sizing:** new shared hook `useVisualViewportHeight()` in `apps/web/src/hooks/`. ClubCreateModal and ClubEventModal both clamp `max-height` to `${visualViewport.height - 16}px` so the modal stays inside the visible viewport when the iOS keyboard opens — fixes the bug where the Name input rendered above the visible area on Create Club, making the modal functionally broken on iPhone. Plan re-numbered: original v9.7.5 (AI description + Edit + Route picker) becomes v9.7.6; subsequent releases shift +1. No backend changes; pure frontend hardening. Real-device iOS verification recommended on RELEASE_CHECKLIST.
 
 ## What's new in v9.7.4
 

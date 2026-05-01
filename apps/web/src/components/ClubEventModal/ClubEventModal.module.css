@@ -104,6 +104,23 @@
   font: 400 15px/1.4 var(--font-sans);
 }
 
+/* v9.7.5 (#68) — iOS Safari renders <input type="date|time"> with native
+ * controls that ignore CSS width and overflow the modal. -webkit-appearance:
+ * none strips the native chrome; the rest of the styling matches the
+ * generic .input class so date/time fields visually match other inputs. */
+.input[type='date'],
+.input[type='time'] {
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-min-logical-width: 0;  /* Safari ignores width:100% without this on date inputs */
+  min-width: 0;
+  font: 500 15px/1.4 var(--font-sans);
+}
+.input[type='date']::-webkit-date-and-time-value,
+.input[type='time']::-webkit-date-and-time-value {
+  text-align: left;
+}
+
 .input {
   height: var(--hit-comfy);
   padding: 0 var(--s-3);

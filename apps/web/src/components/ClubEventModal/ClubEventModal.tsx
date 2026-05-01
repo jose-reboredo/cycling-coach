@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useVisualViewportHeight } from '../../hooks/useVisualViewportHeight';
 import { Button } from '../Button/Button';
 import { useCreateClubEvent } from '../../hooks/useClubs';
 import { RideIcon, SocialIcon, RaceIcon } from '../../design/icons';
@@ -48,6 +49,9 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
   const [error, setError] = useState<string | null>(null);
   const modalRef = useFocusTrap<HTMLDivElement>(open);
   const createEvent = useCreateClubEvent(clubId);
+  // v9.7.5 (#69) — track visual viewport so modal stays inside the
+  // visible area when the iOS keyboard opens.
+  const vvh = useVisualViewportHeight();
 
   useEffect(() => {
     if (!open) return;
@@ -152,6 +156,8 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
             role="dialog"
             aria-modal="true"
             aria-labelledby="club-event-title"
+            // v9.7.5 (#69) — clamp to visual viewport when iOS keyboard opens.
+            style={vvh != null ? { maxHeight: `${vvh - 16}px` } : undefined}
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}

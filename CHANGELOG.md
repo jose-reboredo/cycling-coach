@@ -4,6 +4,136 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.7.5] — 2026-05-01
+
+**iOS Safari hardening — closes 3 P0/P1 issues from v9.7.4 visual verification.** Founder reported on iPhone Safari that v9.7.4's iOS attempts (changing BottomNav from `bottom: 0` to `bottom: env(safe-area-inset-bottom, 0)`) didn't cover the actual platform behaviour. v9.7.5 systematically addresses the three iOS Safari edge cases that surfaced.
+
+### `#67` — BottomNav obscured by Safari iOS chrome (P0)
+
+**Symptom:** On iPhone Safari with the bottom URL bar visible, the BottomNav's last tab was clipped or fully obscured. Touch targets in the bottom 80px registered Safari controls (back/forward/share/bookmarks) instead of app controls.
+
+**Root cause analysis:** The v9.7.4 `bottom: env(safe-area-inset-bottom, 0)` approach assumed Safari would report its toolbar height in `safe-area-inset-bottom`. In practice this is inconsistent across iOS versions — the home indicator is reliably reported but Safari's bottom toolbar isn't always.
+
+**Fix in `apps/web/src/components/BottomNav/BottomNav.module.css`:**
+
+```css
+.root {
+  position: fixed;
+  bottom: 0;                                                   /* restored from env() */
+  padding-bottom: max(env(safe-area-inset-bottom, 0), 12px);   /* with floor */
+}
+```
+
+The bar **background** extends to viewport bottom (clean visual under the toolbar's blur), while the **buttons** are pushed above the safe-area inset with a 12px minimum fallback for cases where env() returns 0. `viewport-fit=cover` is already in `index.html` so safe areas resolve correctly.
+
+### `#68` — Date/Time inputs overflow modal horizontally (P1)
+
+**Symptom:** In ClubEventModal on iPhone, the `<input type="date">` and `<input type="time">` fields rendered wider than the modal, breaking out of the right edge.
+
+**Root cause:** v9.7.4 added `box-sizing: border-box` to `.input` and `.textarea`, which fixed text inputs. But iOS Safari renders native date/time controls that ignore CSS width unless `-webkit-appearance: none` strips the native chrome.
+
+**Fix in `apps/web/src/components/ClubEventModal/ClubEventModal.module.css`:**
+
+```css
+.input[type='date'],
+.input[type='time'] {
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-min-logical-width: 0;  /* Safari ignores width:100% on date inputs without this */
+  min-width: 0;
+  font: 500 15px/1.4 var(--font-sans);
+}
+.input[type='date']::-webkit-date-and-time-value,
+.input[type='time']::-webkit-date-and-time-value {
+  text-align: left;
+}
+```
+
+Native iOS date/time picker still works (tapping opens the wheel picker); only the rendered control sizing is normalised.
+
+### `#69` — Create Club modal Name input above viewport on iPhone (P0)
+
+**Symptom:** Opening Create Club on iPhone Safari rendered the modal with the NAME input ABOVE the visible viewport. When the keyboard opened, the modal's `max-height: 92dvh` didn't shrink, so the focused input slid further out of view. Modal was functionally broken on iOS.
+
+**Root cause:** `dvh` (dynamic viewport height) doesn't react to the iOS keyboard show/hide. Need `window.visualViewport` to track the actual visible area.
+
+**Fix:**
+
+New shared hook at `apps/web/src/hooks/useVisualViewportHeight.ts`:
+
+```tsx
+export function useVisualViewportHeight(): number | null {
+  const [height, setHeight] = useState(...);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onChange = () => setHeight(vv.height);
+    vv.addEventListener('resize', onChange);
+    vv.addEventListener('scroll', onChange);
+    return () => { /* cleanup */ };
+  }, []);
+  return height;
+}
+```
+
+Both `ClubCreateModal` and `ClubEventModal` call this hook and apply the result inline:
+
+```tsx
+<motion.div
+  ref={modalRef}
+  className={styles.modal}
+  style={vvh != null ? { maxHeight: `${vvh - 16}px` } : undefined}
+  ...
+>
+```
+
+When the iOS keyboard opens, `visualViewport.height` shrinks, the hook re-fires, and the modal's `max-height` drops in step. Internal scrolling then keeps the focused input in view.
+
+`16px` margin reserves a small breathing-room gap below the viewport edge.
+
+### Plan re-numbering
+
+Sprint 5 plan shifts +1 from v9.7.5 onward. The previously-deferred AI description + Edit UX + Route picker work was previously labelled v9.7.5 → now **v9.7.6**. Subsequent releases shift accordingly:
+
+| Release | Was | Status |
+|---|---|---|
+| v9.7.5 | (new) iOS hardening | ✅ this release |
+| v9.7.6 | v9.7.5 | AI description + Edit UX + Route picker |
+| v9.7.7 | v9.7.6 | Personal scheduler `/dashboard/schedule` (`#61`) |
+| v9.7.8 | v9.7.7 | Clubs share/invite (`#56`) |
+| v9.7.9 | v9.7.8 (Sprint 5.5) | Landing copy rewrite (`#64`) |
+
+Confluence Sprint Roadmap (page `3375129`) updated in this deploy. Plan doc `4-sprint-plan-2026-05.md` will be re-synced at sprint close in the retro.
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green; manual scan; visual verification deferred to founder on real iPhone (the only reliable test for iOS Safari edge cases — the synthetic Playwright environment doesn't reproduce Safari toolbar behaviour)
+- ✅ #2 Pre-commit grep against `schema.sql` — N/A (no SQL change)
+- ✅ #4 POST → GET round-trip — N/A (no new endpoints)
+- ✅ #5 Verification budget within 12% — direct in-context implementation
+- ✅ #6 Bug post-mortems — none required (the 3 issues were in-flight bugs from the same release cycle, not production hotfixes)
+
+### Bundle impact
+
+Dashboard chunk: 88.49 → 88.98 KB (+0.49 KB / +0.6%). Just the new hook + applied to two modals.
+
+### Versions: 9.7.4 → 9.7.5 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+### RELEASE_CHECKLIST addition
+
+Add to per-release smoke for any change touching mobile layout:
+
+- iPhone Safari real-device test (not Simulator) — bottom URL bar mode, both portrait and landscape:
+  - BottomNav fully visible above Safari toolbar
+  - All 4 tabs tappable
+  - Open Create Club + Create Event modals — Name input visible without scrolling
+  - Tap a date/time input — native picker opens, doesn't break modal layout
+  - Open keyboard from any input — modal height shrinks to keep focused input in view
+
+---
+
 ## [9.7.4] — 2026-05-01
 
 **Hotfix — 5 UX bugs from v9.7.3 visual review (`#66`).** Founder reviewed v9.7.3 in the wild and reported a bundle of issues that needed fixing before the next feature ships. Bundled into a single hotfix so v9.7.5 (AI description + Edit UX + Route picker, previously labelled "v9.7.3.1") ships into a clean shell.
