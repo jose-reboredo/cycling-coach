@@ -24,10 +24,20 @@
 }
 
 .list {
-  display: grid;
-  /* v9.11.0 (#61): 4 → 5 slots (added Schedule between Today and Train).
-   * Tighter spacing on mobile but each touch target stays ≥ 44px. */
-  grid-template-columns: repeat(5, 1fr);
+  /* v9.12.2 (#79): switched from `grid-template-columns: repeat(N, 1fr)`
+   * to flex so the bar adapts to ANY item count without layout dead-space.
+   * Individual mode has 5 slots (Today/Schedule/Train/Rides/You); club
+   * mode has 4 (Overview/Schedule/Members/Metrics). v9.11.0's hardcoded
+   * grid:5 left an empty 5th column on club view. */
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list > li {
+  flex: 1;
+  min-width: 0;
 }
 
 .item {

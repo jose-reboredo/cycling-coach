@@ -72,7 +72,11 @@ function NewSessionPage() {
     const zoneNum = zone ? parseInt(zone, 10) : null;
     const durationNum = duration ? parseInt(duration, 10) : null;
     const wattsNum = watts ? parseInt(watts, 10) : null;
-    if (durationNum != null && (durationNum < 0 || durationNum > 600)) {
+    if (durationNum == null) {
+      setError('Duration is required.');
+      return;
+    }
+    if (durationNum < 0 || durationNum > 600) {
       setError('Duration must be 0–600 minutes.');
       return;
     }
@@ -109,7 +113,7 @@ function NewSessionPage() {
 
         <form className={styles.form} onSubmit={handleSubmit}>
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="s-title">Title</label>
+            <label className={styles.fieldLabel} htmlFor="s-title">Title<span className={styles.required}>*</span></label>
             <input
               id="s-title"
               className={styles.input}
@@ -125,7 +129,7 @@ function NewSessionPage() {
 
           <div className={styles.fieldRow}>
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="s-date">Date</label>
+              <label className={styles.fieldLabel} htmlFor="s-date">Date<span className={styles.required}>*</span></label>
               <input
                 id="s-date"
                 className={styles.input}
@@ -136,13 +140,14 @@ function NewSessionPage() {
               />
             </div>
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="s-time">Time</label>
+              <label className={styles.fieldLabel} htmlFor="s-time">Time<span className={styles.required}>*</span></label>
               <input
                 id="s-time"
                 className={styles.input}
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
+                required
               />
             </div>
           </div>
@@ -164,7 +169,7 @@ function NewSessionPage() {
 
           <div className={styles.fieldRow}>
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="s-duration">Duration (min)</label>
+              <label className={styles.fieldLabel} htmlFor="s-duration">Duration (min)<span className={styles.required}>*</span></label>
               <input
                 id="s-duration"
                 className={styles.input}
@@ -174,6 +179,7 @@ function NewSessionPage() {
                 max={600}
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
+                required
                 placeholder="75"
               />
             </div>
@@ -205,6 +211,8 @@ function NewSessionPage() {
             />
             <span className={styles.fieldHint}>Optional. Up to 2,000 characters.</span>
           </div>
+
+          <p className={styles.formLegend}>* Required</p>
 
           {error && <div className={styles.error} role="alert">{error}</div>}
 

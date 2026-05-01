@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.12.1';
+const WORKER_VERSION = 'v9.12.2';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -577,14 +577,26 @@ async function handleRequest(request, env) {
         const routeStravaId = body?.route_strava_id ? body.route_strava_id.toString().trim().slice(0, 64) : null;
         const descAi = body?.description_ai_generated === true || body?.description_ai_generated === 1 ? 1 : 0;
 
+        // v9.12.2 (#79): duration_minutes mandatory on POST. Range 0–600
+        // (10h max). Migration 0009 made the column nullable for legacy rows
+        // but new events MUST include it.
+        const durationMinutes = typeof body?.duration_minutes === 'number'
+          && body.duration_minutes >= 0 && body.duration_minutes <= 600
+          ? Math.floor(body.duration_minutes) : null;
+        if (durationMinutes === null) {
+          return new Response(JSON.stringify({ error: 'duration_minutes required (0-600)' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
         const inserted = await db
           .prepare(
             'INSERT INTO club_events (club_id, created_by, title, description, event_date, location, created_at, ' +
-            '  event_type, distance_km, expected_avg_speed_kmh, surface, start_point, route_strava_id, description_ai_generated) ' +
-            'VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+            '  event_type, distance_km, expected_avg_speed_kmh, surface, start_point, route_strava_id, description_ai_generated, duration_minutes) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
           )
           .bind(clubId, authResult.athleteId, title, description, eventDate, location, now,
-                eventType, distanceKm, speedKmh, surface, startPoint, routeStravaId, descAi)
+                eventType, distanceKm, speedKmh, surface, startPoint, routeStravaId, descAi, durationMinutes)
           .first();
         if (!inserted?.id) {
           safeWarn(`[clubs] event insert returned no id for club ${clubId}`);
@@ -609,6 +621,7 @@ async function handleRequest(request, env) {
           route_strava_id: routeStravaId,
           description_ai_generated: descAi,
           cancelled_at: null,
+          duration_minutes: durationMinutes,
         }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
@@ -644,7 +657,7 @@ async function handleRequest(request, env) {
           'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
           '       e.event_date, e.event_type, e.created_at, ' +
           '       e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point, ' +
-          '       e.route_strava_id, e.description_ai_generated, e.cancelled_at, ' +
+          '       e.route_strava_id, e.description_ai_generated, e.cancelled_at, e.duration_minutes, ' +
           '       u.firstname AS creator_firstname, u.lastname AS creator_lastname, ' +
           '       COUNT(CASE WHEN r.status = \'going\' THEN 1 END) AS confirmed_count ' +
           'FROM club_events e ' +
@@ -654,7 +667,7 @@ async function handleRequest(request, env) {
           'GROUP BY e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
           '         e.event_date, e.event_type, e.created_at, ' +
           '         e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point, ' +
-          '         e.route_strava_id, e.description_ai_generated, e.cancelled_at, ' +
+          '         e.route_strava_id, e.description_ai_generated, e.cancelled_at, e.duration_minutes, ' +
           '         u.firstname, u.lastname ' +
           'ORDER BY e.event_date ASC',
         ).bind(clubId, startEpoch, endEpoch).all();
@@ -781,6 +794,9 @@ async function handleRequest(request, env) {
       setIfPresent('surface', 'surface', (v) => v === null ? null : (SURFACE_ALLOWLIST.has(v) ? v : undefined));
       setIfPresent('start_point', 'start_point', (v) => v == null || v === '' ? null : String(v).trim().slice(0, 200));
       setIfPresent('route_strava_id', 'route_strava_id', (v) => v == null || v === '' ? null : String(v).trim().slice(0, 64));
+      // v9.12.2 (#79): duration_minutes patchable. Null clears (legacy events
+      // without duration); 0–600 valid range.
+      setIfPresent('duration_minutes', 'duration_minutes', (v) => v === null ? null : (typeof v === 'number' && v >= 0 && v <= 600 ? Math.floor(v) : undefined));
 
       if (updates.length === 0) {
         return new Response(JSON.stringify({ error: 'no patchable fields' }), {
@@ -1058,7 +1074,7 @@ async function handleRequest(request, env) {
               e.id, e.club_id, e.created_by, e.title, e.description, e.location,
               e.event_date, e.event_type, e.created_at,
               e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point,
-              e.route_strava_id, e.description_ai_generated, e.cancelled_at,
+              e.route_strava_id, e.description_ai_generated, e.cancelled_at, e.duration_minutes,
               COUNT(CASE WHEN r.status = 'going' THEN 1 END) AS confirmed_count
             FROM club_events e
             LEFT JOIN event_rsvps r ON r.event_id = e.id
@@ -1066,7 +1082,7 @@ async function handleRequest(request, env) {
             GROUP BY e.id, e.club_id, e.created_by, e.title, e.description, e.location,
                      e.event_date, e.event_type, e.created_at,
                      e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point,
-                     e.route_strava_id, e.description_ai_generated, e.cancelled_at
+                     e.route_strava_id, e.description_ai_generated, e.cancelled_at, e.duration_minutes
             ORDER BY e.event_date ASC
             LIMIT 20
           `).bind(clubId, now),
@@ -1115,6 +1131,7 @@ async function handleRequest(request, env) {
         route_strava_id: e.route_strava_id ?? null,
         description_ai_generated: e.description_ai_generated ?? 0,
         cancelled_at: e.cancelled_at ?? null,
+        duration_minutes: e.duration_minutes ?? null,
         confirmed_count: Number(e.confirmed_count ?? 0),
       }));
 
@@ -1366,7 +1383,7 @@ async function handleRequest(request, env) {
         '  e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
         '  e.event_date, e.event_type, e.created_at, ' +
         '  e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point, ' +
-        '  e.route_strava_id, e.description_ai_generated, e.cancelled_at, ' +
+        '  e.route_strava_id, e.description_ai_generated, e.cancelled_at, e.duration_minutes, ' +
         '  c.name AS club_name, ' +
         '  (SELECT COUNT(*) FROM event_rsvps r2 WHERE r2.event_id = e.id AND r2.status = \'going\') AS confirmed_count, ' +
         '  CASE WHEN e.created_by = ? THEN 1 ELSE 0 END AS is_creator, ' +
@@ -1401,6 +1418,7 @@ async function handleRequest(request, env) {
         route_strava_id: e.route_strava_id ?? null,
         description_ai_generated: e.description_ai_generated ?? 0,
         cancelled_at: e.cancelled_at ?? null,
+        duration_minutes: e.duration_minutes ?? null,
         confirmed_count: Number(e.confirmed_count ?? 0),
         is_creator: !!e.is_creator,
         is_going: !!e.is_going,

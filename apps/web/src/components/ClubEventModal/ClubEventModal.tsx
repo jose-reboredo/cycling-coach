@@ -49,6 +49,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
   const [date, setDate] = useState('');
   const [time, setTime] = useState('09:00');
   const [eventType, setEventType] = useState<ClubEventType>('ride');
+  const [durationMin, setDurationMin] = useState('');
   const [distanceKm, setDistanceKm] = useState('');
   const [speedKmh, setSpeedKmh] = useState('');
   const [surface, setSurface] = useState<ClubEventSurface | ''>('');
@@ -79,6 +80,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
       setSpeedKmh(event.expected_avg_speed_kmh != null ? String(event.expected_avg_speed_kmh) : '');
       setSurface((event.surface as ClubEventSurface) || '');
       setStartPoint(event.start_point || '');
+      setDurationMin(event.duration_minutes != null ? String(event.duration_minutes) : '');
       setDescIsAi(!!event.description_ai_generated);
       const dt = new Date((event.event_date || 0) * 1000);
       setDate(Number.isFinite(dt.getTime()) ? dt.toISOString().slice(0, 10) : '');
@@ -97,6 +99,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
       setSpeedKmh('');
       setSurface('');
       setStartPoint('');
+      setDurationMin('');
       setDescIsAi(false);
       const now = new Date();
       const day = now.getDay();
@@ -144,12 +147,22 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
     }
     const distanceParsed = distanceKm ? Number(distanceKm) : null;
     const speedParsed = speedKmh ? Number(speedKmh) : null;
+    const durationParsed = durationMin ? Number(durationMin) : null;
     if (distanceKm && (!Number.isFinite(distanceParsed) || distanceParsed! < 0 || distanceParsed! >= 1000)) {
       setError('Distance must be 0–999 km.');
       return;
     }
     if (speedKmh && (!Number.isFinite(speedParsed) || speedParsed! <= 0 || speedParsed! >= 100)) {
       setError('Speed must be 0–99 km/h.');
+      return;
+    }
+    // v9.12.2 (#79) — duration is mandatory.
+    if (durationParsed == null) {
+      setError('Duration is required.');
+      return;
+    }
+    if (!Number.isFinite(durationParsed) || durationParsed < 0 || durationParsed > 600) {
+      setError('Duration must be 0–600 minutes.');
       return;
     }
 
@@ -159,6 +172,8 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
       location: location.trim() || null,
       event_date: Math.floor(eventDateMs / 1000),
       event_type: eventType,
+      // v9.12.2 (#79) — duration_minutes always sent; required on CREATE.
+      duration_minutes: durationParsed,
       // Athletic fields cleared (set null) when format = social so we don't
       // leave stale data on a Ride→Social toggle in edit mode.
       distance_km: showAthleticFields && distanceParsed !== null ? distanceParsed : null,
@@ -182,6 +197,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
             location: fields.location ?? '',
             event_date: fields.event_date,
             event_type: fields.event_type,
+            duration_minutes: fields.duration_minutes,
             distance_km: fields.distance_km,
             expected_avg_speed_kmh: fields.expected_avg_speed_kmh,
             surface: fields.surface,
@@ -204,6 +220,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
         location: fields.location ?? undefined,
         event_date: fields.event_date,
         event_type: fields.event_type,
+        duration_minutes: fields.duration_minutes,  // v9.12.2 — required server-side
         ...(fields.distance_km !== null ? { distance_km: fields.distance_km } : {}),
         ...(fields.expected_avg_speed_kmh !== null ? { expected_avg_speed_kmh: fields.expected_avg_speed_kmh } : {}),
         ...(fields.surface ? { surface: fields.surface } : {}),
@@ -283,7 +300,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
 
             <form className={styles.form} onSubmit={handleSubmit}>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="ev-title">Title</label>
+                <label className={styles.fieldLabel} htmlFor="ev-title">Title<span className={styles.required}>*</span></label>
                 <input
                   id="ev-title"
                   className={styles.input}
@@ -299,7 +316,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
 
               {/* v9.7.3 — Format chips. Drives persona-aware field visibility. */}
               <div className={styles.field}>
-                <label className={styles.fieldLabel}>Format</label>
+                <label className={styles.fieldLabel}>Format<span className={styles.required}>*</span></label>
                 <div className={styles.chipRow} role="radiogroup" aria-label="Event format">
                   {FORMATS.map(({ id, label, Icon }) => (
                     <button
@@ -319,7 +336,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
 
               <div className={styles.fieldRow}>
                 <div className={styles.field}>
-                  <label className={styles.fieldLabel} htmlFor="ev-date">Date</label>
+                  <label className={styles.fieldLabel} htmlFor="ev-date">Date<span className={styles.required}>*</span></label>
                   <input
                     id="ev-date"
                     className={styles.input}
@@ -330,15 +347,35 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
                   />
                 </div>
                 <div className={styles.field}>
-                  <label className={styles.fieldLabel} htmlFor="ev-time">Time</label>
+                  <label className={styles.fieldLabel} htmlFor="ev-time">Time<span className={styles.required}>*</span></label>
                   <input
                     id="ev-time"
                     className={styles.input}
                     type="time"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
+                    required
                   />
                 </div>
+              </div>
+
+              {/* v9.12.2 (#79) — Duration: mandatory for all events. Visible
+               *  even when format=Social (a coffee meetup still has a length). */}
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="ev-duration">Duration (min)<span className={styles.required}>*</span></label>
+                <input
+                  id="ev-duration"
+                  className={styles.input}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={600}
+                  step={5}
+                  value={durationMin}
+                  onChange={(e) => setDurationMin(e.target.value)}
+                  required
+                  placeholder="90"
+                />
               </div>
 
               {/* v9.7.3 — Athletic fields hidden when format = social. */}
@@ -462,6 +499,8 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
                   {descIsAi && ' AI-drafted — edit to refine.'}
                 </span>
               </div>
+
+              <p className={styles.formLegend}>* Required</p>
 
               {error && <div className={styles.error} role="alert">{error}</div>}
 

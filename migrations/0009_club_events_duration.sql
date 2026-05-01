@@ -1,0 +1,21 @@
+-- Migration 0009 (Sprint 5, v9.12.2) — club_events.duration_minutes
+-- ============================================================================
+-- Adds `duration_minutes` to club_events. Per founder feedback: events MUST
+-- include duration so members can plan recovery, time blocks, and bring the
+-- right kit.
+--
+-- Column nullable at DB level so legacy events without duration still query
+-- correctly. App-level required on POST `/api/clubs/:id/events` (server-side
+-- 400 if missing). PATCH allows null clearing for flexibility.
+--
+-- Pre-CTO column-shape verification (Sprint 4 retro Improvement #2):
+--   2026-05-01 — `duration_minutes` already used in planned_sessions
+--   (Migration 0008). New column on `club_events` is independent (different
+--   table). Verified no name conflict via grep schema.sql for column-on-
+--   club_events.
+--
+-- Constraint: BETWEEN 0 AND 600 (10h max) — same as planned_sessions; longest
+-- realistic group ride is ~8h.
+-- ============================================================================
+
+ALTER TABLE club_events ADD COLUMN duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 0 AND 600);

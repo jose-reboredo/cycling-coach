@@ -217,7 +217,8 @@ CREATE TABLE club_events (
   start_point TEXT,                             -- free text address ("Limmatquai 8")
   route_strava_id TEXT,                         -- nullable; link to user's saved Strava route
   description_ai_generated INTEGER NOT NULL DEFAULT 0,  -- boolean: was description AI-drafted?
-  cancelled_at INTEGER                          -- nullable; epoch seconds when creator/admin cancelled (soft-delete)
+  cancelled_at INTEGER,                         -- nullable; epoch seconds when creator/admin cancelled (soft-delete)
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 0 AND 600)  -- v9.12.2 (migration 0009): event duration; nullable for legacy, required app-side on POST
 );
 
 CREATE INDEX idx_club_events_club_date ON club_events(club_id, event_date);

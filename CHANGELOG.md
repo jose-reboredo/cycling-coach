@@ -4,6 +4,107 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.2] — 2026-05-01
+
+**Partial `#79` polish bundle:** mandatory event duration + asterisks/legend on required fields + BottomNav adapts to item count. Closes 3 of 5 founder-flagged items. Visual differentiation + personal-session drawer mutations deferred to v9.12.3 (substantial scope).
+
+### Migration 0009 — `club_events.duration_minutes`
+
+```sql
+ALTER TABLE club_events ADD COLUMN duration_minutes INTEGER
+  CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 0 AND 600);
+```
+
+Nullable at DB layer (legacy events without duration still query correctly); app-required on POST. Pre-CTO grep against schema.sql passed (column name reused from `planned_sessions` migration 0008 but on a different table — no conflict).
+
+### Backend
+
+`src/worker.js`:
+- POST `/api/clubs/:id/events`: validates `duration_minutes` is 0–600 number; returns 400 with `{error: 'duration_minutes required (0-600)'}` if missing
+- PATCH `/api/clubs/:id/events/:eventId`: accepts `duration_minutes` in patchable allowlist (null clears, 0–600 valid)
+- GET range query: SELECT now includes `e.duration_minutes`; GROUP BY clause updated
+- GET `/api/clubs/:id/overview` upcoming SQL: same treatment
+- GET `/api/me/schedule` club_events stream: same
+
+All 5 query/serialization paths updated together so the field round-trips cleanly.
+
+### Frontend — mandatory-field UX
+
+Brand-tone treatment per founder request ("as experience designer about the experience and tone for our brand/personas"):
+
+```css
+.required {
+  color: var(--c-accent);
+  margin-left: 2px;  /* Adjacent to label text, no space — brutalist tight */
+}
+
+.formLegend {
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--c-text-faint);
+  /* "* Required" — no "field" filler word; mono faint matches brand voice */
+}
+```
+
+**ClubEventModal**: asterisks on Title, Format, Date, Time, Duration (5 required fields). New Duration field rendered before athletic fields, always visible (even when format = Social — coffee meetups still have a length).
+
+**Add Session page** (`/dashboard/schedule-new`): asterisks on Title, Date, Time, Duration (4 required fields).
+
+Both forms enforce required client-side AND server-side (defense in depth).
+
+### `clubsApi.ts` types
+
+- `ClubEvent.duration_minutes?: number | null` (optional in TS for backward-compat with legacy events)
+- `UpcomingEvent.duration_minutes: number | null` (required field; can be null for legacy)
+- `CreateClubEventInput.duration_minutes: number` (required, no `?` — UI must collect it)
+
+### `#79` bug 5 — BottomNav 5th slot fix
+
+v9.11.0 changed `grid-template-columns: repeat(4, 1fr)` → `repeat(5, 1fr)` to fit individual mode's new "Schedule" slot. But club mode renders 4 items (Overview/Schedule/Members/Metrics), leaving an empty 5th column.
+
+**Fix:** `apps/web/src/components/BottomNav/BottomNav.module.css`:
+
+```css
+.list {
+  display: flex;       /* was: display: grid */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.list > li {
+  flex: 1;
+  min-width: 0;
+}
+```
+
+Flex distributes across whatever item count is rendered — 4 for club, 5 for individual, future-proof for any variant.
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green; manual TS scan
+- ✅ #2 Pre-commit grep against `schema.sql` — passed; `duration_minutes` reused on different table is fine
+- ✅ #4 POST → GET round-trip — backend changes preserve existing endpoints; new field round-trips through 5 paths
+- ✅ #5 Verification budget — kept tight by deferring v9.12.3 scope
+- ✅ #6 Bug post-mortems — none required
+
+### Deferred to v9.12.3 (next session)
+
+- Visual differentiation between club events (color + format icon + club name chip) and personal sessions (zone color + SessionIcon)
+- New `SessionIcon` SVG (1.6px stroke, 24×24, dumbbell silhouette)
+- `EventDetailDrawer` extension: detect `event_source === 'personal_session'`, render Edit / Mark Done / Cancel buttons (gated on session ownership)
+- Edit personal session: extend `dashboard.schedule-new.tsx` to accept `?id=N` query param + pre-fill from existing session
+- Unsubscribe button in drawer for club events I RSVP'd but didn't create
+
+### Bundle
+
+Dashboard chunk: 74.92 → 75.99 KB (+1.07 KB) for the new fields + asterisk markup.
+
+### Versions: 9.12.1 → 9.12.2 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.12.1] — 2026-05-01
 
 **Hotfix.** Two bugs from v9.12.0 visual review.

@@ -107,6 +107,20 @@
   color: var(--c-text-faint);
 }
 
+/* v9.12.2 (#79) — mandatory-field marker + legend. Brand-tone: accent
+ * asterisk inline with label, no "Required" word; legend in mono faint. */
+.required {
+  color: var(--c-accent);
+  margin-left: 2px;
+}
+
+.formLegend {
+  margin: 0;
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--c-text-faint);
+}
+
 .error {
   background: var(--c-accent-soft);
   border-left: 2px solid var(--c-accent);

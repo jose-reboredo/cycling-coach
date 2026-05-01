@@ -115,6 +115,8 @@ export interface ClubEvent {
   route_strava_id?: string | null;
   description_ai_generated?: number | null;
   cancelled_at?: number | null;
+  /** v9.12.2 (migration 0009) — event duration; required app-side on POST. */
+  duration_minutes?: number | null;
   creator_firstname?: string | null;
   creator_lastname?: string | null;
 }
@@ -132,6 +134,8 @@ export interface CreateClubEventInput {
   location?: string;
   /** ISO 8601 string OR unix epoch seconds. */
   event_date: string | number;
+  /** v9.12.2 (#79) — required at server; UI marks as mandatory. */
+  duration_minutes: number;
   // v9.7.3 — Migration 0007 fields.
   event_type?: ClubEventType;
   distance_km?: number | null;
@@ -195,6 +199,8 @@ export interface UpcomingEvent {
   route_strava_id: string | null;
   description_ai_generated: number | null;
   cancelled_at: number | null;
+  /** v9.12.2 — duration in minutes; null for legacy events. */
+  duration_minutes: number | null;
   confirmed_count: number;
 }
 

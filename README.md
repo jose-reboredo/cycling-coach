@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.12.1](./CHANGELOG.md#9121--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.12.2](./CHANGELOG.md#9122--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.12.2
+
+**Mandatory `duration_minutes` on club events + asterisks on required fields + BottomNav adapts to item count.** Closes part of `#79` (5-item bundle from founder feedback). Migration `0009` adds `duration_minutes INTEGER` to `club_events` (nullable for legacy rows; required server-side on POST). Server returns 400 if missing on create; PATCH allows null clearing. Frontend: ClubEventModal gets a Duration field + asterisks on Title/Format/Date/Time/Duration + "* Required" legend at form bottom (mono faint, brand-tone — no "Required field" filler). Add Session page (`/dashboard/schedule-new`) gets the same treatment: asterisks on Title/Date/Time/Duration + legend. Brand styling: asterisk in `var(--c-accent)` immediately adjacent to label (no space). BottomNav switches from `grid-template-columns: repeat(5, 1fr)` to `display: flex; .item { flex: 1; }` — adapts to item count instead of leaving an empty 5th slot on club view (which only has 4 items: Overview/Schedule/Members/Metrics). All 9 places that reference `duration_minutes` updated (POST, PATCH, GET range, GET overview, GET /api/me/schedule). **Deferred to v9.12.3** (next session): visual differentiation between club events and personal sessions on calendar pills (SessionIcon + zone colors); drawer Edit/Cancel/Mark-Done buttons for personal sessions; Unsubscribe button for club events I RSVP'd but didn't create. Bundle: dashboard chunk +1 KB.
 
 ## What's new in v9.12.1
 
