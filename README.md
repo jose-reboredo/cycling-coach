@@ -2,7 +2,7 @@
 
 Cycling training app for solo riders and clubs. Reads your Strava history, computes daily form (CTL/ATL/TSB), generates AI-coached weekly plans, and gives clubs a shared schedule with RSVP and AI-drafted weekly recaps.
 
-**Current release:** [v10.4.0](./CHANGELOG.md) · **Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · [Security policy](./SECURITY.md)
+**Current release:** [v10.5.0](./CHANGELOG.md) · **Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · [Security policy](./SECURITY.md)
 
 ---
 
@@ -118,7 +118,8 @@ docs/                     # Architecture notes
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full history. Highlights:
 
-- **v10.4.0** — Route generation backend (`POST /api/routes/generate`). OSM-based loop generation via OpenRouteService, scored on distance / elevation / surface / overlap. KV-cached, auth-gated, rate-limited. UI integration ships in v10.5.0.
+- **v10.5.0** — Route picker UX in the EventDetailDrawer for personal sessions: address input (Nominatim geocoding), 3 ranked route cards with distance / elevation / surface / score, GPX-download Strava handoff. Salutation styling matches club-name template. Modal duration always renders rounded to 0.5h.
+- **v10.4.0** — Route generation backend (`POST /api/routes/generate`). OSM-based loop generation via OpenRouteService, scored on distance / elevation / surface / overlap. KV-cached, auth-gated, rate-limited.
 - **v10.3.0** — Layout: salutation + sync chip + streak chip lifted above TopTabs (matches club view); prefill modal visual fixes (input height normalised, "Estimated" pill moved out of label); duration estimates round to 0.5h.
 - **v10.2.0** — Per-day AI-plan scheduling now opens a prefill confirmation modal; duration estimated from distance × zone-pace when explicit duration is missing.
 - **v10.1.0** — Per-day "+ Schedule" buttons on the AI weekly plan; consecutive-day streak counter on Today.

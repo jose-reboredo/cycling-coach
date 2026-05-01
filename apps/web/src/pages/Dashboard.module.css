@@ -59,16 +59,23 @@
   color: var(--c-text-faint);
 }
 
-/* v10.3.0 — Layout-level salutation row, sits between TopBar and TopTabs.
- * Mirrors ClubDashboard's pattern of putting context info above the tabs.
- * Mobile: stacks vertically; desktop: row with chips on the right. */
+/* v10.5.0 — Layout-level salutation row, mirrors ClubDashboard's slim
+ * header (font, weight, color, em-accent period). Founder directive:
+ * "consistency between templates is key" — same visual treatment as
+ * the "Merkle Riders." club name above its tabs. */
 .salutationRow {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-5) 0 var(--s-3);
+  padding: var(--s-4) 0 var(--s-3);
 }
-.salutationRow strong {
+.salutationName {
+  font: 600 clamp(22px, 4vw, 32px) / 1.1 var(--font-sans);
+  letter-spacing: -0.022em;
+  color: var(--c-text);
+  margin: 0;
+}
+.salutationName em {
   font-style: italic;
   font-weight: 400;
   color: var(--c-accent);

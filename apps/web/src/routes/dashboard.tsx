@@ -10,7 +10,6 @@ import { ContextSwitcher } from '../components/ContextSwitcher/ContextSwitcher';
 import { ClubCreateCard } from '../components/ClubCreateCard/ClubCreateCard';
 import { ClubDashboard } from '../components/ClubDashboard/ClubDashboard';
 import { Container } from '../components/Container/Container';
-import { Eyebrow } from '../components/Eyebrow/Eyebrow';
 import { Pill } from '../components/Pill/Pill';
 import { computeTabsEnabled, useTabsEnabled, useClubsEnabled } from '../lib/featureFlags';
 import { useAppContext } from '../lib/AppContext';
@@ -167,10 +166,14 @@ function TabsLayout() {
            *  own greeting line. */}
           <Container width="wide">
             <header className={dashboardStyles.salutationRow}>
-              <Eyebrow rule tone="accent">
-                {greeting}, <strong>{firstName}</strong>
-                {lastName ? ` ${lastName.charAt(0)}.` : '.'}
-              </Eyebrow>
+              {/* v10.5.0 — Same brutalist treatment as ClubDashboard's
+                  "Merkle Riders." slim header for visual consistency
+                  across templates. Bold sans-serif, white, accent
+                  em-period at the end. */}
+              <h1 className={dashboardStyles.salutationName}>
+                {greeting}, {firstName}
+                {lastName ? ` ${lastName.charAt(0)}` : ''}<em>.</em>
+              </h1>
               <div className={dashboardStyles.salutationChips}>
                 <Pill dot tone="success">
                   {usingMock ? 'Demo data' : 'In sync'}

@@ -4,6 +4,151 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.5.0] — 2026-05-01
+
+**Route picker drawer UX wires the v10.4.0 backend; salutation styling + duration rounding bug fixes.**
+
+Originally bundled with the schedule-polish trio per founder request; tech-lead split: route picker is a substantial feature deserving isolated visual verification. Polish trio bumps to v10.6.0.
+
+### Bug fixes
+
+**Salutation styling.** Founder feedback: "Evening, Jose R. should be as 'Merkle Riders' bold, white, same size — consistency between templates is key." The v10.3.0 salutation row used the small mono `Eyebrow` style; v10.5.0 lifts it to match `slimHeaderName` from `ClubDashboard.module.css` exactly:
+
+```css
+.salutationName {
+  font: 600 clamp(22px, 4vw, 32px) / 1.1 var(--font-sans);
+  letter-spacing: -0.022em;
+  color: var(--c-text);
+}
+.salutationName em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
+}
+```
+
+Renders as `<h1>Evening, Jose R<em>.</em></h1>` — same brutalist treatment as `Merkle Riders<em>.</em>`. Templates align.
+
+**Duration always rounded to 0.5h on display.** v10.3.0 only rounded distance-derived estimates. Literal "1h 15m" briefs still showed 1.25h, and other parse paths produced values like 0.5833h. Founder: "still time with many decimals, just round it as defined." Fix in `SessionPrefillModal` hydration:
+
+```ts
+const hoursRounded = prefill.durationHours != null
+  ? Math.round(prefill.durationHours * 2) / 2
+  : null;
+```
+
+`Math.round(h * 2) / 2` rounds to nearest 0.5. Tests: 0.5833 → 0.5; 1.25 → 1.5; 1.5 → 1.5; 3.4 → 3.5. The schema still accepts minute precision (the input has `step=0.5` so the user can adjust), this just guarantees no decimals appear at hydration time.
+
+### Route picker UX (the big feature)
+
+Embedded inside `EventDetailDrawer` for personal sessions only. Hidden when:
+
+- `!event.is_personal` (club events use captain-defined routes)
+- `event.cancelled_at` (no point planning a route for a cancelled session)
+- `event.completed_at` (already done)
+
+#### Flow
+
+1. User opens a personal session drawer (from Today's TodayDossier or Schedule's calendar)
+2. Routes section shows below the description, before the action footer
+3. Address input prefills from `useTrainingPrefs.start_address` (persisted)
+4. Elevation preference select (low / medium / high) — defaults to medium
+5. Click **Find 3 routes** → geocode (Nominatim) → POST `/api/routes/generate`
+6. 3 route cards render with: rank, distance, elevation gain, dominant surface, score (%)
+7. First card auto-selected; user can switch
+8. Click **Start in Strava ↗** → triggers GPX download (filename `cadence-{km}km-{surface}.gpx`) + opens `https://www.strava.com/routes/new` in new tab
+9. User drag-drops the downloaded file to finish
+
+#### Data flow
+
+The picker derives session criteria automatically — no manual input needed beyond the address:
+
+| API field | Source |
+|---|---|
+| `lat`, `lng` | Geocoded from `start_address` via Nominatim (free, no auth, OSM-backed) |
+| `distance_km` | `estimateDistanceKm(durationMinutes, zone)` — duration × `paceForZone(zone)` |
+| `cycling_type` | `surfaceToCyclingType(prefs.surface_pref)` — paved → road, gravel → gravel, any → road |
+| `elevation_preference` | User-selected (low / medium / high), defaults to medium |
+
+#### New modules
+
+```
+apps/web/src/lib/cyclingPace.ts          # paceForZone() + estimateDistanceKm() (lifted from aiSession)
+apps/web/src/lib/geocode.ts              # Nominatim client (geocodeAddress)
+apps/web/src/lib/routesApi.ts            # generateRoutes() + downloadGpx() helpers
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.tsx  # NEW, ~210 LOC
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.module.css  # NEW, ~140 LOC
+```
+
+#### Backend errors → user-friendly text
+
+The picker surfaces v10.4.0 backend errors as actionable copy:
+
+| Backend code | UI message |
+|---|---|
+| `route_service_disabled` | "Route service is temporarily disabled. Try again later." |
+| `no_valid_paths` | "Couldn't find good routes here. Try a different start point or distance." |
+| `rate-limited` | "Too many requests. Wait a few minutes and try again." |
+| (other) | Surfaced as-is from `Error.message` |
+
+#### Why GPX-download Strava handoff (and not OAuth direct upload)
+
+For v1: simplest viable handoff. GPX is downloaded as a `.gpx` file; Strava's routes upload page opens in a new tab; the user drag-drops to complete. Three reasons:
+
+1. **No additional Strava OAuth scope needed** — current scopes don't include route upload
+2. **Browser-native, zero new infrastructure** — `Blob` + `URL.createObjectURL` + `<a download>`
+3. **Multi-platform**: works equally on desktop and the Strava native app on mobile (universal links)
+
+A future v10.x can add direct OAuth upload via Strava's `/uploads` API once a route-upload scope is added to the OAuth flow.
+
+### EventDetailDrawer integration
+
+Three lines added in the right place:
+
+```tsx
+{event.is_personal && !isCancelled && !isCompleted && (
+  <SessionRoutePicker
+    sessionId={sessionIdForMutation}
+    zone={event.zone ?? null}
+    durationMinutes={event.duration_minutes ?? null}
+  />
+)}
+```
+
+Resets internal state on `sessionId` change, so opening a different session doesn't carry over a stale picker selection.
+
+### Files changed
+
+```
+apps/web/src/lib/cyclingPace.ts                                  # NEW
+apps/web/src/lib/geocode.ts                                      # NEW
+apps/web/src/lib/routesApi.ts                                    # NEW
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.tsx        # NEW
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.module.css # NEW
+apps/web/src/components/SessionPrefillModal/SessionPrefillModal.tsx      # round to 0.5h on hydrate
+apps/web/src/components/Calendar/EventDetailDrawer.tsx           # mount picker for personal sessions
+apps/web/src/routes/dashboard.tsx                                # salutation as <h1> (slim-header style)
+apps/web/src/pages/Dashboard.module.css                          # .salutationName matches .slimHeaderName
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Bundle
+
+`EventDetailDrawer` chunk: +~3 KB (picker import path). New `SessionRoutePicker` chunk: ~5 KB. New util chunks: ~2 KB. Total +~10 KB uncompressed.
+
+### What's queued for v10.6.0 (the polish trio that didn't ship here)
+
+| Item | Effort |
+|---|---|
+| Quick-add from empty calendar cell (Month/Week/Day click → prefilled `/dashboard/schedule-new`) | ~2h |
+| Repeat-weekly toggle on Plan a Session (1–12 weeks; sequential POSTs with progress) | ~3h |
+| Week-summary footer on Schedule (totals: hours, ride count, TSS estimate) | ~2h |
+
+All three touch the Schedule surface — one coherent risk theme, ~7h release.
+
+---
+
 ## [10.4.0] — 2026-05-01
 
 **Route generation backend (`POST /api/routes/generate`).**

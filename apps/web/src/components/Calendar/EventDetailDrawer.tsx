@@ -26,6 +26,7 @@ import {
   useRsvp,
 } from '../../hooks/useClubs';
 import { RideIcon, SocialIcon, RaceIcon, SessionIcon } from '../../design/icons';
+import { SessionRoutePicker } from '../SessionRoutePicker/SessionRoutePicker';
 import styles from './Calendar.module.css';
 
 const TYPE_ICON = { ride: RideIcon, social: SocialIcon, race: RaceIcon } as const;
@@ -189,6 +190,17 @@ export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, cal
 
         {event.description && (
           <p className={styles.drawerDesc}>{event.description}</p>
+        )}
+
+        {/* v10.5.0 — Route picker for personal sessions only. Hidden once
+            cancelled or completed (no need to plan a route afterwards).
+            Club events use captain-defined routes; no picker there. */}
+        {event.is_personal && !isCancelled && !isCompleted && (
+          <SessionRoutePicker
+            sessionId={sessionIdForMutation}
+            zone={event.zone ?? null}
+            durationMinutes={event.duration_minutes ?? null}
+          />
         )}
 
         <footer className={styles.drawerFooter}>

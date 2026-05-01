@@ -88,7 +88,16 @@ export function SessionPrefillModal({
     setDateStr(prefill.dateStr);
     setTimeStr(prefill.timeStr);
     setZone(prefill.zone != null ? String(prefill.zone) : '');
-    setDuration(prefill.durationHours != null ? String(prefill.durationHours) : '');
+    // v10.5.0 — round all duration values to nearest 0.5h on hydration so
+    // the input never displays decimals like 0.5833 or 1.25. The schema
+    // accepts any minute-precise value, so user can still fine-tune the
+    // step=0.5 input down to 0.0; we just don't surface non-canonical
+    // values from parse-time.
+    const hoursRounded =
+      prefill.durationHours != null
+        ? Math.round(prefill.durationHours * 2) / 2
+        : null;
+    setDuration(hoursRounded != null ? String(hoursRounded) : '');
     setWatts(prefill.watts != null ? String(prefill.watts) : '');
     setLocalError(null);
   }, [prefill]);
