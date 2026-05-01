@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.9.0';
+const WORKER_VERSION = 'v9.11.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -1028,14 +1028,24 @@ async function handleRequest(request, env) {
 
           // [2] Upcoming events (next 20) + live confirmed_count via LEFT JOIN
           // event_rsvps (Phase 2 — was hardcoded 0 in Phase 1; v9.6.2 hotfix).
+          // v9.11.0 (#75): expanded SELECT to return the full event shape so
+          // the EventDetailDrawer can render Edit/Cancel UX from the Overview
+          // tab too. v9.11.0 (#74): cancelled_at IS NULL filter excludes
+          // cancelled events from the upcoming list.
           db.prepare(`
             SELECT
-              e.id, e.title, e.event_date, e.location,
+              e.id, e.club_id, e.created_by, e.title, e.description, e.location,
+              e.event_date, e.event_type, e.created_at,
+              e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point,
+              e.route_strava_id, e.description_ai_generated, e.cancelled_at,
               COUNT(CASE WHEN r.status = 'going' THEN 1 END) AS confirmed_count
             FROM club_events e
             LEFT JOIN event_rsvps r ON r.event_id = e.id
-            WHERE e.club_id = ? AND e.event_date >= ?
-            GROUP BY e.id, e.title, e.event_date, e.location
+            WHERE e.club_id = ? AND e.event_date >= ? AND e.cancelled_at IS NULL
+            GROUP BY e.id, e.club_id, e.created_by, e.title, e.description, e.location,
+                     e.event_date, e.event_type, e.created_at,
+                     e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point,
+                     e.route_strava_id, e.description_ai_generated, e.cancelled_at
             ORDER BY e.event_date ASC
             LIMIT 20
           `).bind(clubId, now),
@@ -1064,12 +1074,26 @@ async function handleRequest(request, env) {
 
       // [2] Upcoming events with live confirmed_count from event_rsvps
       // (Phase 2 — v9.6.2 hotfix; Phase 1 had this hardcoded to 0).
+      // v9.11.0 (#75): full event shape returned so the drawer can render
+      // Edit/Cancel from Overview tap-to-open.
       const upcomingRaw = batchResults[2]?.results ?? [];
       const upcomingEvents = upcomingRaw.map((e) => ({
         id: e.id,
+        club_id: e.club_id,
+        created_by: e.created_by,
         title: e.title,
-        event_date: e.event_date,
+        description: e.description ?? null,
         location: e.location ?? null,
+        event_date: e.event_date,
+        event_type: e.event_type ?? 'ride',
+        created_at: e.created_at,
+        distance_km: e.distance_km ?? null,
+        expected_avg_speed_kmh: e.expected_avg_speed_kmh ?? null,
+        surface: e.surface ?? null,
+        start_point: e.start_point ?? null,
+        route_strava_id: e.route_strava_id ?? null,
+        description_ai_generated: e.description_ai_generated ?? 0,
+        cancelled_at: e.cancelled_at ?? null,
         confirmed_count: Number(e.confirmed_count ?? 0),
       }));
 
@@ -1281,6 +1305,98 @@ async function handleRequest(request, env) {
         confirmed_count: Number(countRow.results?.[0]?.cnt ?? 0),
         avatars: avatarRows.results ?? [],
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // GET /api/me/schedule?range=YYYY-MM — Personal scheduler (Sprint 5 / v9.11.0, #61).
+    // Aggregates upcoming events across ALL clubs the caller is a member of,
+    // filtered to events the caller is going to (RSVP'd 'going') OR created.
+    // 5-min edge cache. Cancelled events excluded per #74.
+    //
+    // v9.11.0 ships clubs-only aggregation (Streams 1+2 from #61 spec). AI
+    // plan items (Stream 3) and goals (Stream 4) deferred to v9.11.1 / future
+    // release pending stable schemas.
+    if (url.pathname === '/api/me/schedule' && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const rangeParam = url.searchParams.get('range');
+      const rangeMatch = rangeParam?.match(/^(\d{4})-(\d{2})$/);
+      if (!rangeMatch) {
+        return new Response(JSON.stringify({ error: 'range must be YYYY-MM (e.g. 2026-05)' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const yr = parseInt(rangeMatch[1], 10);
+      const mo = parseInt(rangeMatch[2], 10);
+      if (yr < 2000 || yr > 2100 || mo < 1 || mo > 12) {
+        return new Response(JSON.stringify({ error: 'range out of bounds' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000);
+      const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1;
+      const db = env.cycling_coach_db;
+
+      const { results: rows } = await db.prepare(
+        'SELECT DISTINCT ' +
+        '  e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
+        '  e.event_date, e.event_type, e.created_at, ' +
+        '  e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point, ' +
+        '  e.route_strava_id, e.description_ai_generated, e.cancelled_at, ' +
+        '  c.name AS club_name, ' +
+        '  (SELECT COUNT(*) FROM event_rsvps r2 WHERE r2.event_id = e.id AND r2.status = \'going\') AS confirmed_count, ' +
+        '  CASE WHEN e.created_by = ? THEN 1 ELSE 0 END AS is_creator, ' +
+        '  CASE WHEN my_rsvp.status = \'going\' THEN 1 ELSE 0 END AS is_going ' +
+        'FROM club_events e ' +
+        'INNER JOIN clubs c ON c.id = e.club_id ' +
+        'INNER JOIN club_members me ON me.club_id = e.club_id AND me.athlete_id = ? ' +
+        'LEFT JOIN event_rsvps my_rsvp ON my_rsvp.event_id = e.id AND my_rsvp.athlete_id = ? ' +
+        'WHERE e.event_date BETWEEN ? AND ? ' +
+        '  AND e.cancelled_at IS NULL ' +
+        '  AND (e.created_by = ? OR my_rsvp.status = \'going\') ' +
+        'ORDER BY e.event_date ASC ' +
+        'LIMIT 200',
+      ).bind(authResult.athleteId, authResult.athleteId, authResult.athleteId,
+             startEpoch, endEpoch, authResult.athleteId).all();
+
+      const events = (rows || []).map((e) => ({
+        id: e.id,
+        club_id: e.club_id,
+        club_name: e.club_name ?? null,
+        created_by: e.created_by,
+        title: e.title,
+        description: e.description ?? null,
+        location: e.location ?? null,
+        event_date: e.event_date,
+        event_type: e.event_type ?? 'ride',
+        created_at: e.created_at,
+        distance_km: e.distance_km ?? null,
+        expected_avg_speed_kmh: e.expected_avg_speed_kmh ?? null,
+        surface: e.surface ?? null,
+        start_point: e.start_point ?? null,
+        route_strava_id: e.route_strava_id ?? null,
+        description_ai_generated: e.description_ai_generated ?? 0,
+        cancelled_at: e.cancelled_at ?? null,
+        confirmed_count: Number(e.confirmed_count ?? 0),
+        is_creator: !!e.is_creator,
+        is_going: !!e.is_going,
+      }));
+
+      return new Response(JSON.stringify({
+        athlete_id: authResult.athleteId,
+        range: { year: yr, month: mo, start: startEpoch, end: endEpoch },
+        events,
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'private, max-age=300',
+        },
+      });
     }
 
     // PATCH /api/users/me/profile — update user profile fields (Phase 2, v9.6.2).

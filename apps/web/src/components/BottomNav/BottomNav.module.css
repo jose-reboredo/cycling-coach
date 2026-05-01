@@ -25,7 +25,9 @@
 
 .list {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* v9.11.0 (#61): 4 → 5 slots (added Schedule between Today and Train).
+   * Tighter spacing on mobile but each touch target stays ≥ 44px. */
+  grid-template-columns: repeat(5, 1fr);
 }
 
 .item {

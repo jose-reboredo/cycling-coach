@@ -36,7 +36,7 @@ export function Landing() {
         <Container width="base">
           <motion.div className={styles.heroInner} {...fade}>
             <Pill tone="accent" dot>
-              Cycling clubs with an AI training brain · v9
+              Cycling clubs that actually feel like a club · v9
             </Pill>
 
             <h1 className={styles.heroH1}>
@@ -46,9 +46,9 @@ export function Landing() {
             </h1>
 
             <p className={styles.heroLede}>
-              PMC for the solo rider. Overview, schedule, RSVPs and an AI-drafted weekly
-              note for the club. Three personas, one app — AI embedded where it matters,
-              not bolted on. Strava-native, mobile-first, free.
+              Connect Strava in 10 seconds. Join your club, or start one. See what's
+              on this week. An AI coach that learns your form — and helps your crew
+              plan rides together. Free to start. Works on your phone.
             </p>
 
             <div className={styles.heroCtas}>
@@ -149,10 +149,10 @@ export function Landing() {
           </div>
           <div className={styles.forGrid}>
             <ForList variant="for" title="For you if…" items={[
-              'You already know your FTP and want CTL/ATL/TSB at-a-glance',
+              'You like seeing what shape you\'re in at-a-glance, not buried four taps deep',
               'You captain a Saturday crew and want better tools than a WhatsApp group',
               'You\'d rather belong to a cycling club than scroll a kudos feed',
-              'You read your dashboard the morning after, before the kettle',
+              'You read your numbers the morning after, before the kettle',
               'You want AI that helps quietly — not pop-ups every five minutes',
               'You\'d rather pay for what you use than for a monthly subscription',
             ]} />
@@ -181,26 +181,26 @@ export function Landing() {
 
           <FeatureSpread
             num="01"
-            title="Live training status"
-            kicker="Form, fitness, fatigue — at-a-glance"
-            body="Your CTL, ATL and TSB, computed nightly from every ride that has power data. The first thing you see, every morning. Not buried four taps deep."
+            title="Know what shape you're in — every day"
+            kicker="The first thing you see in the morning."
+            body="A simple read on form, fitness and fatigue, computed nightly from every ride. No four-tap menu hunt — it's right there when you open the app. (Power data unlocks the precision; even without it you get a baseline.)"
             visual={<PmcStrip ctl={78} atl={82} tsb={-4} ctlDelta={2.4} atlDelta={-1.1} tsbDelta={3.5} />}
           />
 
           <FeatureSpread
             num="02"
-            title="Today's workout + a route to ride it on"
-            kicker="One tap. Zones, target watts, a saved Strava route that fits."
-            body="The plan adapts to your form. The route picker reads your saved Strava routes and ranks them against today's target zone and duration. Open in Strava with one tap. AI coaching runs on your own Anthropic key (~$0.02/plan)."
+            title="Today's session, ready to ride"
+            kicker="One tap. The workout, the zones, a route that fits."
+            body="The plan adapts to how you're feeling. Hard day after a strong week. Easy day after a slammed one. Routes from your saved Strava list, ranked against today's target. Open in Strava with one tap and go."
             visual={<WorkoutPreview />}
             reverse
           />
 
           <FeatureSpread
             num="03"
-            title="A club layer, AI embedded"
-            kicker="Overview · Schedule · Members · Metrics"
-            body="Captain a Saturday crew without WhatsApp gymnastics. RSVP with optimistic counts, roster sortable by recency, FTP private by default. An AI Circle Note drafts the weekly recap automatically — system-paid Haiku, free for the club. Designed for organisers, casual commuters, and the power-meter rider in the same group."
+            title="A club that runs itself"
+            kicker="Overview · Schedule · Members"
+            body="Captain a Saturday crew without WhatsApp gymnastics. Members RSVP, the roster sorts itself, FTP stays private by default. The app drafts the weekly recap for you — free, included. Built for the captain, the commuter and the power-meter rider in the same crew."
             visual={<ClubLayerPreview />}
           />
         </Container>
@@ -216,17 +216,17 @@ export function Landing() {
               Bring your own key.
             </h2>
             <p className={styles.sectionLede}>
-              Cadence Club costs nothing. Club AI moments — Circle Notes, weekly insights —
-              are system-paid Haiku, free for the club. Personal AI plans use your own
-              Anthropic key (~$0.02/plan). Most riders spend under $0.50 a month total.
+              Free to start. Always free for your club. The only thing you might pay
+              for is your personal AI coach — about 50¢ a month if you use it daily.
+              Skip it and it's $0 forever.
             </p>
           </div>
           <div className={styles.priceGrid}>
-            <PriceRow label="App + clubs" price="Free" detail="No subscription. No tier upgrades. No login wall." />
-            <PriceRow label="Strava data" price="Free" detail="Their API. We just proxy it. Your tokens stay in your browser." />
-            <PriceRow label="Club AI moments" price="Included" detail="Circle Note, members trend, post-ride callout. System-paid Haiku." />
-            <PriceRow label="Personal AI plans" price="≈ $0.02" detail="Per /coach plan. Anthropic Sonnet. Your key, your bill." />
-            <PriceRow label="Estimated total" price="< $0.50/mo" detail="For most riders. Skip personal AI and it's $0." emphasis />
+            <PriceRow label="The app" price="Free" detail="No subscription. No tier upgrades. No login wall." />
+            <PriceRow label="Your club" price="Free" detail="The schedule, the roster, the weekly recap — all included." />
+            <PriceRow label="Strava connection" price="Free" detail="Connect in 10 seconds. Your tokens stay in your browser." />
+            <PriceRow label="Personal AI coach" price="~50¢/mo" detail="Optional. Bring your own AI key. Skip it and your training brain still works." />
+            <PriceRow label="Most riders pay" price="< $1/mo" detail="Or nothing at all. Up to you." emphasis />
           </div>
         </Container>
       </section>
@@ -248,8 +248,8 @@ export function Landing() {
               Don't break <em>the chain</em>.
             </h2>
             <p className={styles.finalLede}>
-              One click. Full Strava history imported. PMC, plan, route picker, club
-              layer — all yours, all local, all free.
+              One click. Your Strava history imported. Your training brain ready.
+              Your club waiting. All yours, all on your phone, all free.
             </p>
             <Button href={connectUrl()} size="lg" variant="primary" withArrow>
               Connect with Strava

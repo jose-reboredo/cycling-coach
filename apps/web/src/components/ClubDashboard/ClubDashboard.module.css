@@ -317,6 +317,22 @@
   align-items: center;
 }
 
+/* v9.11.0 (#75) — clickable variant: tap row → drawer opens. */
+.eventRowClickable {
+  cursor: pointer;
+  transition: border-color var(--d-fast) var(--e-out), background var(--d-fast) var(--e-out);
+}
+
+.eventRowClickable:hover {
+  border-color: var(--c-text-muted);
+  background: var(--c-surface-elev);
+}
+
+.eventRowClickable:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
 @media (max-width: 540px) {
   .eventRow {
     grid-template-columns: 64px 1fr;

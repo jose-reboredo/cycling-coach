@@ -175,12 +175,40 @@ export interface ClubStatTiles {
   new_members_28d: number;
 }
 
+/** v9.11.0 (#75) — expanded to full event shape so the EventDetailDrawer
+ *  can render Edit/Cancel from the Club Overview tab too. Compatible
+ *  with `ClubEvent` shape. */
 export interface UpcomingEvent {
   id: number;
+  club_id: number;
+  created_by: number;
   title: string;
-  event_date: number; // unix epoch seconds
+  description: string | null;
   location: string | null;
+  event_date: number; // unix epoch seconds
+  event_type: ClubEventType;
+  created_at: number;
+  distance_km: number | null;
+  expected_avg_speed_kmh: number | null;
+  surface: ClubEventSurface | null;
+  start_point: string | null;
+  route_strava_id: string | null;
+  description_ai_generated: number | null;
+  cancelled_at: number | null;
   confirmed_count: number;
+}
+
+/** v9.11.0 (#61) — Personal scheduler aggregation event shape. */
+export interface MyScheduleEvent extends UpcomingEvent {
+  club_name: string | null;
+  is_creator: boolean;
+  is_going: boolean;
+}
+
+export interface MyScheduleResponse {
+  athlete_id: number;
+  range: { year: number; month: number; start: number; end: number };
+  events: MyScheduleEvent[];
 }
 
 export interface ClubOverview {
@@ -222,6 +250,11 @@ export const clubsApi = {
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
+  // v9.11.0 (#61) — Personal scheduler aggregation across user's clubs.
+  // Returns events the user is going to OR created in the requested month.
+  // Cancelled events excluded per #74. 5-min edge cache.
+  mySchedule: (range: string) =>
+    call<MyScheduleResponse>(`/api/me/schedule?range=${encodeURIComponent(range)}`),
   // v9.7.3 (#60) — soft-cancel; creator OR admin only.
   cancelEvent: (clubId: number, eventId: number) =>
     call<CancelClubEventResponse>(`/api/clubs/${clubId}/events/${eventId}/cancel`, {

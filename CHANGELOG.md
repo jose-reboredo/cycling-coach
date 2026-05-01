@@ -4,6 +4,117 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.11.0] — 2026-05-01
+
+**Bundled 4-issue release: Personal scheduler (`#61`) + cancelled-events filter (`#74`) + Overview Edit/Cancel (`#75`) + Landing copy rewrite (`#64`).** Per founder direction: `#56` clubs share/invite deprioritised; v9.10.0 reserved as the slot for Route picker integration whenever that ships.
+
+### `#61` — Personal scheduler at `/dashboard/schedule`
+
+Aggregates events across ALL clubs the caller is a member of, filtered to events they're going to (RSVP'd `going`) OR created themselves. New top-level dashboard route alongside `/dashboard/today`, `/dashboard/train`, etc.
+
+**Backend:** new endpoint `GET /api/me/schedule?range=YYYY-MM`:
+
+- Auth-gated via `resolveAthleteId`
+- Validates `range` shape + bounds (2000-2100, 1-12)
+- Single D1 query: `club_events` JOIN `clubs` JOIN `club_members` (membership gate) LEFT JOIN `event_rsvps` (caller's own RSVP) + subquery for `confirmed_count`
+- Filter: `event_date BETWEEN start AND end AND cancelled_at IS NULL AND (created_by = me OR my_rsvp.status = 'going')`
+- Returns up to 200 events ordered by `event_date ASC`
+- Each event includes `club_name`, `is_creator`, `is_going` flags + full event shape
+- 5-min edge cache (`Cache-Control: private, max-age=300`)
+
+**Frontend:** new `apps/web/src/routes/dashboard.schedule.tsx` (Tanstack file-based route at `/dashboard/schedule`):
+
+- Reuses Calendar primitives (Month/Week/Day grids + EventDetailDrawer) — same look as per-club Schedule tab
+- View toggle (Month / Week / Day) + filter chips (ride/social/race) + date nav — mirrors ScheduleTab UX
+- Drawer is read-only in v9.11.0 (no Edit/Cancel from personal view yet — cross-club permission model needs more thought; deferred to v9.11.x or v9.12.x)
+- New `useMyScheduleByMonth(range)` Tanstack Query hook
+
+**Deferred from `#61` spec:**
+- Stream 3 (AI plan items from `ai_reports.plan_json`) — schema not yet stable enough to parse reliably
+- Stream 4 (goals from `goals` table) — needs goals.target_date field which lands with `#49`/`#50` Sprint 7 work
+
+Both can ship as v9.11.x patch releases when the underlying data is ready.
+
+### `#74` — Cancelled events filtered from upcoming/agenda lists
+
+Founder rule (locked 2026-05-01): when an event is cancelled, it must be removed from upcoming/agenda lists in BOTH the Club Overview AND the Personal scheduler. The calendar grids (Month/Week/Day) continue to show cancelled events with strikethrough — that's intentional FYI signal; the upcoming/agenda lists are "what's actually happening" lists.
+
+**Changes:**
+- `GET /api/clubs/:id/overview` upcoming-events SQL: `WHERE e.club_id = ? AND e.event_date >= ?` → `WHERE ... AND e.cancelled_at IS NULL`
+- New `/api/me/schedule` endpoint applies same filter
+
+### `#75` — Edit + Cancel from Club Overview Upcoming Events
+
+The drawer's Edit + Cancel UX (shipped in v9.7.3 + v9.9.0 for the Schedule tab) is now reachable from the Overview tab too — admins / event creators don't need to switch to Schedule first to fix a typo or cancel a ride.
+
+**Backend:** `GET /api/clubs/:id/overview` upcoming-events SELECT expanded from 5 fields to 16 fields:
+
+```diff
+- SELECT e.id, e.title, e.event_date, e.location, COUNT(...) AS confirmed_count
++ SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location,
++        e.event_date, e.event_type, e.created_at,
++        e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point,
++        e.route_strava_id, e.description_ai_generated, e.cancelled_at,
++        COUNT(...) AS confirmed_count
+```
+
+`UpcomingEvent` TS type expanded to match (now mirrors full `ClubEvent` shape).
+
+**Frontend:**
+- `UpcomingSection` accepts `onEventClick?: (event: CalendarEvent) => void` prop, threads to `UpcomingEventRow`
+- `UpcomingEventRow` becomes clickable (article + role=button + tabIndex=0 + Enter/Space keyboard handler). RSVP button gets `e.stopPropagation()` so it doesn't double-trigger
+- `ClubDashboard` adds `[overviewActiveEvent, setOverviewActiveEvent]` state + renders `EventDetailDrawer` at the dashboard root level (so it survives tab changes)
+- Drawer's `onEdit` callback maps the row's CalendarEvent back to the full ClubEvent (from overview.upcoming_events) and bubbles to existing `openEditEvent` lifted state — same modal-in-edit-mode flow as ScheduleTab
+
+CSS: `.eventRowClickable` adds cursor pointer + hover + focus-visible. WCAG-compliant keyboard interaction.
+
+### `#64` — Landing page copy rewrite
+
+External UX feedback (Dentsu Creative designer, 2026-05-01): "the UI looks sleek but obviously how Claude sets up most sites... I think you need to dumb it down. less tech terms easier value proposition."
+
+Stripped jargon, replaced with concrete benefit framing. Examples:
+
+| Was (tech-heavy) | Now (de-jargonised) |
+|---|---|
+| Hero pill: "Cycling clubs with an AI training brain" | "Cycling clubs that actually feel like a club" |
+| Hero lede: "PMC for the solo rider. Overview, schedule, RSVPs and an AI-drafted weekly note for the club. Three personas, one app — AI embedded where it matters, not bolted on. Strava-native, mobile-first, free." | "Connect Strava in 10 seconds. Join your club, or start one. See what's on this week. An AI coach that learns your form — and helps your crew plan rides together. Free to start. Works on your phone." |
+| Feature 01: "Live training status" / "Form, fitness, fatigue — at-a-glance" | "Know what shape you're in — every day" / "The first thing you see in the morning." |
+| Feature 03: "A club layer, AI embedded" | "A club that runs itself" |
+| Pricing: "Personal AI plans · ≈ $0.02 · Per /coach plan. Anthropic Sonnet. Your key, your bill." | "Personal AI coach · ~50¢/mo · Optional. Bring your own AI key. Skip it and your training brain still works." |
+| Final CTA: "PMC, plan, route picker, club layer — all yours, all local, all free" | "Your training brain ready. Your club waiting. All yours, all on your phone, all free" |
+
+For-You / Not-For-You list: replaced "FTP / CTL/ATL/TSB at-a-glance" with "see what shape you're in" framing.
+
+Marco's technical credibility maintained through depth (still references zones, target watts, power data) but the entry-level copy now serves Sofia + Léa equally.
+
+### Nav reorder
+
+TopTabs + BottomNav add a "Schedule" slot between Today and Train:
+
+- BottomNav `grid-template-columns: repeat(5, 1fr)` (was 4)
+- ScheduleIcon (already in design system from v9.7.2)
+- TopTabs items array adds entry for `/dashboard/schedule`
+
+### Bundle
+
+Dashboard chunk: 88.33 → 74.92 KB (-13.41 KB / -15%). Vite split EventDetailDrawer into its own chunk (14.75 KB) because it's now consumed by 3 callers (ScheduleTab + ClubDashboard Overview + dashboard.schedule route). Net bundle is similar but better cached across routes.
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green via vite-then-tsc; manual scan
+- ✅ #2 Pre-commit grep against `schema.sql` — N/A (no schema change; existing columns from v9.7.3)
+- ✅ #4 POST → GET round-trip — N/A (read-only endpoint)
+- ⚠ #5 Verification budget — bundled 4 themes; founder approval given but theme-overlap is real (Overview Edit + Personal scheduler both touch the same drawer pattern; cancelled filter touches both endpoints; Landing rewrite is independent)
+- ✅ #6 Bug post-mortems — none required (no hotfix triggered)
+
+### Versions: 9.9.0 → 9.11.0 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+**Note: v9.10.0 reserved** as a planning slot for Route picker integration. Per founder direction at v9.8.x naming-convention lock: "v9.10.0 reserved for Route picker (whenever that ships)". v9.10.0 is intentionally skipped in deployment; SemVer permits gaps as long as ordering is monotonic.
+
+---
+
 ## [9.9.0] — 2026-05-01
 
 **First MINOR-correct feature release.** Bundles `#60` Edit UX (event lifecycle completion) + `#73` e2e drift fixes. Closes both. Per Sprint 1 retro Improvement #6 (one risk theme per release), this is technically two themes — but they don't share blast radius (Edit UX is in the drawer/modal; e2e drift is test-only) so founder approved bundling.

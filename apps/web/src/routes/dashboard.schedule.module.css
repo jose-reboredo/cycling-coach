@@ -1,0 +1,194 @@
+/* Sprint 5 / v9.11.0 (#61) — Personal scheduler page. */
+
+.page {
+  padding: var(--s-7) 0 var(--s-8);
+}
+
+@media (max-width: 599px) {
+  .page {
+    padding-bottom: calc(var(--s-8) + 72px + env(safe-area-inset-bottom, 0));
+  }
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-bottom: var(--s-7);
+}
+
+.title {
+  margin: 0;
+  font: 600 28px/1.05 var(--font-sans);
+  letter-spacing: -0.024em;
+  color: var(--c-text);
+}
+
+.title em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
+}
+
+.lede {
+  margin: 0;
+  font: italic 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  letter-spacing: -0.005em;
+  max-width: 56ch;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-4);
+}
+
+.viewToggle {
+  display: inline-flex;
+  border: 1px solid var(--c-border, var(--c-line));
+  border-radius: var(--r-pill);
+  padding: 2px;
+  background: transparent;
+}
+
+.viewBtn {
+  padding: var(--s-1) var(--s-3);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--c-text-muted);
+  font: 500 0.75rem/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  min-height: 32px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.viewBtn:hover {
+  color: var(--c-text);
+}
+
+.viewBtn:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
+.viewBtnActive {
+  color: var(--c-canvas);
+  background: var(--c-accent);
+}
+
+.dateNav {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.dateLabel {
+  margin: 0;
+  font: 500 1.125rem/1.2 var(--font-sans);
+  letter-spacing: 0.02em;
+  color: var(--c-text);
+  min-width: 12ch;
+  text-align: center;
+}
+
+.navBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hit-min);
+  min-height: var(--hit-min);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--c-border, var(--c-line));
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--c-text-muted);
+  font: 500 1rem/1 var(--font-sans);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.navBtn:hover {
+  color: var(--c-text);
+  border-color: var(--c-text-muted);
+}
+
+.navBtn:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-border, var(--c-line));
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--c-text-muted);
+  font: 500 0.8125rem/1 var(--font-sans);
+  cursor: pointer;
+  min-height: var(--hit-min);
+}
+
+.chip svg {
+  flex-shrink: 0;
+}
+
+.chip:hover {
+  color: var(--c-text);
+  border-color: var(--c-text-muted);
+}
+
+.chip:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
+.chipActive {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+  background: rgba(255, 77, 0, 0.08);
+}
+
+.gridWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.empty,
+.loading {
+  text-align: center;
+  padding: var(--s-7) var(--s-4);
+  color: var(--c-text-muted);
+  font: 400 0.875rem/1.5 var(--font-sans);
+}
+
+@media (max-width: 599px) {
+  .dateLabel {
+    font-size: 1rem;
+    min-width: 0;
+  }
+  .controls {
+    gap: var(--s-2);
+  }
+  .viewToggle,
+  .dateNav {
+    flex-grow: 1;
+    justify-content: center;
+  }
+}

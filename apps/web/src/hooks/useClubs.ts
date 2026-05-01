@@ -2,7 +2,7 @@
 // as useStravaData hooks (5 min stale, 30 min gc).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clubsApi, type CancelClubEventResponse, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type DraftEventDescriptionInput, type JoinClubResponse, type PatchClubEventInput, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
+import { clubsApi, type CancelClubEventResponse, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type DraftEventDescriptionInput, type JoinClubResponse, type MyScheduleResponse, type PatchClubEventInput, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
 
 const FIVE_MIN = 5 * 60 * 1000;
 const THIRTY_MIN = 30 * 60 * 1000;
@@ -65,6 +65,19 @@ export function useClubEventsByMonth(clubId: number | null, range: string) {
     queryKey: ['clubs', clubId, 'events', 'range', range],
     queryFn: () => clubsApi.eventsByMonth(clubId as number, range),
     enabled: clubId != null && /^\d{4}-\d{2}$/.test(range),
+    staleTime: FIVE_MIN,
+    gcTime: THIRTY_MIN,
+  });
+}
+
+/** v9.11.0 (#61) — Personal scheduler. Aggregates events from all clubs the
+ *  caller is a member of, filtered to events they're going to OR created.
+ *  Cancelled events excluded. 5-min stale, 30-min gc. */
+export function useMyScheduleByMonth(range: string) {
+  return useQuery<MyScheduleResponse>({
+    queryKey: ['me', 'schedule', range],
+    queryFn: () => clubsApi.mySchedule(range),
+    enabled: /^\d{4}-\d{2}$/.test(range),
     staleTime: FIVE_MIN,
     gcTime: THIRTY_MIN,
   });

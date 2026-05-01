@@ -6,7 +6,9 @@ import { ClubEventModal } from '../ClubEventModal/ClubEventModal';
 import { ScheduleTab } from './ScheduleTab';
 import { TopTabs } from '../TopTabs/TopTabs';
 import { BottomNav } from '../BottomNav/BottomNav';
+import { EventDetailDrawer } from '../Calendar/EventDetailDrawer';
 import { OverviewIcon, ScheduleIcon, MembersIcon, MetricsIcon } from '../../design/icons';
+import type { CalendarEvent } from '../Calendar/types';
 import type { ClubEvent, ClubMember, UpcomingEvent } from '../../lib/clubsApi';
 import styles from './ClubDashboard.module.css';
 
@@ -54,6 +56,10 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
   const openCreateEvent = () => { setEventToEdit(null); setEventModalOpen(true); };
   const openEditEvent = (e: ClubEvent) => { setEventToEdit(e); setEventModalOpen(true); };
   const closeEventModal = () => { setEventModalOpen(false); setEventToEdit(null); };
+
+  // v9.11.0 (#75) — Overview drawer state. Tap on upcoming-event row →
+  // drawer opens with full event detail + Edit/Cancel for creator/admin.
+  const [overviewActiveEvent, setOverviewActiveEvent] = useState<CalendarEvent | null>(null);
 
   // Track per-event optimistic RSVP state: eventId → { status, confirmed_count }
   // Populated optimistically on click; reverted on error.
@@ -135,6 +141,7 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
               clubId={clubId}
               rsvpState={rsvpState}
               onRsvpStateChange={setRsvpState}
+              onEventClick={(e) => setOverviewActiveEvent(e)}
             />
           </section>
 
@@ -178,6 +185,22 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
         clubId={clubId}
         event={eventToEdit}
         onClose={closeEventModal}
+      />
+
+      {/* v9.11.0 (#75) — Overview drawer. Mounted at the dashboard level so
+       *  it isn't unmounted on tab change. Visible only when the Overview
+       *  tab triggers an open via setOverviewActiveEvent. */}
+      <EventDetailDrawer
+        event={overviewActiveEvent}
+        onClose={() => setOverviewActiveEvent(null)}
+        clubId={clubId}
+        callerRole={overview.data?.club.role ?? null}
+        onEdit={(e) => {
+          // Map CalendarEvent → ClubEvent. Find the full event in upcoming.
+          const full = (overview.data?.upcoming_events ?? []).find((x) => x.id === e.id);
+          if (full) openEditEvent(full as unknown as ClubEvent);
+          setOverviewActiveEvent(null);
+        }}
       />
 
       {/* MOBILE BOTTOM NAV — Sprint 5 / v9.7.2 (#59).
@@ -229,11 +252,14 @@ function UpcomingSection({
   clubId,
   rsvpState,
   onRsvpStateChange,
+  onEventClick,
 }: {
   overview: ReturnType<typeof useClubOverview>;
   clubId: number;
   rsvpState: RsvpStateMap;
   onRsvpStateChange: Dispatch<SetStateAction<RsvpStateMap>>;
+  /** v9.11.0 (#75) — click row to open detail drawer with Edit/Cancel. */
+  onEventClick?: (event: CalendarEvent) => void;
 }) {
   if (overview.isLoading) {
     return <div className={styles.empty}>Loading upcoming rides…</div>;
@@ -258,6 +284,7 @@ function UpcomingSection({
           clubId={clubId}
           rsvpOverride={rsvpState[e.id]}
           onRsvpStateChange={onRsvpStateChange}
+          onEventClick={onEventClick}
         />
       ))}
     </div>
@@ -269,11 +296,13 @@ function UpcomingEventRow({
   clubId,
   rsvpOverride,
   onRsvpStateChange,
+  onEventClick,
 }: {
   event: UpcomingEvent;
   clubId: number;
   rsvpOverride: { status: 'going' | 'not_going'; confirmed_count: number } | undefined;
   onRsvpStateChange: Dispatch<SetStateAction<RsvpStateMap>>;
+  onEventClick?: (event: CalendarEvent) => void;
 }) {
   const rsvpMutation = useRsvp(clubId, event.id);
   const dt = new Date(event.event_date * 1000);
@@ -317,8 +346,45 @@ function UpcomingEventRow({
     });
   }
 
+  // v9.11.0 (#75) — row click bubbles up to open the EventDetailDrawer for
+  // Edit/Cancel UX. RSVP button stopPropagation so it doesn't double-trigger.
+  const handleRowClick = onEventClick
+    ? () => {
+        onEventClick({
+          id: event.id,
+          title: event.title,
+          event_date: event.event_date,
+          event_type: event.event_type,
+          confirmed_count: confirmedCount,
+          location: event.location,
+          description: event.description,
+          created_by: event.created_by,
+          cancelled_at: event.cancelled_at,
+          distance_km: event.distance_km,
+          expected_avg_speed_kmh: event.expected_avg_speed_kmh,
+          surface: event.surface,
+          start_point: event.start_point,
+        });
+      }
+    : undefined;
+
   return (
-    <article className={styles.eventRow}>
+    <article
+      className={`${styles.eventRow} ${onEventClick ? styles.eventRowClickable : ''}`}
+      onClick={handleRowClick}
+      role={onEventClick ? 'button' : undefined}
+      tabIndex={onEventClick ? 0 : undefined}
+      onKeyDown={
+        onEventClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleRowClick?.();
+              }
+            }
+          : undefined
+      }
+    >
       <div className={styles.eventDate} aria-hidden="true">
         <span className={styles.eventDateDay}>{dayShort}</span>
         <span className={styles.eventDateNum}>{dayNum}</span>
@@ -344,7 +410,10 @@ function UpcomingEventRow({
         type="button"
         className={`${styles.rsvpBtn} ${isGoing ? styles.rsvpBtnGoing : ''}`}
         disabled={rsvpMutation.isPending}
-        onClick={handleRsvp}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleRsvp();
+        }}
         aria-label={isGoing ? `Cancel RSVP for ${event.title}` : `RSVP to ${event.title}`}
         aria-pressed={isGoing}
       >

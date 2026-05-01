@@ -130,6 +130,7 @@ function TabsLayout() {
               ariaLabel="Dashboard tabs"
               items={[
                 { id: 'today', label: 'Today', to: '/dashboard/today' },
+                { id: 'schedule', label: 'Schedule', to: '/dashboard/schedule' },
                 { id: 'train', label: 'Train', to: '/dashboard/train' },
                 { id: 'rides', label: 'Rides', to: '/dashboard/rides' },
                 { id: 'you', label: 'You', to: '/dashboard/you' },

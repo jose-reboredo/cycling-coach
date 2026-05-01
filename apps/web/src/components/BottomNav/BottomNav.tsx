@@ -7,6 +7,7 @@ import {
   TrainIcon,
   RidesIcon,
   YouIcon,
+  ScheduleIcon,
 } from '../../design/icons';
 
 export interface BottomNavItem {
@@ -29,8 +30,11 @@ const ITEMS: ReadonlyArray<{ id: string; label: string; icon: ReactNode; hash: s
   { id: 'you', label: 'You', icon: <YouIcon />, hash: '#you' },
 ];
 
+// v9.11.0 (#61) — Schedule slot inserted between Today and Train per founder
+// reorder. 5 slots on BottomNav.
 const LINK_ITEMS: ReadonlyArray<{ id: string; label: string; icon: ReactNode; to: string }> = [
   { id: 'today', label: 'Today', icon: <TodayIcon />, to: '/dashboard/today' },
+  { id: 'schedule', label: 'Schedule', icon: <ScheduleIcon />, to: '/dashboard/schedule' },
   { id: 'train', label: 'Train', icon: <TrainIcon />, to: '/dashboard/train' },
   { id: 'rides', label: 'Rides', icon: <RidesIcon />, to: '/dashboard/rides' },
   { id: 'you', label: 'You', icon: <YouIcon />, to: '/dashboard/you' },

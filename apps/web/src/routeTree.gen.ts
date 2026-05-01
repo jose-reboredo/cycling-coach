@@ -17,6 +17,7 @@ import { Route as JoinCodeRouteImport } from './routes/join.$code'
 import { Route as DashboardYouRouteImport } from './routes/dashboard.you'
 import { Route as DashboardTrainRouteImport } from './routes/dashboard.train'
 import { Route as DashboardTodayRouteImport } from './routes/dashboard.today'
+import { Route as DashboardScheduleRouteImport } from './routes/dashboard.schedule'
 import { Route as DashboardRidesRouteImport } from './routes/dashboard.rides'
 import { Route as ClubsNewRouteImport } from './routes/clubs.new'
 
@@ -60,6 +61,11 @@ const DashboardTodayRoute = DashboardTodayRouteImport.update({
   path: '/today',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardScheduleRoute = DashboardScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardRidesRoute = DashboardRidesRouteImport.update({
   id: '/rides',
   path: '/rides',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/whats-next': typeof WhatsNextRoute
   '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
+  '/dashboard/schedule': typeof DashboardScheduleRoute
   '/dashboard/today': typeof DashboardTodayRoute
   '/dashboard/train': typeof DashboardTrainRoute
   '/dashboard/you': typeof DashboardYouRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/whats-next': typeof WhatsNextRoute
   '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
+  '/dashboard/schedule': typeof DashboardScheduleRoute
   '/dashboard/today': typeof DashboardTodayRoute
   '/dashboard/train': typeof DashboardTrainRoute
   '/dashboard/you': typeof DashboardYouRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/whats-next': typeof WhatsNextRoute
   '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
+  '/dashboard/schedule': typeof DashboardScheduleRoute
   '/dashboard/today': typeof DashboardTodayRoute
   '/dashboard/train': typeof DashboardTrainRoute
   '/dashboard/you': typeof DashboardYouRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/whats-next'
     | '/clubs/new'
     | '/dashboard/rides'
+    | '/dashboard/schedule'
     | '/dashboard/today'
     | '/dashboard/train'
     | '/dashboard/you'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/whats-next'
     | '/clubs/new'
     | '/dashboard/rides'
+    | '/dashboard/schedule'
     | '/dashboard/today'
     | '/dashboard/train'
     | '/dashboard/you'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/whats-next'
     | '/clubs/new'
     | '/dashboard/rides'
+    | '/dashboard/schedule'
     | '/dashboard/today'
     | '/dashboard/train'
     | '/dashboard/you'
@@ -214,6 +226,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardTodayRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/schedule': {
+      id: '/dashboard/schedule'
+      path: '/schedule'
+      fullPath: '/dashboard/schedule'
+      preLoaderRoute: typeof DashboardScheduleRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/rides': {
       id: '/dashboard/rides'
       path: '/rides'
@@ -233,6 +252,7 @@ declare module '@tanstack/react-router' {
 
 interface DashboardRouteChildren {
   DashboardRidesRoute: typeof DashboardRidesRoute
+  DashboardScheduleRoute: typeof DashboardScheduleRoute
   DashboardTodayRoute: typeof DashboardTodayRoute
   DashboardTrainRoute: typeof DashboardTrainRoute
   DashboardYouRoute: typeof DashboardYouRoute
@@ -240,6 +260,7 @@ interface DashboardRouteChildren {
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardRidesRoute: DashboardRidesRoute,
+  DashboardScheduleRoute: DashboardScheduleRoute,
   DashboardTodayRoute: DashboardTodayRoute,
   DashboardTrainRoute: DashboardTrainRoute,
   DashboardYouRoute: DashboardYouRoute,

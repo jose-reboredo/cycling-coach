@@ -2,7 +2,21 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.9.0](./CHANGELOG.md#990--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.11.0](./CHANGELOG.md#9110--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.11.0
+
+**Personal scheduler + Overview Edit/Cancel + cancelled-events filter + Landing copy rewrite.** Bundles 4 issues per founder direction: `#61` Personal scheduler, `#74` cancelled events filter, `#75` Edit/Cancel from Overview Upcoming, `#64` Landing copy de-jargonised. v9.10.0 left as a reserved slot for Route picker (deferred). `#56` Clubs share/invite deprioritised — no current sprint slot.
+
+`#61` — New `/dashboard/schedule` route aggregates events across ALL clubs the user is a member of: events they're going to (RSVP'd `going`) OR created. New endpoint `GET /api/me/schedule?range=YYYY-MM` returns the full event shape per club + `confirmed_count` + `is_creator` / `is_going` flags + `club_name` for multi-club identification. 5-min edge cache. Reuses Calendar primitives (Month/Week/Day grids + EventDetailDrawer) — same look as the per-club Schedule tab, just aggregated. New `useMyScheduleByMonth(range)` Tanstack Query hook. v9.11.0 ships clubs-only aggregation (Streams 1+2 from `#61` spec); AI plan items (Stream 3) and goals (Stream 4) deferred to v9.11.1+ pending stable schemas.
+
+`#74` — `GET /api/clubs/:id/overview` upcoming-events SQL gains `AND e.cancelled_at IS NULL` filter. New `/api/me/schedule` does the same. Calendar grids continue to show cancelled events with strikethrough (intentional, per v9.7.3) — only upcoming/agenda lists filter them.
+
+`#75` — Overview Upcoming Events rows are now tappable; click opens `EventDetailDrawer` with full event detail. Edit + Cancel buttons gated on `callerRole === 'admin'` OR (in future) `created_by === me`. Backend: Overview SQL expanded from 5 fields to 16 fields per upcoming event so the drawer can render properly. `UpcomingEvent` TS type expanded to mirror the full `ClubEvent` shape. Drawer state lifted to ClubDashboard so it doesn't re-mount on tab switch.
+
+`#64` — Landing page copy rewrite for non-technical audience (Sofia + Léa personas). Stripped tech jargon (PMC, CTL/ATL/TSB, BYOK, Anthropic Sonnet/Haiku) — replaced with concrete benefit framing. Hero pill: "Cycling clubs that actually feel like a club" (was "Cycling clubs with an AI training brain"). Features de-jargoned: "Live training status" → "Know what shape you're in — every day"; "A club layer, AI embedded" → "A club that runs itself". Pricing simplified: "Personal AI plans · ≈ $0.02 · Anthropic Sonnet, your key, your bill" → "Personal AI coach · ~50¢/mo · Optional. Bring your own AI key. Skip it and your training brain still works." Final CTA: "PMC, plan, route picker, club layer — all yours, all local, all free" → "Your training brain ready. Your club waiting. All yours, all on your phone, all free."
+
+**Nav reorder:** TopTabs + BottomNav add a "Schedule" slot between Today and Train. 5 nav slots (was 4). BottomNav `grid-template-columns: repeat(5, 1fr)`. ScheduleIcon (already in v9.7.2 design system) used. Bundle: dashboard chunk 88.33 → 74.92 KB (-13.41 KB) because Vite split EventDetailDrawer into its own chunk (14.75 KB) since it's now used by 3 callers — ScheduleTab, ClubDashboard Overview, dashboard.schedule route.
 
 ## What's new in v9.9.0
 
