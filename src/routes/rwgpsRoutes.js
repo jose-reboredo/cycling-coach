@@ -23,6 +23,49 @@ const RWGPS_AUTHORIZE_URL = 'https://ridewithgps.com/oauth/authorize';
 const RWGPS_TOKEN_URL = 'https://ridewithgps.com/oauth/token.json';
 const RWGPS_API_BASE = 'https://ridewithgps.com/api/v1';
 
+// v10.7.0 — Try to refresh tokens before giving up. Returns the new token
+// row (and persists it) on success, null when refresh isn't possible (no
+// refresh_token stored, or RWGPS rejected the refresh).
+async function refreshRwgpsTokens({ env, athleteId, currentTokens, safeWarn }) {
+  const refreshToken = currentTokens.refresh_token;
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(RWGPS_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: env.RWGPS_CLIENT_ID,
+        client_secret: env.RWGPS_CLIENT_SECRET,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+    if (!res.ok) {
+      safeWarn(`[rwgps] refresh returned ${res.status}`);
+      return null;
+    }
+    const json = await res.json();
+    const accessToken = json.access_token;
+    const newRefresh = json.refresh_token ?? refreshToken;
+    const authToken = json.auth_token ?? accessToken;
+    const expiresAt = json.expires_at
+      ?? (typeof json.expires_in === 'number'
+        ? Math.floor(Date.now() / 1000) + json.expires_in
+        : null);
+    if (!accessToken || !authToken) return null;
+    const now = Math.floor(Date.now() / 1000);
+    await env.cycling_coach_db.prepare(`
+      UPDATE rwgps_tokens
+      SET access_token = ?, refresh_token = ?, auth_token = ?, expires_at = ?, updated_at = ?
+      WHERE athlete_id = ?
+    `).bind(accessToken, newRefresh, authToken, expiresAt, now, athleteId).run();
+    return { access_token: accessToken, auth_token: authToken };
+  } catch (e) {
+    safeWarn(`[rwgps] refresh error: ${e.message}`);
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // /authorize-rwgps — kick off OAuth.
 // ---------------------------------------------------------------------------
@@ -232,12 +275,25 @@ export async function handleRwgpsRoutes({ request, env, deps }) {
     );
   }
 
-  const tokens = await env.cycling_coach_db
-    .prepare('SELECT access_token, auth_token FROM rwgps_tokens WHERE athlete_id = ? LIMIT 1')
+  let tokens = await env.cycling_coach_db
+    .prepare('SELECT access_token, auth_token, refresh_token, expires_at FROM rwgps_tokens WHERE athlete_id = ? LIMIT 1')
     .bind(athleteId)
     .first();
   if (!tokens) {
     return jsonResponse({ error: 'rwgps_not_connected' }, 404, corsHeaders);
+  }
+
+  // v10.7.0 — proactive refresh if expires_at is in the past or within 60s.
+  // Avoids one wasted /api/v1/routes.json call → 401 → refresh round-trip.
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (tokens.expires_at && tokens.expires_at < nowSec + 60 && tokens.refresh_token) {
+    const refreshed = await refreshRwgpsTokens({ env, athleteId, currentTokens: tokens, safeWarn });
+    if (refreshed) {
+      tokens = { ...tokens, ...refreshed };
+    } else {
+      // Refresh failed — surface as reauth_required so the UI can prompt.
+      return jsonResponse({ error: 'rwgps_reauth_required' }, 401, corsHeaders);
+    }
   }
 
   const url = new URL(request.url);
@@ -254,16 +310,27 @@ export async function handleRwgpsRoutes({ request, env, deps }) {
   }
 
   let rwgpsRoutes;
-  try {
-    const apiRes = await fetch(`${RWGPS_API_BASE}/routes.json?${params.toString()}`, {
+  // v10.7.0 — single-retry on 401: if the request lands a 401, attempt
+  // a refresh once and re-issue. Avoids forcing reconnect when access
+  // token expired without a known expires_at hint.
+  const callRwgps = async (authToken) =>
+    fetch(`${RWGPS_API_BASE}/routes.json?${params.toString()}`, {
       headers: {
         'x-rwgps-api-key': env.RWGPS_CLIENT_ID,
-        'x-rwgps-auth-token': tokens.auth_token,
+        'x-rwgps-auth-token': authToken,
         Accept: 'application/json',
       },
     });
+  try {
+    let apiRes = await callRwgps(tokens.auth_token);
+    if (apiRes.status === 401 && tokens.refresh_token) {
+      const refreshed = await refreshRwgpsTokens({ env, athleteId, currentTokens: tokens, safeWarn });
+      if (refreshed) {
+        apiRes = await callRwgps(refreshed.auth_token);
+      }
+    }
     if (apiRes.status === 401) {
-      // Token revoked or expired without refresh.
+      // Refresh either unavailable or rejected — user must reconnect.
       return jsonResponse({ error: 'rwgps_reauth_required' }, 401, corsHeaders);
     }
     if (!apiRes.ok) {

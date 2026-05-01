@@ -25,7 +25,10 @@ const MIN_RESULTS = 3;
 const CACHE_TTL_S = 86400; // 24h
 // v10.5.3 — bumped to v2 so cached 1-route responses from the strict v1
 // gate are invalidated. New requests re-generate with the loosened gate.
-const CACHE_PREFIX = 'routes:v2:';
+// v10.7.0 — bumped to v3 to invalidate cached entries from before the
+// origin-proximity gate landed. Old entries may include 200km-from-origin
+// routes that the new gate would reject.
+const CACHE_PREFIX = 'routes:v3:';
 
 /**
  * Public handler. Wired in worker.js when the URL matches.
@@ -121,6 +124,7 @@ export async function handleRoutesGenerate({ request, env, ctx, deps }) {
       elevationPref: input.elevation_preference,
       priorPoints: acceptedDecoded,
       decodedPoints: decoded,
+      origin: [input.lat, input.lng], // v10.7.0 — proximity gate
     });
     if (!scored) continue; // failed validation gates
     accepted.push({ route, decoded, scored });

@@ -4,6 +4,66 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.7.0] — 2026-05-01
+
+**Route picker bug fixes + RWGPS disconnect UI + token refresh + goal-driven AI plan design doc.**
+
+### Bug fixes
+
+**Strava routes auto-load on tab switch.** Founder report: "i miss the saved routes from strava". The v10.6.0 3-tab refactor required clicking a button to load — too hidden. Now switching to the My Strava or My Ride with GPS tab auto-fetches the routes immediately. The previous explicit-fetch buttons are now refresh buttons.
+
+**Origin proximity gate.** Founder report: "the routes generated even if i added an address in zurich are generated 200km from zurich". `routeScoring.js` now rejects candidates whose farthest geometry point exceeds `(targetDistanceKm / 2π) × 1.5` km from the origin — i.e., 1.5× the perfect-circle radius. A 50km loop's farthest point can be at most ~12km from the start. New helper `haversineKm(lat1, lng1, lat2, lng2)` provides accurate spherical distance. Cache prefix bumped `routes:v2:` → `routes:v3:` to invalidate stale entries.
+
+### RWGPS disconnect UI
+
+Subtle "Disconnect" link appears next to "Refresh Ride with GPS routes" when the user is connected. Calls existing `POST /api/rwgps/disconnect` (added in v10.6.0) and resets the local `rwgpsConnected` state so the tab reverts to the "Connect Ride with GPS ↗" empty state.
+
+### RWGPS token refresh
+
+Two layers of resilience added to the proxy handler:
+
+1. **Proactive refresh.** Before each call, if `expires_at < now + 60s` and a `refresh_token` is stored, call RWGPS `/oauth/token.json` with `grant_type=refresh_token`. On success, persist the new tokens via `UPDATE rwgps_tokens` and use them for the call.
+2. **Reactive single-retry on 401.** If the proxied call returns 401 anyway (stale `expires_at` or RWGPS-side revocation hint), retry once with refreshed tokens.
+
+If both fail or no refresh_token is stored, returns `rwgps_reauth_required` so the UI prompts the user to reconnect. New `refreshRwgpsTokens()` helper in `src/routes/rwgpsRoutes.js`.
+
+### Goal-driven AI training plan — design doc
+
+**Two docs added; no implementation yet.**
+
+- `docs/post-demo-sprint/train-tab-goal-driven-planning.md` — BA + architecture pass: 3 personas, 3 core flows, 5 architectural decisions (`elevation_gained` editable, `surface` user-overridable, reuse `planned_sessions` not `club_events`, webhook-triggered auto-update, `user_edited_at` lock).
+- `docs/post-demo-sprint/train-tab-api-spec.md` — 5 endpoint specs (`POST /api/plan/generate`, `GET /api/plan/current`, `POST /api/plan/schedule`, `POST /api/plan/regenerate-from-strava`, extension to `POST /api/me/goal`), AI prompt scaffold, token economy (~$0.02/user/month with Haiku, system-paid).
+
+Implementation scoped as 4 phases for v10.8.0 → v10.8.3:
+
+| Phase | Theme | Effort |
+|---|---|---|
+| A (v10.8.0) | Schema + `POST /api/plan/generate` + Train tab list | ~6h |
+| B (v10.8.1) | Scheduling flow (Train → calendar via prefill modal) | ~4h |
+| C (v10.8.2) | Today tab + route matching with elevation target | ~5h |
+| D (v10.8.3) | Webhook auto-update + user_edited_at lock | ~3h |
+
+### Files changed
+
+```
+src/lib/routeScoring.js                                      # +origin proximity gate, +haversineKm helper
+src/routes/routeGen.js                                       # passes origin to scorer; cache prefix v2 → v3
+src/routes/rwgpsRoutes.js                                    # +refreshRwgpsTokens helper, proactive + reactive refresh
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.tsx     # auto-load on tab; disconnect handler
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.module.css  # +disconnectBtn styles
+apps/web/src/lib/routesApi.ts                                # disconnectRwgps already exported (v10.6.0)
+docs/post-demo-sprint/train-tab-goal-driven-planning.md      # NEW
+docs/post-demo-sprint/train-tab-api-spec.md                  # NEW
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Why MINOR
+
+New features (RWGPS disconnect UI + auto-load on tab switch + token refresh) plus design docs. No breaking changes vs. v10.6.0. Per locked SemVer.
+
+---
+
 ## [10.6.0] — 2026-05-01
 
 **Three-tab honest route picker + Ride with GPS OAuth integration.**

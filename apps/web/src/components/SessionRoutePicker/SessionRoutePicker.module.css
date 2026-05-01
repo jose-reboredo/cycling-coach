@@ -82,6 +82,29 @@
   outline-offset: var(--ring-focus-offset);
 }
 
+/* v10.7.0 — Subtle disconnect button. Compact, no accent fill — this
+ * is a low-priority destructive action that should not compete with the
+ * primary "Refresh" button next to it. */
+.disconnectBtn {
+  background: transparent;
+  border: 0;
+  font: 500 0.75rem/1 var(--font-sans);
+  color: var(--c-text-faint);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+  padding: var(--s-3);
+  align-self: center;
+  transition: color 0.15s;
+}
+.disconnectBtn:hover {
+  color: var(--c-danger, #ef4444);
+}
+.disconnectBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .lede {
   margin: 0;
   font: 400 0.8125rem/1.45 var(--font-sans);

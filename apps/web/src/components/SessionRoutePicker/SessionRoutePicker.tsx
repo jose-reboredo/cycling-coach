@@ -26,6 +26,7 @@ import {
   fetchSavedStravaRoutes,
   fetchRwgpsRoutes,
   fetchRwgpsStatus,
+  disconnectRwgps,
   downloadGpx,
   type CyclingType,
   type ElevationPreference,
@@ -124,11 +125,21 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
 
   // Switching tabs clears the previous results so the user doesn't see a
   // stale list while they configure the new source.
+  // v10.7.0 — auto-fetch on switch for the saved-route tabs (founder
+  // feedback: "i miss the saved routes from strava" — making the user
+  // click an extra button hides the routes by default). Generate-new
+  // tab still requires explicit submit because it has form inputs.
   useEffect(() => {
     setRoutes(null);
     setSelectedId(null);
     setError(null);
-  }, [tab]);
+    if (tab === 'strava') {
+      handleFindStravaSaved();
+    } else if (tab === 'rwgps' && rwgpsConnected === true) {
+      handleFindRwgpsSaved();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, rwgpsConnected]);
 
   const targetDistance = estimateDistanceKm(durationMinutes, zone);
   const cyclingType = surfaceToCyclingType(prefs.surface_pref);
@@ -302,6 +313,21 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
   const selected = routes?.find((r) => r.id === selectedId) ?? null;
   const isDownloaded = selected?.source === 'generated' && selected.id === downloadedRouteId;
 
+  // v10.7.0 — Disconnect RWGPS. Deletes server-side tokens row and resets
+  // the local connected flag so the tab reverts to the "Connect" empty state.
+  const handleDisconnectRwgps = async () => {
+    try {
+      await disconnectRwgps();
+      setRwgpsConnected(false);
+      setRoutes(null);
+      setSelectedId(null);
+      setError(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not disconnect.';
+      setError(msg);
+    }
+  };
+
   const handleDownloadGpx = () => {
     if (!selected || selected.source !== 'generated') return;
     const km = Math.round(selected.distance_km);
@@ -395,7 +421,7 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
         </>
       )}
 
-      {/* Tab 2 — Strava saved */}
+      {/* Tab 2 — Strava saved (auto-loads on tab switch in v10.7.0) */}
       {tab === 'strava' && (
         <>
           <p className={styles.lede}>
@@ -408,7 +434,7 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
               onClick={handleFindStravaSaved}
               disabled={pending !== null}
             >
-              {pending === 'strava' ? 'Loading Strava…' : 'Show Strava routes'}
+              {pending === 'strava' ? 'Loading Strava…' : 'Refresh Strava routes'}
             </Button>
           </div>
         </>
@@ -447,8 +473,20 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
                     ? 'Loading Ride with GPS…'
                     : rwgpsConnected === null
                       ? 'Checking connection…'
-                      : 'Show Ride with GPS routes'}
+                      : 'Refresh Ride with GPS routes'}
                 </Button>
+                {/* v10.7.0 — Disconnect button. Calls /api/rwgps/disconnect
+                    and resets local state so user can re-connect from a
+                    different RWGPS account if desired. */}
+                <button
+                  type="button"
+                  className={styles.disconnectBtn}
+                  onClick={handleDisconnectRwgps}
+                  disabled={pending !== null}
+                  title="Disconnect Ride with GPS"
+                >
+                  Disconnect
+                </button>
               </div>
             </>
           )}

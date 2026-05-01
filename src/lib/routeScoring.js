@@ -47,6 +47,7 @@ export function scoreCandidate({
   elevationPref,
   priorPoints,
   decodedPoints,
+  origin, // [lat, lng] — added v10.7.0 for proximity gate
 }) {
   const actualKm = route.distanceM / 1000;
 
@@ -56,6 +57,22 @@ export function scoreCandidate({
   // the ±20% edge so picky users get the closest first.
   if (actualKm < targetDistanceKm * 0.8 || actualKm > targetDistanceKm * 1.2) {
     return null;
+  }
+
+  // v10.7.0 — origin proximity gate. Founder reported routes generating
+  // "200km from Zurich" for short-distance sessions. A legitimate loop's
+  // farthest point should sit roughly at radius = perimeter / 2π. We
+  // accept up to 1.5× that (allows for elongated routes) but reject
+  // anything farther — the route has wandered off into another region.
+  if (origin && Array.isArray(decodedPoints) && decodedPoints.length > 0) {
+    const maxAllowedKm = (targetDistanceKm / (2 * Math.PI)) * 1.5;
+    const farthestKm = decodedPoints.reduce((max, [lat, lng]) => {
+      const d = haversineKm(origin[0], origin[1], lat, lng);
+      return d > max ? d : max;
+    }, 0);
+    if (farthestKm > maxAllowedKm) {
+      return null;
+    }
   }
 
   // distance_match: 1 when exact, drops linearly to 0 at the ±20% edge.
@@ -132,4 +149,18 @@ function cellKey(lat, lng) {
   const la = Math.round(lat * 1000) / 1000;
   const ln = Math.round(lng * 1000) / 1000;
   return `${la},${ln}`;
+}
+
+// v10.7.0 — Haversine great-circle distance in km. Used by the origin
+// proximity gate to reject routes whose geometry wandered off-region.
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const dφ = ((lat2 - lat1) * Math.PI) / 180;
+  const dλ = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dφ / 2) * Math.sin(dφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) * Math.sin(dλ / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
