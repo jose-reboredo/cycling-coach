@@ -16,7 +16,7 @@ import { handleRoutesGenerate } from './routes/routeGen.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.5.0';
+const WORKER_VERSION = 'v10.5.1';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -112,7 +112,11 @@ const SECURITY_HEADERS = {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https://*.cloudfront.net https://*.googleusercontent.com",
-    "connect-src 'self'",
+    // v10.5.1 — Nominatim is the address geocoder for the route picker
+    // (apps/web/src/lib/geocode.ts). Free, OSM-backed, browser-CORS-friendly.
+    // Added to connect-src so the SPA can call it directly without proxying
+    // through the Worker (saves subrequest budget, keeps geocoding cheap).
+    "connect-src 'self' https://nominatim.openstreetmap.org",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

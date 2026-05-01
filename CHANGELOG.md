@@ -4,6 +4,30 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.5.1] — 2026-05-01
+
+**Hotfix: CSP allows Nominatim for the route picker.**
+
+v10.5.0 shipped the route picker with browser-side geocoding via `https://nominatim.openstreetmap.org`, but the Worker's CSP (`worker.js:115`) had `connect-src 'self'` only. Browser blocked the fetch with:
+
+```
+Refused to connect to https://nominatim.openstreetmap.org/search?...
+because it violates the document's Content Security Policy
+```
+
+The picker showed "load failed" because the geocode `fetch()` rejected before reaching the routes API.
+
+Fix: extend `connect-src` in `SECURITY_HEADERS`:
+
+```diff
+- "connect-src 'self'",
++ "connect-src 'self' https://nominatim.openstreetmap.org",
+```
+
+No other change. The routes API call (`/api/routes/generate`) is same-origin and was unaffected.
+
+---
+
 ## [10.5.0] — 2026-05-01
 
 **Route picker drawer UX wires the v10.4.0 backend; salutation styling + duration rounding bug fixes.**
