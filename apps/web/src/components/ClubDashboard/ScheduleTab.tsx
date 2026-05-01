@@ -1,111 +1,85 @@
-// ScheduleTab — Sprint 5 Phase 3 (v9.7.0).
-// Month-grid calendar with filter chips by event_type. Reads from
-// GET /api/clubs/:id/events?range=YYYY-MM (single batch, 5-min edge cache).
-// Tap an event pill → drawer with details + RSVP (reuses Overview pattern).
-//
-// Design choices (locked with founder 2026-05-01):
-// - 6-row × 7-col grid (always renders the same shape; out-of-month cells greyed)
-// - Today highlighted with accent border
-// - Up to 2 event pills per cell, "+N more" overflow
-// - Event pills colour-coded: ride (accent) / social (info) / race (warn)
-// - Filter chips multi-select (tap to toggle); empty filter set = show all
-// - Mobile: filters stack horizontally above grid; grid stays 7-col but cells
-//   become tighter
+// ScheduleTab — Sprint 5 Phase 3 (v9.7.0) → multi-view refactor (v9.7.1).
+// Orchestrates Month / Week / Day calendar views over the club's events.
+// Tap any pill → EventDetailDrawer. View persists in URL hash.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useClubEventsByMonth } from '../../hooks/useClubs';
-import type { ClubEventType } from '../../lib/clubsApi';
+import { MonthCalendarGrid } from '../Calendar/MonthCalendarGrid';
+import { WeekCalendarGrid } from '../Calendar/WeekCalendarGrid';
+import { DayCalendarGrid } from '../Calendar/DayCalendarGrid';
+import { EventDetailDrawer } from '../Calendar/EventDetailDrawer';
+import {
+  type CalendarEvent,
+  type CalendarDate,
+  type CalendarView,
+  type ClubEventType,
+  TYPE_LABEL,
+  todayUTC,
+  weekStart,
+} from '../Calendar/types';
 import styles from './ScheduleTab.module.css';
 
 const ALL_TYPES: ClubEventType[] = ['ride', 'social', 'race'];
-
-const TYPE_LABEL: Record<ClubEventType, string> = {
-  ride: '🚴 Ride',
-  social: '☕ Social',
-  race: '🏁 Race',
-};
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-
 function monthToRange(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
 
-function todayUTC(): { year: number; month: number; day: number } {
-  const now = new Date();
-  return {
-    year: now.getUTCFullYear(),
-    month: now.getUTCMonth() + 1,
-    day: now.getUTCDate(),
-  };
+function readViewFromHash(): CalendarView | null {
+  if (typeof window === 'undefined') return null;
+  const h = window.location.hash.replace('#', '').toLowerCase();
+  if (h === 'month' || h === 'week' || h === 'day') return h;
+  return null;
 }
 
-/**
- * Build a 6-row × 7-col grid for a given month, Monday-start week.
- * Returns 42 cells; out-of-month cells flagged with `inMonth: false`.
- */
-function buildGrid(year: number, month: number): Array<{ year: number; month: number; day: number; inMonth: boolean }> {
-  // First day of month (1-indexed input → 0-indexed for Date)
-  const firstDay = new Date(Date.UTC(year, month - 1, 1));
-  // JS getUTCDay: Sun=0, Mon=1 ... Sat=6 → convert to Monday-start (Mon=0 ... Sun=6)
-  const firstWeekday = (firstDay.getUTCDay() + 6) % 7;
-  // Days in this month
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  // Days to show from previous month
-  const cells: Array<{ year: number; month: number; day: number; inMonth: boolean }> = [];
-  for (let i = 0; i < firstWeekday; i++) {
-    const d = new Date(Date.UTC(year, month - 1, -firstWeekday + i + 1));
-    cells.push({
-      year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate(), inMonth: false,
-    });
-  }
-  for (let day = 1; day <= daysInMonth; day++) {
-    cells.push({ year, month, day, inMonth: true });
-  }
-  while (cells.length < 42) {
-    const last = cells[cells.length - 1]!;
-    const d = new Date(Date.UTC(last.year, last.month - 1, last.day + 1));
-    cells.push({
-      year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate(), inMonth: false,
-    });
-  }
-  return cells;
+function defaultViewForViewport(): CalendarView {
+  if (typeof window === 'undefined') return 'month';
+  return window.matchMedia('(max-width: 599px)').matches ? 'day' : 'month';
+}
+
+function useCalendarView(): [CalendarView, (v: CalendarView) => void] {
+  const [view, setView] = useState<CalendarView>(
+    () => readViewFromHash() ?? defaultViewForViewport(),
+  );
+  // Sync hash when view changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const target = `#${view}`;
+    if (window.location.hash !== target) {
+      // Use replaceState so back-button doesn't pile up history entries
+      window.history.replaceState(null, '', target);
+    }
+  }, [view]);
+  // Listen to external hash changes (back-button)
+  useEffect(() => {
+    const onHash = () => {
+      const fromHash = readViewFromHash();
+      if (fromHash) setView(fromHash);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  return [view, setView];
 }
 
 export function ScheduleTab({ clubId }: { clubId: number }) {
   const today = todayUTC();
-  const [view, setView] = useState({ year: today.year, month: today.month });
+  const [view, setView] = useCalendarView();
+  const [date, setDate] = useState<CalendarDate>(today);
   const [activeFilters, setActiveFilters] = useState<Set<ClubEventType>>(new Set(ALL_TYPES));
+  const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
 
-  const range = monthToRange(view.year, view.month);
+  // The endpoint queries by month — for Week/Day views we still query the
+  // month containing the displayed date (over-fetch is cheap; 5-min edge cache).
+  // Future opt: when in Week view crossing a month boundary, query both months.
+  const range = monthToRange(date.year, date.month);
   const { data, isLoading, error } = useClubEventsByMonth(clubId, range);
-
-  const grid = useMemo(() => buildGrid(view.year, view.month), [view.year, view.month]);
-
-  // Group events by UTC day for the displayed month.
-  const eventsByDay = useMemo(() => {
-    const map = new Map<string, typeof data extends { events: infer E } ? E : never>();
-    if (!data?.events) return map as Map<string, NonNullable<typeof data>['events']>;
-    const filtered = data.events.filter((e) => activeFilters.size === 0 || activeFilters.has(e.event_type));
-    for (const e of filtered) {
-      const d = new Date(e.event_date * 1000);
-      const key = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
-      const existing = (map.get(key) ?? []) as typeof filtered;
-      existing.push(e);
-      map.set(key, existing as never);
-    }
-    return map as Map<string, typeof filtered>;
-  }, [data, activeFilters]);
-
-  const stepMonth = (delta: number) => {
-    const d = new Date(Date.UTC(view.year, view.month - 1 + delta, 1));
-    setView({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 });
-  };
+  const events: CalendarEvent[] = useMemo(() => data?.events ?? [], [data]);
 
   const toggleFilter = (t: ClubEventType) => {
     setActiveFilters((prev) => {
@@ -115,32 +89,63 @@ export function ScheduleTab({ clubId }: { clubId: number }) {
     });
   };
 
-  const isToday = (cell: { year: number; month: number; day: number }) =>
-    cell.year === today.year && cell.month === today.month && cell.day === today.day;
+  const stepDate = (delta: number) => {
+    if (view === 'month') {
+      const d = new Date(Date.UTC(date.year, date.month - 1 + delta, 1));
+      setDate({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: 1 });
+    } else if (view === 'week') {
+      const start = weekStart(date);
+      const d = new Date(Date.UTC(start.year, start.month - 1, start.day + 7 * delta));
+      setDate({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() });
+    } else {
+      const d = new Date(Date.UTC(date.year, date.month - 1, date.day + delta));
+      setDate({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() });
+    }
+  };
+
+  const dateLabel = useMemo(() => {
+    if (view === 'month') {
+      return `${MONTH_NAMES[date.month - 1]} ${date.year}`;
+    }
+    if (view === 'week') {
+      const start = weekStart(date);
+      const endDate = new Date(Date.UTC(start.year, start.month - 1, start.day + 6));
+      const startStr = `${start.day} ${MONTH_NAMES[start.month - 1]?.slice(0, 3)}`;
+      const endStr = `${endDate.getUTCDate()} ${MONTH_NAMES[endDate.getUTCMonth()]?.slice(0, 3)}`;
+      return `${startStr} – ${endStr} ${endDate.getUTCFullYear()}`;
+    }
+    return new Date(Date.UTC(date.year, date.month - 1, date.day)).toLocaleDateString(undefined, {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    });
+  }, [view, date]);
 
   return (
     <div className={styles.schedule}>
-      {/* HEADER — month label + prev/next */}
+      {/* HEADER ROW — view toggle + date nav */}
       <div className={styles.head}>
-        <button
-          type="button"
-          className={styles.navBtn}
-          onClick={() => stepMonth(-1)}
-          aria-label="Previous month"
-        >
-          ←
-        </button>
-        <h3 className={styles.monthLabel}>
-          {MONTH_NAMES[view.month - 1]} {view.year}
-        </h3>
-        <button
-          type="button"
-          className={styles.navBtn}
-          onClick={() => stepMonth(1)}
-          aria-label="Next month"
-        >
-          →
-        </button>
+        <div className={styles.viewToggle} role="tablist" aria-label="Calendar view">
+          {(['month', 'week', 'day'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              className={`${styles.viewBtn} ${view === v ? styles.viewBtnActive : ''}`}
+              onClick={() => setView(v)}
+              aria-selected={view === v}
+            >
+              {v[0]?.toUpperCase()}{v.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div className={styles.dateNav}>
+          <button type="button" className={styles.navBtn} onClick={() => stepDate(-1)} aria-label={`Previous ${view}`}>
+            ←
+          </button>
+          <h3 className={styles.dateLabel}>{dateLabel}</h3>
+          <button type="button" className={styles.navBtn} onClick={() => stepDate(1)} aria-label={`Next ${view}`}>
+            →
+          </button>
+        </div>
       </div>
 
       {/* FILTER CHIPS */}
@@ -158,65 +163,47 @@ export function ScheduleTab({ clubId }: { clubId: number }) {
         ))}
       </div>
 
-      {/* DAY-OF-WEEK HEADER */}
-      <div className={styles.weekdayRow} aria-hidden="true">
-        {DAY_LABELS.map((d, i) => (
-          <span key={i} className={styles.weekdayCell}>{d}</span>
-        ))}
-      </div>
-
-      {/* GRID */}
+      {/* GRID — Month / Week / Day */}
       {error ? (
-        <p className={styles.empty}>Couldn't load events for {range}.</p>
+        <p className={styles.empty}>Couldn't load events.</p>
       ) : (
-        <div className={styles.grid}>
-          {grid.map((cell, idx) => {
-            const key = `${cell.year}-${cell.month}-${cell.day}`;
-            const dayEvents = eventsByDay.get(key) ?? [];
-            const visibleEvents = dayEvents.slice(0, 2);
-            const overflow = dayEvents.length - visibleEvents.length;
-            return (
-              <div
-                key={`${idx}-${key}`}
-                className={[
-                  styles.cell,
-                  cell.inMonth ? '' : styles.cellOut,
-                  isToday(cell) ? styles.cellToday : '',
-                ].filter(Boolean).join(' ')}
-              >
-                <span className={styles.dayNum}>{cell.day}</span>
-                {visibleEvents.map((e) => {
-                  const time = new Date(e.event_date * 1000);
-                  const hh = String(time.getUTCHours()).padStart(2, '0');
-                  const mm = String(time.getUTCMinutes()).padStart(2, '0');
-                  return (
-                    <span
-                      key={e.id}
-                      className={`${styles.pill} ${styles[`pill_${e.event_type}`]}`}
-                      title={`${e.title} · ${hh}:${mm} · ${e.confirmed_count} going`}
-                    >
-                      <span className={styles.pillTime}>{hh}:{mm}</span>
-                      <span className={styles.pillTitle}>{e.title}</span>
-                    </span>
-                  );
-                })}
-                {overflow > 0 && (
-                  <span className={styles.overflow}>+{overflow} more</span>
-                )}
-              </div>
-            );
-          })}
+        <div className={styles.gridWrap}>
+          {view === 'month' && (
+            <MonthCalendarGrid
+              year={date.year}
+              month={date.month}
+              events={events}
+              activeFilters={activeFilters}
+              onEventClick={setActiveEvent}
+            />
+          )}
+          {view === 'week' && (
+            <WeekCalendarGrid
+              date={date}
+              events={events}
+              activeFilters={activeFilters}
+              onEventClick={setActiveEvent}
+            />
+          )}
+          {view === 'day' && (
+            <DayCalendarGrid
+              date={date}
+              events={events}
+              activeFilters={activeFilters}
+              onEventClick={setActiveEvent}
+            />
+          )}
         </div>
       )}
 
-      {/* EMPTY STATE */}
-      {!isLoading && !error && (data?.events?.length ?? 0) === 0 && (
-        <p className={styles.empty}>
-          No events in {MONTH_NAMES[view.month - 1]} {view.year}.
-        </p>
+      {!isLoading && !error && events.length === 0 && (
+        <p className={styles.empty}>No events in {MONTH_NAMES[date.month - 1]} {date.year}.</p>
       )}
 
       {isLoading && <p className={styles.loading}>Loading events…</p>}
+
+      {/* EVENT DETAIL DRAWER */}
+      <EventDetailDrawer event={activeEvent} onClose={() => setActiveEvent(null)} />
     </div>
   );
 }

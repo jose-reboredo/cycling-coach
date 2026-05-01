@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.7.0](./CHANGELOG.md#970--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.7.1](./CHANGELOG.md#971--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.7.1
+
+Sprint 5 / `#57` — Outlook-style multi-view scheduler. Closes the v9.7.0 gap where only Month was available. New view toggle chips at the top of the Schedule tab let users switch between **Month** (6×7 grid), **Week** (7-col × 06:00–22:00 16h time grid), and **Day** (single col × 06:00–22:00). View persists in URL hash (`#month` / `#week` / `#day`); deep-linking and back-button work. Default = Month on desktop, Day on mobile (auto-switch by 600px breakpoint). Date navigation (prev/next) is view-aware — steps months in Month view, weeks in Week, days in Day. New **EventDetailDrawer** opens on tap of any pill: bottom-sheet on mobile, right-side panel on desktop. Drawer renders title + format + when + where + RSVP count + organiser + description; Edit / Cancel buttons stub here, wired in v9.7.3 (event lifecycle). Locked CSS scope: `apps/web/src/components/Calendar/` now houses MonthCalendarGrid, WeekCalendarGrid, DayCalendarGrid, EventDetailDrawer + shared `Calendar.module.css` — primitives reusable for the personal scheduler in v9.7.4. ScheduleTab.tsx is now orchestration only (~225 lines, was 230 — tighter). No backend changes; reuses `GET /api/clubs/:id/events?range=` shipped in v9.7.0. Dashboard chunk: 70.42 → 80.48 KB (+10 KB).
 
 ## What's new in v9.7.0
 

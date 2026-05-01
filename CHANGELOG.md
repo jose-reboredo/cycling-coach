@@ -4,6 +4,78 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.7.1] — 2026-05-01
+
+**Sprint 5 / `#57` — Outlook-style multi-view scheduler + event detail drawer.** Closes the v9.7.0 gap where only Month view existed. Users explicitly asked for Month / Week / Day views, with event detail opening on click. Locked decisions 2026-05-01: 06:00–22:00 (16h) band on both Week and Day; default = Month on desktop, Day on mobile (auto-switch at 600px breakpoint); multi-view applies to both club Schedule tab and the upcoming personal scheduler (v9.7.4) for consistency.
+
+### New view toggle
+
+Three view chips at the top of the Schedule tab: `Month` / `Week` / `Day`. Each click updates a URL hash (`#month` / `#week` / `#day`) so deep-linking and back-button work. The hash also seeds the initial view: if a user lands on `/clubs/N#week`, Week view renders. Otherwise the default kicks in (Month on desktop, Day on mobile via `window.matchMedia('(max-width: 599px)')`).
+
+Date navigation buttons (prev / next) are view-aware:
+
+- Month view → step by 1 month
+- Week view → step by 7 days (anchored to Monday-start week)
+- Day view → step by 1 day
+
+The header label adapts: "May 2026" / "5 May – 11 May 2026" / "Friday, 1 May 2026".
+
+### Calendar primitives — new shared directory `apps/web/src/components/Calendar/`
+
+Refactor: the month-grid logic that lived inline in `ScheduleTab.tsx` is now extracted to standalone primitives. ScheduleTab becomes orchestration only (view toggle, filter chips, date nav, drawer state).
+
+| File | Lines | Purpose |
+|---|---|---|
+| `types.ts` | ~95 | Shared types + helpers (CalendarEvent, CalendarDate, weekStart, weekDates, groupByDay, mondayStartWeekday, etc.) |
+| `MonthCalendarGrid.tsx` | ~95 | 6×7 grid, Monday-start, today highlighted, +N more overflow |
+| `WeekCalendarGrid.tsx` | ~115 | 7-col × 06:00–22:00 time grid, events positioned by start time, today column tinted |
+| `DayCalendarGrid.tsx` | ~80 | Single col × 06:00–22:00, larger event cards (title + time + location + count) |
+| `EventDetailDrawer.tsx` | ~90 | Bottom-sheet (mobile) / right-side panel (desktop), Escape-to-close, scroll lock, Edit/Cancel stubs |
+| `Calendar.module.css` | ~310 | All grid + drawer styles + the shared event-type color family (`pill_ride` / `pill_social` / `pill_race`) |
+
+Default event block height in time-grid views = 90 minutes. The `club_events` schema doesn't yet have a duration column — that comes with v9.7.3 (event model expansion). Until then, blocks render as 90-min visual approximations, which covers most cycling events.
+
+### EventDetailDrawer
+
+- Opens on tap of any event pill across all 3 grids (single shared `onEventClick` plumbed through the orchestrator).
+- Mobile: slides up from bottom as a bottom-sheet (`max-height: 85dvh`, scrolls if content overflows).
+- Desktop (≥ 600px): slides in from right as a panel (`max-width: 480px`, full viewport height).
+- Body scroll lock + Escape-key handler + click-outside-to-close.
+- Renders: format pill, title, when (full date + UTC time), where, RSVP count, organiser, description, club name (if present — for the personal scheduler aggregation in v9.7.4).
+- Edit + Cancel event buttons are stubbed (disabled with explanatory note: "Edit / Cancel ship in v9.7.3 (event lifecycle).").
+
+### ScheduleTab refactor
+
+Now ~225 lines (was 230) but with significantly more functionality. Holds:
+
+- View state (`useCalendarView` custom hook with hash sync)
+- Date state (CalendarDate; `setDate` adapts to current view)
+- Filter state (Set of active event types; multi-select)
+- Drawer state (`activeEvent`)
+- Range fetch (still month-based for now; over-fetch is cheap with the 5-min edge cache)
+
+Future opt for Week view crossing month boundaries: query both months in parallel — deferred until users actually hit that pattern.
+
+### Bundle impact
+
+- Dashboard chunk: 70.42 → 80.48 KB (+10.06 KB / +14.3%) — within the verification budget for v9.7.1.
+- New Calendar/ chunk did NOT split out (Vite kept it inline with the dashboard route bundle since it's only consumed by ClubDashboard).
+- gzip dashboard: 21.32 → 23.93 KB (+2.61 KB).
+
+### Sprint 5 process adherence (Sprint 4 retro Improvements applied)
+
+- ✅ #1 Paired verification: build green + manual TypeScript scan + visual review of grid math (week/day positioning formula `topPct = ((hh - 6) / 16) * 100`)
+- ✅ #2 Pre-commit grep against `schema.sql` — N/A (no SQL change)
+- ✅ #4 End-to-end smoke for UPSERT — N/A (no new endpoints; reused v9.7.0 read-only)
+- ✅ #5 Verification budget within 12% — direct in-context implementation, no Sonnet sub-agents needed
+- ✅ #6 Bug post-mortems — none required (no hotfix)
+
+### Versions: 9.7.0 → 9.7.1 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.7.0] — 2026-05-01
 
 **Sprint 5 Phase 3 — clubs Schedule tab.** First feature release under the new founder process directives (sprint retros mandatory, bug post-mortems mandatory, paired Sonnet+verification dispatch, nightly autonomous code-review routine). All Sprint-5 kickoff items #1–#7 from the retro played out as planned: founder walkthrough on UI before code; ADR-S5.1 + ADR-S5.2 locked in 1 round; pre-commit grep against `schema.sql` caught a column-name drift (`start_date_local` → `event_date`) before commit; hygiene-close commit retired `#44`/`#45`/`#3`; v9.6.1 + v9.6.4 retroactive post-mortems established the template.

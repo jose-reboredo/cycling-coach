@@ -1,6 +1,7 @@
-/* ScheduleTab — Sprint 5 Phase 3 (v9.7.0).
- * Calendar grid + filter chips. Uses design tokens; no hardcoded colors.
- * Mobile-first; tightens cells under 600px.
+/* ScheduleTab — Sprint 5 / v9.7.1 (orchestration only).
+ * Grid + drawer styles moved to apps/web/src/components/Calendar/Calendar.module.css.
+ * This file holds: layout shell, view toggle, filter chips, date nav,
+ * empty/loading states.
  */
 
 .schedule {
@@ -10,18 +11,64 @@
   padding: var(--s-5) 0;
 }
 
+/* HEADER ROW — view toggle + date nav, wraps on mobile */
 .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
+  flex-wrap: wrap;
 }
 
-.monthLabel {
+.viewToggle {
+  display: inline-flex;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  padding: 2px;
+  background: transparent;
+}
+
+.viewBtn {
+  padding: var(--s-1) var(--s-3);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--c-text-muted);
+  font: 500 0.75rem/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  min-height: 32px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.viewBtn:hover {
+  color: var(--c-text);
+}
+
+.viewBtn:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
+.viewBtnActive {
+  color: var(--c-canvas);
+  background: var(--c-accent);
+}
+
+.dateNav {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.dateLabel {
   margin: 0;
   font: 500 1.125rem/1.2 var(--font-sans);
   letter-spacing: 0.02em;
   color: var(--c-text);
+  min-width: 12ch;
+  text-align: center;
 }
 
 .navBtn {
@@ -50,6 +97,7 @@
   outline-offset: var(--ring-focus-offset);
 }
 
+/* FILTER CHIPS */
 .filters {
   display: flex;
   flex-wrap: wrap;
@@ -85,119 +133,9 @@
   background: rgba(255, 77, 0, 0.08);
 }
 
-/* Weekday header — 7 columns, mono uppercase */
-.weekdayRow {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  margin-bottom: -1px;  /* visually merge with grid */
-}
-
-.weekdayCell {
-  text-align: center;
-  font: 500 0.625rem/1.5 var(--font-mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--c-text-faint);
-  padding: var(--s-2) 0;
-}
-
-/* Calendar grid — 6 rows × 7 cols */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: minmax(72px, 1fr);
-  gap: 1px;
-  background: var(--c-border);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-3);
-  overflow: hidden;
-}
-
-.cell {
-  background: var(--c-canvas);
-  padding: var(--s-2);
+.gridWrap {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-height: 72px;
-  position: relative;
-}
-
-.cellOut {
-  background: var(--c-bg-deep);
-}
-
-.cellOut .dayNum {
-  color: var(--c-text-faint);
-  opacity: 0.5;
-}
-
-.cellToday {
-  border: 1px solid var(--c-accent);
-  border-radius: var(--r-2);
-  margin: -1px;
-}
-
-.cellToday .dayNum {
-  color: var(--c-accent);
-  font-weight: 600;
-}
-
-.dayNum {
-  font: 500 0.75rem/1 var(--font-mono);
-  color: var(--c-text-muted);
-  margin-bottom: 2px;
-}
-
-/* Event pill — tight, color-coded by event_type */
-.pill {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
-  border-radius: var(--r-1);
-  font: 500 0.6875rem/1.2 var(--font-sans);
-  background: rgba(255, 77, 0, 0.12);
-  color: var(--c-text);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  cursor: default;
-}
-
-.pill_ride {
-  background: rgba(255, 77, 0, 0.12);
-  color: var(--c-accent);
-}
-
-.pill_social {
-  background: rgba(80, 160, 220, 0.15);
-  color: var(--c-info, #6ab0e0);
-}
-
-.pill_race {
-  background: rgba(220, 140, 50, 0.15);
-  color: var(--c-warn, #e0a060);
-}
-
-.pillTime {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  opacity: 0.8;
-  flex-shrink: 0;
-}
-
-.pillTitle {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.overflow {
-  font: 500 0.625rem/1.2 var(--font-mono);
-  color: var(--c-text-faint);
-  letter-spacing: 0.05em;
-  margin-top: 2px;
 }
 
 .empty,
@@ -208,26 +146,17 @@
   font: 400 0.875rem/1.5 var(--font-sans);
 }
 
-/* Mobile — tighten cells, allow only 1 pill before overflow */
-@media (max-width: 600px) {
-  .grid {
-    grid-auto-rows: minmax(56px, auto);
-  }
-
-  .cell {
-    min-height: 56px;
-    padding: 4px;
-  }
-
-  .pillTitle {
-    display: none; /* show only time on small viewports */
-  }
-
-  .pillTime {
-    font-size: 0.6875rem;
-  }
-
-  .monthLabel {
+@media (max-width: 599px) {
+  .dateLabel {
     font-size: 1rem;
+    min-width: 0;
+  }
+  .head {
+    gap: var(--s-2);
+  }
+  .viewToggle,
+  .dateNav {
+    flex-grow: 1;
+    justify-content: center;
   }
 }
