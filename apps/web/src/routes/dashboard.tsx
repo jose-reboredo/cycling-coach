@@ -3,6 +3,7 @@ import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dashboard } from '../pages/Dashboard';
 import { BottomNav } from '../components/BottomNav/BottomNav';
+import { TopTabs } from '../components/TopTabs/TopTabs';
 import { TopBar } from '../components/TopBar/TopBar';
 import { UserMenu } from '../components/UserMenu/UserMenu';
 import { ContextSwitcher } from '../components/ContextSwitcher/ContextSwitcher';
@@ -122,6 +123,19 @@ function TabsLayout() {
         </main>
       ) : (
         <>
+          {/* DESKTOP TABS — Sprint 5 / v9.7.2 (#59). TopTabs visible ≥600px;
+           *  BottomNav (rendered below) takes over on mobile. */}
+          <Container width="wide">
+            <TopTabs
+              ariaLabel="Dashboard tabs"
+              items={[
+                { id: 'today', label: 'Today', to: '/dashboard/today' },
+                { id: 'train', label: 'Train', to: '/dashboard/train' },
+                { id: 'rides', label: 'Rides', to: '/dashboard/rides' },
+                { id: 'you', label: 'You', to: '/dashboard/you' },
+              ]}
+            />
+          </Container>
           <Outlet />
           <BottomNav />
         </>

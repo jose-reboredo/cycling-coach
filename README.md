@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.7.1](./CHANGELOG.md#971--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.7.2](./CHANGELOG.md#972--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.7.2
+
+Sprint 5 / `#59` + `#62` — Responsive nav consistency + Cadence Club line-icon library + Members search input fix. Closes the inconsistency where clubs used top tabs on mobile while individual used BottomNav. New rule (locked 2026-05-01): **desktop = top tabs always; mobile = BottomNav always; breakpoint = 600px**, applied to both clubs and individual contexts. New shared `<TopTabs />` component (CSS hides &lt; 600px); BottomNav extended with optional `items` prop so club mode can drive it from local tab state. BottomNav breakpoint moved from 1024 → 600px. New CC line-icon library at `apps/web/src/design/icons/index.tsx` — 8 branded SVG icons (Today / Train / Rides / You + Overview / Schedule / Members / Metrics), 1.6px stroke 24×24 currentColor, persona-focused JSDoc. ClubDashboard now renders TopTabs (desktop) + BottomNav with club items (mobile, with the new icons). Individual dashboard route renders TopTabs above the Outlet on desktop. Bonus fix: `#62` Members tab search input was rendering at ~40% of mobile viewport — root cause was `flex: 1 1 200px` on a column-direction parent (cross-axis grew vertically); fixed with explicit `flex: 0 0 auto` + `height: 44px` (mobile) / `48px` (desktop), restoring flex-grow only inside the desktop row breakpoint. WCAG 2.5.5 touch-target compliant. Dashboard chunk: 80 → 83 KB (+3 KB for icons + TopTabs). No backend changes.
 
 ## What's new in v9.7.1
 

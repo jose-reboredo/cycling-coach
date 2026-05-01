@@ -62,7 +62,10 @@
   text-transform: uppercase;
 }
 
-@media (min-width: 1024px) {
+/* Sprint 5 / v9.7.2 (#59) — responsive nav consistency lock 2026-05-01.
+ * BottomNav is mobile-only; TopTabs covers desktop. Breakpoint moved
+ * from 1024px to 600px so iPad portrait + tablets get top tabs. */
+@media (min-width: 600px) {
   .root {
     display: none;
   }

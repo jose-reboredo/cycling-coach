@@ -573,12 +573,31 @@
     justify-content: space-between;
     flex-wrap: wrap;
   }
+  /* Desktop row layout — flex-grow re-enabled for horizontal stretch.
+   * Vertical stays controlled (height:48px). Per v9.7.2 #62 AC. */
+  .membersSearch {
+    flex: 1 1 240px;
+    width: auto;
+    height: 48px;
+    max-width: 360px;
+  }
 }
 
+/* Search input — single-line standard search, NOT a focal element.
+ * v9.7.2 (#62) fix: removed flex:1-1-200px from the default rule because
+ * .membersControls is column-direction on mobile, where flex:1 grows the
+ * cross-axis (vertical) and made the input ~40% of viewport tall. The
+ * v9.6.3 fix to height:36px got overridden by align-items:stretch default
+ * on the column flex parent. Now: explicit 44–56px height (WCAG 2.5.5
+ * touch target compliant); flex-grow only re-enables in the desktop
+ * row-layout breakpoint below.
+ */
 .membersSearch {
-  flex: 1 1 200px;
+  flex: 0 0 auto;
+  width: 100%;
   min-width: 0;
-  height: 36px;
+  box-sizing: border-box;
+  height: 44px;
   padding: 0 var(--s-3);
   background: var(--c-surface);
   border: 1px solid var(--c-line);
@@ -593,8 +612,16 @@
 .membersSearch:focus {
   border-color: var(--c-accent);
 }
+.membersSearch:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
 .membersSearch::placeholder {
   color: var(--c-text-faint);
+}
+.membersSearch::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 /* Sort pill row */

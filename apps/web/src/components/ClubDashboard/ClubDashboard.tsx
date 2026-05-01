@@ -4,6 +4,9 @@ import { Pill } from '../Pill/Pill';
 import { useClubMembers, useClubOverview, useRsvp } from '../../hooks/useClubs';
 import { ClubEventModal } from '../ClubEventModal/ClubEventModal';
 import { ScheduleTab } from './ScheduleTab';
+import { TopTabs } from '../TopTabs/TopTabs';
+import { BottomNav } from '../BottomNav/BottomNav';
+import { OverviewIcon, ScheduleIcon, MembersIcon, MetricsIcon } from '../../design/icons';
 import type { ClubMember, UpcomingEvent } from '../../lib/clubsApi';
 import styles from './ClubDashboard.module.css';
 
@@ -75,13 +78,18 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
         </div>
       </header>
 
-      {/* TABS — Overview / Schedule / Members / Metrics */}
-      <nav className={styles.tabs} aria-label="Club views">
-        <TabBtn active={tab === 'overview'} onClick={() => setTab('overview')} label="Overview" />
-        <TabBtn active={tab === 'schedule'} onClick={() => setTab('schedule')} label="Schedule" />
-        <TabBtn active={tab === 'members'} onClick={() => setTab('members')} label="Members" />
-        <TabBtn active={tab === 'metrics'} onClick={() => setTab('metrics')} label="Metrics" />
-      </nav>
+      {/* DESKTOP TABS — Sprint 5 / v9.7.2 (#59): TopTabs visible ≥600px,
+       *  hidden below. BottomNav (rendered at bottom of this component)
+       *  takes over on mobile. */}
+      <TopTabs
+        ariaLabel="Club views"
+        items={[
+          { id: 'overview', label: 'Overview', onClick: () => setTab('overview'), active: tab === 'overview' },
+          { id: 'schedule', label: 'Schedule', onClick: () => setTab('schedule'), active: tab === 'schedule' },
+          { id: 'members', label: 'Members', onClick: () => setTab('members'), active: tab === 'members' },
+          { id: 'metrics', label: 'Metrics', onClick: () => setTab('metrics'), active: tab === 'metrics' },
+        ]}
+      />
 
       {/* ---- OVERVIEW TAB ---- */}
       {tab === 'overview' && (
@@ -162,32 +170,24 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
         clubId={clubId}
         onClose={() => setEventModalOpen(false)}
       />
+
+      {/* MOBILE BOTTOM NAV — Sprint 5 / v9.7.2 (#59).
+       *  Visible <600px (BottomNav CSS hides above). Mirrors TopTabs items
+       *  with line-icon SVGs from the CC design system. */}
+      <BottomNav
+        ariaLabel="Club views"
+        items={[
+          { id: 'overview', label: 'Overview', icon: <OverviewIcon />, onClick: () => setTab('overview'), active: tab === 'overview' },
+          { id: 'schedule', label: 'Schedule', icon: <ScheduleIcon />, onClick: () => setTab('schedule'), active: tab === 'schedule' },
+          { id: 'members', label: 'Members', icon: <MembersIcon />, onClick: () => setTab('members'), active: tab === 'members' },
+          { id: 'metrics', label: 'Metrics', icon: <MetricsIcon />, onClick: () => setTab('metrics'), active: tab === 'metrics' },
+        ]}
+      />
     </div>
   );
 }
 
 /* ---------- sub-components ---------- */
-
-function TabBtn({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      className={`${styles.tab} ${active ? styles.tabActive : ''}`}
-      onClick={onClick}
-      aria-current={active ? 'page' : undefined}
-    >
-      {label}
-    </button>
-  );
-}
 
 function StatTilesSection({ overview }: { overview: ReturnType<typeof useClubOverview> }) {
   if (overview.isLoading) {

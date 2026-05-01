@@ -4,6 +4,68 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.7.2] — 2026-05-01
+
+**Sprint 5 / `#59` + `#62` — Responsive nav consistency + CC line-icon library + Members search input bug fix.** Foundation refactor for the rest of Sprint 5: every UX surface that lands in v9.7.3+ inherits a consistent shell. Closes `#59` and `#62`.
+
+### `#62` — Members search input height fix
+
+Reported via the Sprint 5 BA-issue-filing flow. Symptom: search input rendered at ~40% of mobile viewport height (~280–300px), pushing roster rows below the fold. v9.6.3 had attempted to fix this by setting `height: 36px` but the fix didn't hold.
+
+Root cause: `.membersSearch` had `flex: 1 1 200px`. The parent `.membersControls` is `flex-direction: column` on mobile, which means `flex: 1` grows along the **vertical** main axis. The explicit height was overridden by flex-grow + the default `align-items: stretch`. v9.6.3's fix was a band-aid that worked at desktop (row layout) but never applied to mobile.
+
+Fix:
+- Default `.membersSearch`: `flex: 0 0 auto` + `width: 100%` + `box-sizing: border-box` + `height: 44px` (WCAG 2.5.5 minimum touch target)
+- Desktop row layout (`@media min-width: 640px`): re-enable `flex: 1 1 240px` for horizontal stretch + raise height to 48px + cap `max-width: 360px` so search doesn't dominate the row
+- Added `:focus-visible` outline (Sprint 3 a11y conventions)
+- Stripped `::-webkit-search-cancel-button` (we don't show iOS clear-X)
+
+### `#59` — Responsive nav consistency + CC line-icon library
+
+**Locked decisions (founder, 2026-05-01):**
+- Desktop = top tabs always; Mobile = BottomNav always; breakpoint = 600px
+- Applied to BOTH clubs and individual contexts (was inconsistent: clubs had top tabs on mobile too; individual had only BottomNav)
+- Line-icon SVGs branded for Cadence Club, persona-focused JSDoc
+
+**New: `<TopTabs />` shared component** at `apps/web/src/components/TopTabs/`. Desktop horizontal tab bar with v9.6.4 typography (10px / 0.14em mono uppercase, accent-color active state, 1px accent underline). Hidden below 600px via CSS. Accepts `items: TopTabItem[]` — each item is either a Tanstack Link (with `to`) or a state-setter (with `onClick` + `active`).
+
+**Extended: `<BottomNav />`** to accept optional `items` prop. When omitted, falls through to the existing individual-mode behavior (Tanstack Links if `cc_tabsEnabled` flag, hash anchors otherwise — preserves backwards compat). When provided, renders the items as a state-setter nav (used by club mode). Breakpoint moved from `min-width: 1024px` → `min-width: 600px` (consistent with TopTabs cutover).
+
+**New: CC line-icon library** at `apps/web/src/design/icons/index.tsx`:
+
+| Icon | Persona |
+|---|---|
+| `<TodayIcon />` | Marco's morning kettle, Sofia's day-check, Léa's start-here |
+| `<TrainIcon />` | Marco's primary tab; performance-line peak |
+| `<RidesIcon />` | All personas — fitness history bars |
+| `<YouIcon />` | Identity tab — profile + shoulders |
+| `<OverviewIcon />` | Sofia's at-a-glance club entry; 4-square dashboard grid |
+| `<ScheduleIcon />` | Sofia plans, Léa checks the day; calendar with one cell highlighted |
+| `<MembersIcon />` | Sofia's roster, Léa's reassurance scan; three figures |
+| `<MetricsIcon />` | Marco's competitive edge, Sofia's growth tracking; line chart with peaks |
+
+Branded format: 1.6px stroke, 24×24 viewBox, `currentColor`, `aria-hidden` by default, optional `size` prop, every icon uses `strokeLinecap: 'round'` + `strokeLinejoin: 'round'`. Single file (8 components ≈ 130 lines) — small enough to keep co-located.
+
+**Wiring:**
+- ClubDashboard renders `<TopTabs items=[Overview/Schedule/Members/Metrics, ...]>` (desktop) + `<BottomNav items=[same with icons]>` (mobile). Existing `<TabBtn>` function deleted (62 lines removed).
+- Individual dashboard route (`routes/dashboard.tsx` `TabsLayout`) renders `<TopTabs items=[Today/Train/Rides/You with `to` props]>` above the `<Outlet />` on desktop. BottomNav unchanged below.
+
+**Bundle:** dashboard chunk 80.48 → 83.08 KB (+2.60 KB / +3.2%).
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green + manual scan of TypeScript edges (TabBtn unused-detection caught the cleanup)
+- ✅ #2 Pre-commit grep against `schema.sql` — N/A (no SQL change)
+- ✅ #4 POST → GET round-trip — N/A (no new endpoints)
+- ✅ #5 Verification budget within 12% — direct in-context implementation
+- ✅ #6 Bug post-mortems — none required (#62 was a UX bug fixed inline; not a hotfix-triggering production regression)
+
+### Versions: 9.7.1 → 9.7.2 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.7.1] — 2026-05-01
 
 **Sprint 5 / `#57` — Outlook-style multi-view scheduler + event detail drawer.** Closes the v9.7.0 gap where only Month view existed. Users explicitly asked for Month / Week / Day views, with event detail opening on click. Locked decisions 2026-05-01: 06:00–22:00 (16h) band on both Week and Day; default = Month on desktop, Day on mobile (auto-switch at 600px breakpoint); multi-view applies to both club Schedule tab and the upcoming personal scheduler (v9.7.4) for consistency.
