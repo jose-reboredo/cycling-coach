@@ -50,14 +50,17 @@ export function scoreCandidate({
 }) {
   const actualKm = route.distanceM / 1000;
 
-  // Hard validation — distance must be within ±10%.
-  if (actualKm < targetDistanceKm * 0.9 || actualKm > targetDistanceKm * 1.1) {
+  // v10.5.3 — distance gate loosened from ±10% to ±20%. Even with a 25%
+  // scaffold undershoot, road-network variance can push routes past 10%
+  // off-target. The score still rewards exact matches and falls to 0 at
+  // the ±20% edge so picky users get the closest first.
+  if (actualKm < targetDistanceKm * 0.8 || actualKm > targetDistanceKm * 1.2) {
     return null;
   }
 
-  // distance_match: 1 when exact, drops linearly to 0 at the ±10% edge.
+  // distance_match: 1 when exact, drops linearly to 0 at the ±20% edge.
   const distanceDelta = Math.abs(actualKm - targetDistanceKm) / targetDistanceKm;
-  const distanceMatch = Math.max(0, 1 - distanceDelta * 10);
+  const distanceMatch = Math.max(0, 1 - distanceDelta * 5);
 
   // elevation_match: bell shape around band centre.
   const elevPerKm = actualKm > 0 ? route.ascentM / actualKm : 0;

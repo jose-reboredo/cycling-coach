@@ -16,11 +16,16 @@ import { buildGpx } from '../lib/gpxSerializer.js';
 
 const CYCLING_TYPES = new Set(['road', 'gravel', 'mtb']);
 const ELEVATION_PREFS = new Set(['low', 'medium', 'high']);
-const CANDIDATE_COUNT = 5;
+// v10.5.3 — bumped 5 → 6 to give the loosened distance gate more candidates
+// to choose from when the road network is sparse or dense urban routing
+// rejects some scaffolds.
+const CANDIDATE_COUNT = 6;
 const TARGET_RESULTS = 5;
 const MIN_RESULTS = 3;
 const CACHE_TTL_S = 86400; // 24h
-const CACHE_PREFIX = 'routes:v1:';
+// v10.5.3 — bumped to v2 so cached 1-route responses from the strict v1
+// gate are invalidated. New requests re-generate with the loosened gate.
+const CACHE_PREFIX = 'routes:v2:';
 
 /**
  * Public handler. Wired in worker.js when the URL matches.

@@ -29,8 +29,14 @@ const EARTH_R = 6371; // km
  *                                   Deterministic in [min, max).
  * @returns {Array<Array<[number, number]>>}
  */
+// v10.5.3 — scaffold undershoot. A perfect-circle perimeter equal to
+// `distanceKm` produces ORS-routed loops that are typically 20-40% longer
+// because the road network adds detours. Aim the scaffold at 75% of the
+// target so the actual ridden distance lands near the target.
+const SCAFFOLD_UNDERSHOOT = 0.75;
+
 export function generateLoopCandidates({ lat, lng, distanceKm, candidateCount, rng }) {
-  const baseRadius = distanceKm / (2 * Math.PI);
+  const baseRadius = (distanceKm * SCAFFOLD_UNDERSHOOT) / (2 * Math.PI);
   const candidates = [];
   for (let i = 0; i < candidateCount; i++) {
     const wpCount = i % 2 === 0 ? 3 : 4;

@@ -4,6 +4,22 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.5.3] — 2026-05-01
+
+**Hotfix: route generator returns 3+ routes again (was 1).**
+
+After v10.5.2 unblocked the picker, founder reported only 1 route surfaced instead of 3. Root cause: the v10.4.0 scaffold radius targeted a perfect-circle perimeter equal to `distance_km`, but ORS road-network detours typically add 20–40% to that perimeter, so 4 of 5 candidates landed outside the strict ±10% distance gate and got rejected.
+
+Three coordinated tweaks:
+
+1. **Scaffold undershoot 25%.** `waypointGen.js` now aims the perfect-circle perimeter at 75% of the target, so road-network expansion brings the actual ridden distance closer to target.
+2. **Distance gate ±10% → ±20%.** `routeScoring.js` accepts more candidates; `distance_match` score still rewards exact matches and drops to 0 at the ±20% edge so picky users get the closest first in the sorted result.
+3. **Candidate count 5 → 6.** Slightly more raw inputs to the loosened gate.
+
+Cache prefix bumped `routes:v1:` → `routes:v2:` to invalidate stale 1-route entries.
+
+Verification: same input that produced 1 route in v10.5.2 should now return 3+ in v10.5.3.
+
 ## [10.5.2] — 2026-05-01
 
 **Hotfix² — CSP fix actually applied to the static-asset `_headers` file.**
