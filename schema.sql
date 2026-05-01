@@ -208,7 +208,8 @@ CREATE TABLE club_events (
   description TEXT,
   event_date INTEGER NOT NULL,    -- unix epoch seconds, when the event happens
   location TEXT,                  -- optional free-text ("Richmond Park · Sheen Gate")
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  event_type TEXT NOT NULL DEFAULT 'ride'  -- v9.7.0 (migration 0006): Schedule tab filter chips — 'ride' / 'social' / 'race'
 );
 
 CREATE INDEX idx_club_events_club_date ON club_events(club_id, event_date);
