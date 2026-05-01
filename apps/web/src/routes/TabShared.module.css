@@ -441,7 +441,15 @@
 .startWorkoutRow {
   margin-top: var(--s-4);
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
 }
 .startWorkoutRow > * {
-  flex: 1;
+  flex: 1 1 200px;
+}
+/* v9.12.8 — error note for the AI brief → schedule flow. */
+.todayErrorNote {
+  margin: var(--s-2) 0 0 0;
+  font: 400 0.8125rem/1.3 var(--font-sans);
+  color: var(--c-warn, #e0a060);
 }

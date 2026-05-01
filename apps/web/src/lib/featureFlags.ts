@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 
 const KEY_CLUBS = 'cc_clubsEnabled';
 const KEY_TABS = 'cc_tabsEnabled';
-const MOBILE_QUERY = '(max-width: 1023px)';
 
 function read(key: string, defaultValue: boolean): boolean {
   if (typeof window === 'undefined') return defaultValue;
@@ -27,41 +26,45 @@ export function useClubsEnabled(): boolean {
   return read(KEY_CLUBS, true);
 }
 
-/** Returns true when the dashboard should render the mobile 4-tab layout.
- * Default behaviour (v9.3.1): tabs ON for mobile (<1024px), tabs OFF for
- * desktop. localStorage override: 'true' forces tabs anywhere, 'false'
- * forces single-page dashboard anywhere — kill-switch in both directions.
+/** Returns true when the dashboard should render the tabs layout (TopTabs
+ *  on desktop + BottomNav on mobile, with `<Outlet />` for child routes).
  *
- * Updates live on viewport resize (rotate, dev-tools, etc.) so /dashboard
- * never gets stranded showing the wrong layout when the user changes
- * orientation mid-session. */
+ *  v9.12.8 — default flipped to `true` everywhere. The founder-lock 2026-05-01
+ *  design rule says "desktop = top tabs always" but the implementation
+ *  was still gated to `(max-width: 1023px)` from the v9.3.1 mobile-first
+ *  rollout. Net effect on desktop: user landed on /dashboard/today, saw
+ *  Today content but no nav (TabsLayout never mounted, so neither TopTabs
+ *  nor `<Outlet />` were rendered). Now defaults to TabsLayout on every
+ *  viewport; the legacy single-page `<Dashboard />` is reachable only via
+ *  the kill-switch override `localStorage.cc_tabsEnabled = 'false'`. */
 export function useTabsEnabled(): boolean {
   const [enabled, setEnabled] = useState<boolean>(() =>
-    typeof window === 'undefined' ? false : computeTabsEnabled(),
+    typeof window === 'undefined' ? true : computeTabsEnabled(),
   );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const mq = window.matchMedia(MOBILE_QUERY);
-    const update = () => setEnabled(computeTabsEnabled());
-    update(); // sync initial value after hydration
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
+    // Re-read on storage change so a manual kill-switch flip applies
+    // without a full reload (DevTools workflow).
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === KEY_TABS) setEnabled(computeTabsEnabled());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   return enabled;
 }
 
 /** Pure read of the tab flag. Used by Tanstack Router's beforeLoad which
- * runs outside React. Mirrors the useTabsEnabled hook's logic. */
+ *  runs outside React. v9.12.8 — defaults to `true` on every viewport. */
 export function computeTabsEnabled(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === 'undefined') return true;
   try {
     const override = window.localStorage.getItem(KEY_TABS);
-    if (override === 'true') return true;
     if (override === 'false') return false;
-    return window.matchMedia(MOBILE_QUERY).matches;
+    return true;
   } catch {
-    return false;
+    return true;
   }
 }

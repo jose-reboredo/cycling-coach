@@ -17,6 +17,7 @@ import {
 } from '../components/RoutesPicker/RoutesPicker';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
 import { useAiReport } from '../hooks/useAiReport';
+import { useCreatePlannedSession } from '../hooks/useClubs';
 import { useRides } from '../hooks/useStravaData';
 import { useTrainingPrefs } from '../hooks/useTrainingPrefs';
 import { computePmcDelta } from '../lib/pmc';
@@ -64,6 +65,66 @@ function deriveTodaysSession(text: string | undefined): {
   else if (/hill|climb/.test(t)) difficulty = 'hilly';
 
   return { intent: text, target_km, difficulty };
+}
+
+/** v9.12.8 — Parse the free-text AI session brief into structured fields
+ *  for `planned_sessions`. Best-effort regexes; values that fail to match
+ *  return null/undefined so `useCreatePlannedSession` can apply schema
+ *  defaults. The full brief is preserved in `description` regardless,
+ *  so the user can see what the coach actually wrote. */
+function parseAiSession(text: string | undefined): {
+  title: string;
+  durationMin: number | null;
+  zone: number | null;
+  watts: number | null;
+} {
+  if (!text) {
+    return { title: 'AI session', durationMin: null, zone: null, watts: null };
+  }
+  const t = text.toLowerCase();
+
+  // Title: first sentence (cap at 200 chars to satisfy server validation).
+  const firstLine = (text.split(/[.!?\n]/)[0] ?? text).trim();
+  const title = firstLine.length > 0 && firstLine.length <= 200
+    ? firstLine
+    : text.length <= 200 ? text : `${text.slice(0, 197)}…`;
+
+  // Duration: "1h 15m", "1.5h", "90 min".
+  let durationMin: number | null = null;
+  const hMatch = t.match(/(\d+(?:\.\d+)?)\s*h(?:\s*(\d{1,2})\s*m)?/);
+  if (hMatch && hMatch[1]) {
+    const h = parseFloat(hMatch[1]);
+    const m = hMatch[2] ? parseInt(hMatch[2], 10) : 0;
+    durationMin = Math.round(h * 60 + m);
+  } else {
+    const minMatch = t.match(/(\d{2,3})\s*min/);
+    if (minMatch && minMatch[1]) durationMin = parseInt(minMatch[1], 10);
+  }
+  if (durationMin != null && (durationMin < 0 || durationMin > 600)) {
+    durationMin = null; // out of schema range
+  }
+
+  // Zone: explicit "Z3" first, else keyword fallback.
+  let zone: number | null = null;
+  const zMatch = t.match(/\bz([1-7])\b/);
+  if (zMatch && zMatch[1]) zone = parseInt(zMatch[1], 10);
+  else if (/recovery|easy|conversational|spin/.test(t)) zone = 1;
+  else if (/endurance|aerobic\s+base|\bbase\b/.test(t)) zone = 2;
+  else if (/tempo/.test(t)) zone = 3;
+  else if (/threshold|sweet[-\s]?spot|sweetspot/.test(t)) zone = 4;
+  else if (/vo2|interval/.test(t)) zone = 5;
+  else if (/anaerobic/.test(t)) zone = 6;
+  else if (/sprint|neuromuscular/.test(t)) zone = 7;
+
+  // Target watts: "252 W", "270W". Reject implausible values.
+  let watts: number | null = null;
+  const wMatch = t.match(/(\d{2,4})\s*w(?:atts?)?\b/);
+  if (wMatch && wMatch[1]) {
+    const n = parseInt(wMatch[1], 10);
+    if (n >= 50 && n <= 2000) watts = n;
+  }
+
+  return { title, durationMin, zone, watts };
 }
 
 function startStravaForRoute(route: SelectableRoute) {
@@ -138,6 +199,30 @@ function TodayTab() {
   const { prefs, update: updatePrefs } = useTrainingPrefs();
   const [selectedRoute, setSelectedRoute] = useState<SelectableRoute | null>(null);
   const todaysSession = useMemo(() => deriveTodaysSession(todaysAiText), [todaysAiText]);
+
+  // v9.12.8 — Bridge AI brief → personal scheduler. Parses what it can from
+  // the free-text brief; description preserves the full text so the user can
+  // see + edit the full coach voice via the drawer.
+  const createPlannedSession = useCreatePlannedSession();
+  const [scheduledFromAi, setScheduledFromAi] = useState(false);
+  const handleAddAiToSchedule = () => {
+    if (!todaysAiText || createPlannedSession.isPending) return;
+    const parsed = parseAiSession(todaysAiText);
+    const today = new Date();
+    today.setHours(18, 0, 0, 0); // sensible default — user can edit via drawer.
+    createPlannedSession.mutate(
+      {
+        title: parsed.title,
+        session_date: Math.floor(today.getTime() / 1000),
+        description: todaysAiText,
+        ...(parsed.zone != null ? { zone: parsed.zone } : {}),
+        duration_minutes: parsed.durationMin ?? 60,
+        ...(parsed.watts != null ? { target_watts: parsed.watts } : {}),
+        source: 'ai-coach',
+      },
+      { onSuccess: () => setScheduledFromAi(true) },
+    );
+  };
 
   return (
     <div className={styles.tabRoot}>
@@ -252,7 +337,26 @@ function TodayTab() {
                 >
                   {selectedRoute ? 'Start workout in Strava ↗' : 'Pick a route to start'}
                 </Button>
+                {/* v9.12.8 — bridge AI brief → personal scheduler. One click,
+                    parsed best-effort, full text in description. */}
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  disabled={scheduledFromAi || createPlannedSession.isPending}
+                  onClick={handleAddAiToSchedule}
+                >
+                  {scheduledFromAi
+                    ? '✓ On your schedule'
+                    : createPlannedSession.isPending
+                      ? 'Saving…'
+                      : '+ Add to schedule'}
+                </Button>
               </div>
+              {createPlannedSession.isError && (
+                <p className={styles.todayErrorNote} role="alert">
+                  Couldn't add to your schedule — try again.
+                </p>
+              )}
             </Card>
           ) : (
             <WorkoutCard

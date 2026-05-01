@@ -4,6 +4,168 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.8] — 2026-05-01
+
+**Desktop dashboard regression fix + AI brief → "Add to schedule" button.**
+
+Quick-win bundle #1 of 5 (Sprint 5 close-out). Single risk theme: primary dashboard surface complete on every viewport. Founder approved 5-feature plan in conversation; bundling the desktop fix here because it shares the surface (Today tab on desktop).
+
+### Bug — Desktop dashboard rendered the legacy `<Dashboard />` (no top nav)
+
+> Founder report: "the desktop version of my dashboard doesn't show the top bar menu as clubs does, so user sees today"
+
+`computeTabsEnabled()` in `lib/featureFlags.ts` returned `true` only on mobile (`max-width: 1023px`) — leftover from v9.3.1's mobile-first rollout. The founder-lock 2026-05-01 design rule says **"desktop = top tabs always"** but the flag was never updated.
+
+Net effect on desktop: user lands on `/dashboard/today`, parent `dashboard.tsx` sees `tabsEnabled=false`, renders legacy single-page `<Dashboard />` instead of `<TabsLayout>`. So neither `<TopTabs>` (Today / Schedule / Train / Rides / You) nor `<Outlet />` (where the child route would mount) renders. User sees only the Today content with no way to navigate.
+
+Fix:
+
+```diff
+- const MOBILE_QUERY = '(max-width: 1023px)';
+- 
+- export function computeTabsEnabled(): boolean {
+-   if (typeof window === 'undefined') return false;
+-   try {
+-     const override = window.localStorage.getItem(KEY_TABS);
+-     if (override === 'true') return true;
+-     if (override === 'false') return false;
+-     return window.matchMedia(MOBILE_QUERY).matches;
+-   } catch {
+-     return false;
+-   }
+- }
+
++ export function computeTabsEnabled(): boolean {
++   if (typeof window === 'undefined') return true;
++   try {
++     const override = window.localStorage.getItem(KEY_TABS);
++     if (override === 'false') return false;
++     return true;
++   } catch {
++     return true;
++   }
++ }
+```
+
+`useTabsEnabled()` simplified accordingly: removed the `matchMedia` viewport-resize listener; added a `'storage'` event listener so a manual `localStorage.cc_tabsEnabled` flip in DevTools applies without a full reload.
+
+Legacy `<Dashboard />` single-page is reachable only via the kill-switch override `localStorage.cc_tabsEnabled = 'false'` — preserved as an escape hatch but no longer the desktop default.
+
+### Feature — Today tab gets "+ Add to schedule" (the AI brief → calendar bridge)
+
+The single most-frictioned moment in the app today: "the coach gave me a session, but it lives in a card I can't act on." Quick-win #1 closes that loop.
+
+New button next to "Start workout in Strava":
+
+```tsx
+<Button size="lg" variant="secondary" onClick={handleAddAiToSchedule} disabled={...}>
+  {scheduledFromAi
+    ? '✓ On your schedule'
+    : createPlannedSession.isPending
+      ? 'Saving…'
+      : '+ Add to schedule'}
+</Button>
+```
+
+POSTs via existing `useCreatePlannedSession` (no new endpoint, no schema change). `source: 'ai-coach'` — `planned_sessions.source` allowlist already accepts it (Migration 0008).
+
+### `parseAiSession(text)` helper
+
+Best-effort regex extraction from the free-text AI brief:
+
+| Field | Pattern | Fallback |
+|---|---|---|
+| `title` | First sentence (split on `.!?\n`), trimmed, capped at 200 chars | `'AI session'` |
+| `duration_minutes` | `1h 15m` / `1.5h` / `90 min` (regex with hours+minutes or minutes-only) | `60` (default 1h) |
+| `zone` | Explicit `\bZ([1-7])\b` first; else keyword fallback (`recovery/easy/spin → 1`, `endurance/base → 2`, `tempo → 3`, `threshold/sweet-spot → 4`, `vo2/interval → 5`, `anaerobic → 6`, `sprint/neuromuscular → 7`) | `null` (no zone tag) |
+| `target_watts` | `(\d{2,4})\s*w\b`, clamped to 50–2000 | `null` |
+
+Full AI text preserved in `description` regardless of parse fidelity. User can edit via drawer if any field is wrong.
+
+### POST shape
+
+```ts
+createPlannedSession.mutate({
+  title: parsed.title,
+  session_date: Math.floor(today.getTime() / 1000),  // today at 18:00 local
+  description: todaysAiText,
+  zone: parsed.zone,
+  duration_minutes: parsed.durationMin ?? 60,
+  target_watts: parsed.watts,
+  source: 'ai-coach',
+});
+```
+
+Default time = today at 18:00 local (sensible cycling-prime hour). User can edit via drawer if they want morning or other time.
+
+### Idempotency
+
+Local `scheduledFromAi: boolean` state flips after success — button shows "✓ On your schedule" and disables. Page reload would reset (could add duplicate). Acceptable v1 trade-off; user can delete duplicates from calendar drawer. Future v2 could check for existing `ai-coach`-source session today and skip.
+
+### CSS — `startWorkoutRow` made wrap-friendly
+
+Two buttons side-by-side on desktop, stacked on narrow viewports:
+
+```diff
+.startWorkoutRow {
+   margin-top: var(--s-4);
+   display: flex;
++  flex-wrap: wrap;
++  gap: var(--s-2);
+ }
+ .startWorkoutRow > * {
+-  flex: 1;
++  flex: 1 1 200px;
+ }
+```
+
+New `.todayErrorNote` for the failure case ("Couldn't add to your schedule — try again.").
+
+### Files changed
+
+```
+apps/web/src/lib/featureFlags.ts            # computeTabsEnabled defaults to true; useTabsEnabled simplified
+apps/web/src/routes/dashboard.today.tsx     # +parseAiSession() + button + handler
+apps/web/src/routes/TabShared.module.css    # startWorkoutRow wrap-friendly + todayErrorNote
++ 5 version-bump files (apps/web/package.json, package.json, src/worker.js, version.ts, README)
++ CHANGELOG.md (this entry)
+```
+
+### Quick-wins #2–#5 — still queued
+
+Per the founder-approved plan:
+
+| Release | Theme | Effort |
+|---|---|---|
+| v9.12.9 | Streak counter on Today (max consecutive days with ≥1 ride) | ~2.5h |
+| v9.12.10 | Quick-add from empty calendar cell (Month/Week/Day click → prefilled form) | ~2h |
+| v9.12.11 | Repeat-weekly toggle on Plan a Session (1–12 weeks, sequential POSTs) | ~3h |
+| v9.12.12 | Week-summary footer on Schedule (totals: hours, TSS, ride count) | ~2h |
+
+Then **v9.13.0 = full AI plan persistence** (the larger feature: Coach generates a 7-day plan → persists each day as `planned_session` automatically). v9.12.8 is the smaller surface-level proof-of-concept that derisks v9.13's UX.
+
+### Bundle
+
+dashboard.today chunk: +1.5 KB (helper + button + state). featureFlags chunk: -0.2 KB (removed media query). Trivial.
+
+### Why PATCH
+
+Per the project's locked SemVer rule (CONTRIBUTING.md, post-v9.7.x): MINOR for new features, PATCH for hotfixes / corrections / surface-level additions. The desktop fix is a regression fix. The "Add to schedule" button is a small bridge feature that wires existing endpoints — qualifies as quick-win surface, not a structural feature. PATCH is right.
+
+### Sprint 5 process
+
+- ✅ Pre-coding scope alignment: founder previewed the 5-quick-win plan, greenlit, requested desktop fix bundled
+- ✅ Phase-shift: bundled because both touch the dashboard surface; the alternative (separate v9.12.8 desktop-fix + v9.12.9 AI bridge) would have created two releases with one risk theme each, which is fine but adds release ceremony
+- ✅ Pattern-replacement: not applicable
+- ✅ Pre-deploy verification: `computeTabsEnabled` callers grep'd; `useCreatePlannedSession` already in use elsewhere
+- ✅ Read git log -20 before any destructive op: not destructive (additive)
+
+### Versions: 9.12.7 → 9.12.8 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.12.7] — 2026-05-01
 
 **In-app calendar pills adopt the SchedulePreview marketing visual.**

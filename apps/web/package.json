@@ -1,6 +1,6 @@
 {
   "name": "cycling-coach-web",
-  "version": "9.12.7",
+  "version": "9.12.8",
   "private": true,
   "type": "module",
   "scripts": {
