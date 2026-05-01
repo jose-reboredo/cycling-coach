@@ -4,6 +4,67 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.5.4] — 2026-05-01
+
+**Two route picker fixes: explicit Strava handoff + "Show Strava routes" CTA.**
+
+### Fix 1: Strava handoff split into two explicit steps
+
+Founder report: clicking "Start in Strava" auto-redirects to Strava but the route doesn't appear there. The previous single-button flow downloaded the GPX AND opened Strava in the same click, so users assumed the route uploaded itself, then saw an empty Strava routes page and reported the handoff as broken.
+
+**Why this is fundamentally a manual drag-drop:** Strava has no public API to create a route from a GPX upload. The `/api/v3/uploads` endpoint accepts GPX but creates a *completed activity*, not a planned route. Routes are read-only via the API. The only path to import a GPX as a Strava route is the manual upload at [strava.com/routes/new](https://www.strava.com/routes/new) — drag the file onto the page. That's not changing without Strava expanding their API.
+
+**New two-button flow** (for *generated* routes, source: 'generated'):
+
+| Step | Button | What it does |
+|---|---|---|
+| 1 | **↓ Download GPX** | Triggers browser download. Button transforms to `✓ Downloaded` and reveals the saved filename |
+| 2 | **Open Strava upload ↗** | Opens [strava.com/routes/new](https://www.strava.com/routes/new). Disabled until step 1 completes (so users don't open Strava and find no file to drag) |
+
+### Fix 2: New "Show Strava routes" CTA — pull from existing saved routes
+
+Founder request: "next to find 3 routes add a CTA show strava routes and list them in order of matching to today's session." Surfaces the user's already-saved Strava routes as a second route source, ranked by closeness to the session's target distance.
+
+The backend endpoint `/api/routes/saved` (added in v9.3.0 #47, was previously only used by the legacy RoutesPicker) already proxies Strava `/api/v3/athlete/routes`, filters by ±20% distance band + surface preference, and infers surface from `sub_type` when available. v10.5.4 wires it into the picker as a parallel data source.
+
+**New row of two action buttons** below the address/elevation form:
+
+| Button | Source | Pending state |
+|---|---|---|
+| **Find 3 routes** (existing) | OSM-generated loops via `/api/routes/generate` | "Finding routes…" |
+| **Show Strava routes** (new) | User's Strava saved routes via `/api/routes/saved` | "Loading Strava…" |
+
+Both populate the same card list. Cards display the source as a small chip — `Generated · asphalt` vs `Strava saved · paved` — so the user can tell where each came from.
+
+**Different handoff per source:**
+
+- **Generated** route selected → two-step download-and-upload flow (as above)
+- **Strava saved** route selected → single button **Open in Strava ↗** (the route is already there; one click views/syncs/starts it via the Strava URL)
+
+**Card sort:** Strava saved routes are scored client-side by closeness to target distance, mirroring the generated-route scoring curve (`max(0, 1 - delta * 5)` where delta = abs(km - target)/target). Top 5 displayed.
+
+### Unified `DisplayRoute` discriminator
+
+Internal type for the picker's mixed list:
+
+```ts
+type DisplayRoute =
+  | { source: 'generated'; id; distance_km; elevation_gain_m; surface_type; score; gpx; }
+  | { source: 'strava'; id; name; distance_km; elevation_gain_m; surface_type; score; strava_url; };
+```
+
+Drives the card chip + handoff branch.
+
+### Files changed
+
+```
+apps/web/src/lib/routesApi.ts                                              # +fetchSavedStravaRoutes() + SavedStravaRoute type
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.tsx          # dual sources, DisplayRoute union, branched handoff
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.module.css   # +actionsRow + handoffPath + handoff* classes
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
 ## [10.5.3] — 2026-05-01
 
 **Hotfix: route generator returns 3+ routes again (was 1).**

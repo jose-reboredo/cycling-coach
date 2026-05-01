@@ -50,6 +50,55 @@ export async function generateRoutes(input: GenerateRoutesInput): Promise<Genera
   return (await res.json()) as GeneratedRoute[];
 }
 
+// v10.5.4 — Saved Strava routes proxy (existing Worker endpoint
+// /api/routes/saved, added in v9.3.0 #47). Lets the picker offer the
+// user's already-saved Strava routes alongside freshly-generated ones,
+// ranked by match to the session's target distance.
+
+export interface SavedStravaRoute {
+  id: number;
+  name: string;
+  distance_m: number;
+  elevation_gain_m: number;
+  surface: 'paved' | 'gravel' | 'unknown' | string;
+  map_url: string | null;
+  /** Direct link to view/start the route on Strava. Saved routes don't
+   *  need a GPX download — Strava already has them. */
+  strava_url: string | null;
+}
+
+export interface FetchSavedStravaRoutesInput {
+  /** Target distance in km. Backend applies a ±20% band filter. Optional;
+   *  omit to browse all saved routes regardless of distance. */
+  distanceKm?: number;
+  /** 'any' | 'paved' | 'gravel'. */
+  surface?: string;
+  /** 'flat' | 'rolling' | 'hilly' — m/km elevation bands. */
+  difficulty?: string;
+}
+
+export async function fetchSavedStravaRoutes(input: FetchSavedStravaRoutesInput = {}): Promise<SavedStravaRoute[]> {
+  const tokens = await ensureValidToken();
+  if (!tokens) throw new Error('not_authenticated');
+  const params = new URLSearchParams();
+  if (input.distanceKm != null) params.set('distance', String(input.distanceKm));
+  if (input.surface) params.set('surface', input.surface);
+  if (input.difficulty) params.set('difficulty', input.difficulty);
+  const qs = params.toString();
+  const url = `/api/routes/saved${qs ? `?${qs}` : ''}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `saved routes fetch failed (${res.status})`;
+    try { msg = JSON.parse(text).error || msg; } catch { /* keep default */ }
+    throw new Error(msg);
+  }
+  const json = await res.json();
+  return Array.isArray(json?.routes) ? json.routes as SavedStravaRoute[] : [];
+}
+
 /** v10.5.0 — Trigger a browser download of a GPX string as a .gpx file.
  *  Used by the route picker's "Start in Strava" handoff: download the
  *  GPX, open Strava routes upload page, user drag-drops to upload. */

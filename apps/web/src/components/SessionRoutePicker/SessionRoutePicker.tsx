@@ -1,11 +1,18 @@
-// SessionRoutePicker — Sprint 5 / v10.5.0.
-// Embedded inside EventDetailDrawer for personal sessions only. Lets the
-// user enter a start address, generates 3 candidate routes from the v10.4.0
-// /api/routes/generate backend, picks one, and hands off to Strava with a
-// downloaded GPX file.
+// SessionRoutePicker — Sprint 5 / v10.5.0 → v10.5.4.
+// Embedded inside EventDetailDrawer for personal sessions only. Two route
+// sources, ranked by match to the session's target distance:
 //
-// Hidden for club events (clubs define their own routes). Also hidden for
-// cancelled / completed sessions (no need to plan a route after the fact).
+//   1. Generated (v10.4.0 backend) — fresh OSM-based loops from a start
+//      address. Handoff is "Download GPX" + "Open Strava upload" (manual
+//      drag-drop on the Strava side; Strava has no public route-create API).
+//
+//   2. Strava saved (v9.3.0 #47 backend, /api/routes/saved) — the user's
+//      already-saved Strava routes filtered by the session's target band.
+//      Handoff is one click "Open in Strava ↗" — the route is already
+//      there, no GPX dance needed.
+//
+// Hidden for club events (clubs define their own routes) and for sessions
+// already cancelled or completed.
 
 import { useEffect, useState } from 'react';
 import { Eyebrow } from '../Eyebrow/Eyebrow';
@@ -16,21 +23,46 @@ import { geocodeAddress } from '../../lib/geocode';
 import { estimateDistanceKm } from '../../lib/cyclingPace';
 import {
   generateRoutes,
+  fetchSavedStravaRoutes,
   downloadGpx,
-  type GeneratedRoute,
   type CyclingType,
   type ElevationPreference,
 } from '../../lib/routesApi';
 import styles from './SessionRoutePicker.module.css';
 
+// ---------------------------------------------------------------------------
+// Unified display type — generated and Strava-saved routes share a card UX
+// but diverge on handoff. The discriminator drives both rendering and the
+// post-pick action area.
+// ---------------------------------------------------------------------------
+
+type DisplayRoute =
+  | {
+      source: 'generated';
+      id: string;
+      distance_km: number;
+      elevation_gain_m: number;
+      surface_type: string;
+      score: number;
+      gpx: string;
+    }
+  | {
+      source: 'strava';
+      id: string;
+      name: string;
+      distance_km: number;
+      elevation_gain_m: number;
+      surface_type: string;
+      score: number;
+      strava_url: string | null;
+    };
+
 interface SessionRoutePickerProps {
-  /** Session metadata used to derive route criteria. */
   sessionId: number;
   zone: number | null;
   durationMinutes: number | null;
 }
 
-// Map training prefs surface_pref → cycling_type for the route gen API.
 function surfaceToCyclingType(surface: string | undefined): CyclingType {
   if (surface === 'gravel') return 'gravel';
   if (surface === 'paved') return 'road';
@@ -42,17 +74,19 @@ const STRAVA_ROUTES_UPLOAD_URL = 'https://www.strava.com/routes/new';
 export function SessionRoutePicker({ sessionId, zone, durationMinutes }: SessionRoutePickerProps) {
   const { prefs, update: updatePrefs } = useTrainingPrefs();
   const [address, setAddress] = useState(prefs.start_address ?? '');
-  const [routes, setRoutes] = useState<GeneratedRoute[] | null>(null);
+  const [routes, setRoutes] = useState<DisplayRoute[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<'generate' | 'strava' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elevationPref, setElevationPref] = useState<ElevationPreference>('medium');
+  const [downloadedRouteId, setDownloadedRouteId] = useState<string | null>(null);
 
   // Reset picker state when the drawer is opened for a different session.
   useEffect(() => {
     setRoutes(null);
     setSelectedId(null);
     setError(null);
+    setDownloadedRouteId(null);
   }, [sessionId]);
 
   // Sync from prefs when they update via another surface.
@@ -60,10 +94,18 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
     if (prefs.start_address) setAddress(prefs.start_address);
   }, [prefs.start_address]);
 
+  // Reset the "downloaded" state when the user picks a different card.
+  useEffect(() => {
+    setDownloadedRouteId(null);
+  }, [selectedId, routes]);
+
   const targetDistance = estimateDistanceKm(durationMinutes, zone);
   const cyclingType = surfaceToCyclingType(prefs.surface_pref);
 
-  const handleFind = async () => {
+  // -------------------------------------------------------------------------
+  // Source 1 — generate fresh OSM-based loops via the v10.4.0 backend.
+  // -------------------------------------------------------------------------
+  const handleFindGenerated = async () => {
     if (pending) return;
     const trimmed = address.trim();
     if (!trimmed) {
@@ -74,7 +116,7 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
       setError('Session needs a duration to estimate distance. Edit the session first.');
       return;
     }
-    setPending(true);
+    setPending('generate');
     setError(null);
     setRoutes(null);
     setSelectedId(null);
@@ -82,10 +124,9 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
       const geo = await geocodeAddress(trimmed);
       if (!geo) {
         setError(`Couldn't find "${trimmed}". Try a different address.`);
-        setPending(false);
+        setPending(null);
         return;
       }
-      // Persist the address so subsequent sessions prefill it.
       updatePrefs({ start_address: trimmed });
       const generated = await generateRoutes({
         lat: geo.lat,
@@ -97,12 +138,20 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
       if (!Array.isArray(generated) || generated.length === 0) {
         setError("We couldn't generate routes for that area. Try a different start point.");
       } else {
-        setRoutes(generated);
-        setSelectedId(generated[0]!.id);
+        const display: DisplayRoute[] = generated.map((r) => ({
+          source: 'generated' as const,
+          id: `gen_${r.id}`,
+          distance_km: r.distance_km,
+          elevation_gain_m: r.elevation_gain_m,
+          surface_type: r.surface_type,
+          score: r.score,
+          gpx: r.gpx,
+        }));
+        setRoutes(display);
+        setSelectedId(display[0]!.id);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not generate routes.';
-      // Re-shape known backend codes into user-friendly text.
       if (msg === 'route_service_disabled') {
         setError('Route service is temporarily disabled. Try again later.');
       } else if (msg === 'no_valid_paths') {
@@ -113,17 +162,87 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
         setError(msg);
       }
     } finally {
-      setPending(false);
+      setPending(null);
+    }
+  };
+
+  // -------------------------------------------------------------------------
+  // Source 2 — fetch the user's saved Strava routes (existing /api/routes/
+  // saved endpoint, v9.3.0 #47). Backend already filters to ±20% distance
+  // band; we score and sort client-side by closest match.
+  // -------------------------------------------------------------------------
+  const handleShowStravaSaved = async () => {
+    if (pending) return;
+    if (targetDistance == null) {
+      setError('Session needs a duration to estimate distance. Edit the session first.');
+      return;
+    }
+    setPending('strava');
+    setError(null);
+    setRoutes(null);
+    setSelectedId(null);
+    try {
+      const surface = prefs.surface_pref === 'gravel' ? 'gravel' : prefs.surface_pref === 'paved' ? 'paved' : 'any';
+      const saved = await fetchSavedStravaRoutes({
+        distanceKm: targetDistance,
+        surface,
+      });
+      if (!Array.isArray(saved) || saved.length === 0) {
+        setError(`No Strava saved routes match ~${targetDistance} km. Try generating a new route instead.`);
+        return;
+      }
+      // Score: closeness to target distance (0 = exact match, drops to 0 at ±20%).
+      const display: DisplayRoute[] = saved
+        .map<DisplayRoute>((r) => {
+          const km = r.distance_m / 1000;
+          const delta = Math.abs(km - targetDistance) / targetDistance;
+          const score = Math.max(0, 1 - delta * 5); // mirrors generated scoring curve
+          return {
+            source: 'strava' as const,
+            id: `strava_${r.id}`,
+            name: r.name,
+            distance_km: Number(km.toFixed(1)),
+            elevation_gain_m: Math.round(r.elevation_gain_m),
+            surface_type: r.surface,
+            score: Number(score.toFixed(3)),
+            strava_url: r.strava_url,
+          };
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+      setRoutes(display);
+      setSelectedId(display[0]!.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not load Strava routes.';
+      if (msg === 'strava unavailable') {
+        setError('Strava is unreachable right now. Try again or generate routes instead.');
+      } else if (msg === 'unauthorized' || msg === 'not_authenticated') {
+        setError('Reconnect Strava in Profile to load your saved routes.');
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setPending(null);
     }
   };
 
   const selected = routes?.find((r) => r.id === selectedId) ?? null;
+  const isDownloaded = selected?.source === 'generated' && selected.id === downloadedRouteId;
 
-  const handleStrava = () => {
-    if (!selected) return;
+  const handleDownloadGpx = () => {
+    if (!selected || selected.source !== 'generated') return;
     const km = Math.round(selected.distance_km);
     downloadGpx(`cadence-${km}km-${selected.surface_type}.gpx`, selected.gpx);
+    setDownloadedRouteId(selected.id);
+  };
+
+  const handleOpenStravaUpload = () => {
     window.open(STRAVA_ROUTES_UPLOAD_URL, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenStravaSaved = () => {
+    if (!selected || selected.source !== 'strava' || !selected.strava_url) return;
+    window.open(selected.strava_url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -136,7 +255,7 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
       </header>
 
       <p className={styles.lede}>
-        We'll generate three OpenStreetMap-based loops from your starting point that match this session's distance and surface.
+        Generate fresh OpenStreetMap loops from your start address, or pick from your existing Strava saved routes — ranked by match to this session.
       </p>
 
       <div className={styles.field}>
@@ -149,7 +268,7 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           autoComplete="street-address"
-          disabled={pending}
+          disabled={pending !== null}
         />
       </div>
 
@@ -160,7 +279,7 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
           className={styles.input}
           value={elevationPref}
           onChange={(e) => setElevationPref(e.target.value as ElevationPreference)}
-          disabled={pending}
+          disabled={pending !== null}
         >
           <option value="low">Low (≤15 m/km, lakeshore)</option>
           <option value="medium">Medium (15–30 m/km, rolling)</option>
@@ -168,14 +287,22 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
         </select>
       </div>
 
-      <div className={styles.actions}>
+      <div className={styles.actionsRow}>
         <Button
           variant="secondary"
           size="md"
-          onClick={handleFind}
-          disabled={pending || !address.trim()}
+          onClick={handleFindGenerated}
+          disabled={pending !== null || !address.trim()}
         >
-          {pending ? 'Finding routes…' : 'Find 3 routes'}
+          {pending === 'generate' ? 'Finding routes…' : 'Find 3 routes'}
+        </Button>
+        <Button
+          variant="secondary"
+          size="md"
+          onClick={handleShowStravaSaved}
+          disabled={pending !== null}
+        >
+          {pending === 'strava' ? 'Loading Strava…' : 'Show Strava routes'}
         </Button>
       </div>
 
@@ -193,9 +320,16 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
               >
                 <span className={styles.cardRank}>#{i + 1}</span>
                 <div className={styles.cardStats}>
-                  <span className={styles.cardStatPrimary}>{r.distance_km} km</span>
-                  <span className={styles.cardStatSecondary}>{r.elevation_gain_m} m</span>
-                  <span className={styles.cardStatBucket}>{r.surface_type}</span>
+                  <span className={styles.cardStatPrimary}>
+                    {r.source === 'strava' ? r.name : `${r.distance_km} km`}
+                  </span>
+                  <span className={styles.cardStatSecondary}>
+                    {r.source === 'strava' ? `${r.distance_km} km · ` : ''}
+                    {r.elevation_gain_m} m
+                  </span>
+                  <span className={styles.cardStatBucket}>
+                    {r.source === 'strava' ? 'Strava saved' : 'Generated'} · {r.surface_type}
+                  </span>
                 </div>
                 <span className={styles.cardScore}>{Math.round(r.score * 100)}%</span>
               </button>
@@ -204,19 +338,52 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
         </ul>
       )}
 
-      {selected && (
-        <div className={styles.startRow}>
-          <Button
-            variant="primary"
-            size="md"
-            withArrow
-            onClick={handleStrava}
-          >
-            Start in Strava ↗
-          </Button>
-          <span className={styles.startHint}>
-            Downloads the GPX and opens Strava's route upload — drag the file in to finish.
-          </span>
+      {/* Handoff branches on the selected route's source. */}
+      {selected && selected.source === 'generated' && (
+        <div className={styles.handoff}>
+          <p className={styles.handoffTitle}>Ready to ride.</p>
+          <p className={styles.handoffLede}>
+            Save the GPX, then upload it to Strava — or import to Komoot, RideWithGPS, Garmin Connect, anywhere that takes GPX.
+          </p>
+          <div className={styles.handoffButtons}>
+            <Button variant="primary" size="md" onClick={handleDownloadGpx}>
+              {isDownloaded ? '✓ Downloaded' : '↓ Download GPX'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={handleOpenStravaUpload}
+              disabled={!isDownloaded}
+            >
+              Open Strava upload ↗
+            </Button>
+          </div>
+          {isDownloaded && (
+            <p className={styles.handoffPath}>
+              Saved as <code>cadence-{Math.round(selected.distance_km)}km-{selected.surface_type}.gpx</code>.
+              Find it in your Downloads, then drag it onto Strava's upload page.
+            </p>
+          )}
+        </div>
+      )}
+
+      {selected && selected.source === 'strava' && (
+        <div className={styles.handoff}>
+          <p className={styles.handoffTitle}>Ready to ride.</p>
+          <p className={styles.handoffLede}>
+            This route is already on Strava — open it directly to view, sync, or start.
+          </p>
+          <div className={styles.handoffButtons}>
+            <Button
+              variant="primary"
+              size="md"
+              withArrow
+              onClick={handleOpenStravaSaved}
+              disabled={!selected.strava_url}
+            >
+              Open in Strava ↗
+            </Button>
+          </div>
         </div>
       )}
     </section>
