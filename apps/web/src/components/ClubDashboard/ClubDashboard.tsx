@@ -7,7 +7,7 @@ import { ScheduleTab } from './ScheduleTab';
 import { TopTabs } from '../TopTabs/TopTabs';
 import { BottomNav } from '../BottomNav/BottomNav';
 import { OverviewIcon, ScheduleIcon, MembersIcon, MetricsIcon } from '../../design/icons';
-import type { ClubMember, UpcomingEvent } from '../../lib/clubsApi';
+import type { ClubEvent, ClubMember, UpcomingEvent } from '../../lib/clubsApi';
 import styles from './ClubDashboard.module.css';
 
 interface ClubDashboardProps {
@@ -46,6 +46,14 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
   const isAdmin = role === 'admin';
   const [tab, setTab] = useState<Tab>('overview');
   const [eventModalOpen, setEventModalOpen] = useState(false);
+  // v9.9.0 (#60) — Edit UX. When non-null, the modal opens in edit mode
+  // pre-filled from this event. Toggled by the Edit button in
+  // EventDetailDrawer (via ScheduleTab callback).
+  const [eventToEdit, setEventToEdit] = useState<ClubEvent | null>(null);
+
+  const openCreateEvent = () => { setEventToEdit(null); setEventModalOpen(true); };
+  const openEditEvent = (e: ClubEvent) => { setEventToEdit(e); setEventModalOpen(true); };
+  const closeEventModal = () => { setEventModalOpen(false); setEventToEdit(null); };
 
   // Track per-event optimistic RSVP state: eventId → { status, confirmed_count }
   // Populated optimistically on click; reverted on error.
@@ -116,7 +124,7 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
                 <button
                   type="button"
                   className={styles.sectionAction}
-                  onClick={() => setEventModalOpen(true)}
+                  onClick={openCreateEvent}
                 >
                   + Post event
                 </button>
@@ -150,7 +158,7 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
       )}
 
       {/* ---- SCHEDULE TAB (Phase 3 — v9.7.0) ---- */}
-      {tab === 'schedule' && <ScheduleTab clubId={clubId} />}
+      {tab === 'schedule' && <ScheduleTab clubId={clubId} onEditEvent={openEditEvent} />}
 
       {/* ---- MEMBERS TAB (Phase 2 — v9.6.2) ---- */}
       {tab === 'members' && (
@@ -168,7 +176,8 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
       <ClubEventModal
         open={eventModalOpen}
         clubId={clubId}
-        onClose={() => setEventModalOpen(false)}
+        event={eventToEdit}
+        onClose={closeEventModal}
       />
 
       {/* MOBILE BOTTOM NAV — Sprint 5 / v9.7.2 (#59).

@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.8.2](./CHANGELOG.md#982--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.9.0](./CHANGELOG.md#990--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.9.0
+
+**First MINOR-correct feature release after the naming-convention lock.** Bundles two themes (founder call): Edit UX in EventDetailDrawer (`#60` follow-up) + Playwright e2e drift fixes (`#73`). Edit button in the drawer is now functional — tap → ClubEventModal opens in edit mode pre-filled from the event, submits via PATCH (using the v9.7.3 endpoint that's been wired but unused). State lifted to ClubDashboard so create + edit share the same modal instance: `eventToEdit` state toggled by `openCreateEvent` / `openEditEvent`. `<ScheduleTab>` accepts `onEditEvent` prop, threads through to `<EventDetailDrawer>` Edit button. Modal in edit mode adapts: title "Edit event" instead of "Create an event"; submit button "Save changes" / "Saving…" instead of "Post event" / "Posting…"; pre-fills all 9 fields (title, description, location, date, time, event_type, distance_km, expected_avg_speed_kmh, surface, start_point, descIsAi); preserves `description_ai_generated` flag on edit. e2e drift (`#73`) — 5 Playwright assertions updated for current UI: header check now waits up to 5s before counting (TopBar mount lag); "Marco" greeting check uses `getByRole('heading').filter({ hasText: /Marco/i })` instead of pinning to h1 (greeting moved to h2 in the dashboard.today refactor); ride-detail toggle button gets a 10s waitFor before scroll; BottomNav hash-anchor link gets a 5s waitFor; tabs.spec.ts redirect test uses `waitForURL` instead of immediate check (was flaky). Bundle: dashboard chunk 86.70 → 88.33 KB (+1.63 KB) for the edit-mode logic. No backend changes; Edit UX uses the existing v9.7.3 PATCH endpoint.
 
 ## What's new in v9.8.2
 

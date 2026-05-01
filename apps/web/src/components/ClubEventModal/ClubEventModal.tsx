@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useVisualViewportHeight } from '../../hooks/useVisualViewportHeight';
 import { Button } from '../Button/Button';
-import { useCreateClubEvent, useDraftEventDescription } from '../../hooks/useClubs';
+import { useCreateClubEvent, useDraftEventDescription, usePatchClubEvent } from '../../hooks/useClubs';
 import { RideIcon, SocialIcon, RaceIcon } from '../../design/icons';
 import type { ClubEvent, ClubEventSurface, ClubEventType } from '../../lib/clubsApi';
 import styles from './ClubEventModal.module.css';
@@ -14,6 +14,11 @@ interface ClubEventModalProps {
   clubId: number;
   onClose: () => void;
   onCreated?: (event: ClubEvent) => void;
+  /** v9.9.0 (#60) — Edit mode. When provided, the modal pre-fills with the
+   *  event's values + submits via PATCH instead of POST. Title, button
+   *  label, and the AI-draft state all adapt. */
+  event?: ClubEvent | null;
+  onUpdated?: () => void;
 }
 
 // v9.7.4 (#66) — branded SVG icons replace the emoji placeholders.
@@ -36,7 +41,8 @@ const SURFACES: { id: ClubEventSurface; label: string }[] = [
  * surface auto-hide when format = social per founder lock 2026-05-01
  * (persona-aware hiding).
  */
-export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventModalProps) {
+export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpdated }: ClubEventModalProps) {
+  const isEdit = !!event;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
@@ -50,6 +56,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
   const [error, setError] = useState<string | null>(null);
   const modalRef = useFocusTrap<HTMLDivElement>(open);
   const createEvent = useCreateClubEvent(clubId);
+  const patchEvent = usePatchClubEvent(clubId);
   const draftDescription = useDraftEventDescription(clubId);
   // v9.7.5 (#69) — track visual viewport so modal stays inside the
   // visible area when the iOS keyboard opens.
@@ -60,24 +67,45 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
 
   useEffect(() => {
     if (!open) return;
-    setTitle('');
-    setDescription('');
-    setLocation('');
-    setEventType('ride');
-    setDistanceKm('');
-    setSpeedKmh('');
-    setSurface('');
-    setStartPoint('');
-    setDescIsAi(false);
     setError(null);
-    // Default = next Saturday at 09:00
-    const now = new Date();
-    const day = now.getDay();
-    const offsetToSat = (6 - day + 7) % 7 || 7;
-    const sat = new Date(now);
-    sat.setDate(now.getDate() + offsetToSat);
-    setDate(sat.toISOString().slice(0, 10));
-    setTime('09:00');
+
+    if (event) {
+      // v9.9.0 (#60) — Edit mode: pre-fill from event values.
+      setTitle(event.title || '');
+      setDescription(event.description || '');
+      setLocation(event.location || '');
+      setEventType((event.event_type as ClubEventType) || 'ride');
+      setDistanceKm(event.distance_km != null ? String(event.distance_km) : '');
+      setSpeedKmh(event.expected_avg_speed_kmh != null ? String(event.expected_avg_speed_kmh) : '');
+      setSurface((event.surface as ClubEventSurface) || '');
+      setStartPoint(event.start_point || '');
+      setDescIsAi(!!event.description_ai_generated);
+      const dt = new Date((event.event_date || 0) * 1000);
+      setDate(Number.isFinite(dt.getTime()) ? dt.toISOString().slice(0, 10) : '');
+      setTime(
+        Number.isFinite(dt.getTime())
+          ? `${String(dt.getUTCHours()).padStart(2, '0')}:${String(dt.getUTCMinutes()).padStart(2, '0')}`
+          : '09:00',
+      );
+    } else {
+      // Create mode: empty fields, default Saturday 09:00.
+      setTitle('');
+      setDescription('');
+      setLocation('');
+      setEventType('ride');
+      setDistanceKm('');
+      setSpeedKmh('');
+      setSurface('');
+      setStartPoint('');
+      setDescIsAi(false);
+      const now = new Date();
+      const day = now.getDay();
+      const offsetToSat = (6 - day + 7) % 7 || 7;
+      const sat = new Date(now);
+      sat.setDate(now.getDate() + offsetToSat);
+      setDate(sat.toISOString().slice(0, 10));
+      setTime('09:00');
+    }
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -125,24 +153,65 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
       return;
     }
 
+    const fields = {
+      title: trimmedTitle,
+      description: description.trim() || null,
+      location: location.trim() || null,
+      event_date: Math.floor(eventDateMs / 1000),
+      event_type: eventType,
+      // Athletic fields cleared (set null) when format = social so we don't
+      // leave stale data on a Ride→Social toggle in edit mode.
+      distance_km: showAthleticFields && distanceParsed !== null ? distanceParsed : null,
+      expected_avg_speed_kmh: showAthleticFields && speedParsed !== null ? speedParsed : null,
+      surface: showAthleticFields && surface ? surface : null,
+      start_point: startPoint.trim() || null,
+      // v9.8.0 — AI authorship flag: only sent on CREATE; PATCH preserves
+      // existing flag (server-side patches don't accept this field).
+      description_ai_generated: descIsAi,
+    } as const;
+
+    if (isEdit && event) {
+      // v9.9.0 (#60) — PATCH path. Server-side allowlist ignores unknown
+      // fields; we send everything the user might have changed.
+      try {
+        await patchEvent.mutateAsync({
+          eventId: event.id,
+          input: {
+            title: fields.title,
+            description: fields.description ?? '',
+            location: fields.location ?? '',
+            event_date: fields.event_date,
+            event_type: fields.event_type,
+            distance_km: fields.distance_km,
+            expected_avg_speed_kmh: fields.expected_avg_speed_kmh,
+            surface: fields.surface,
+            start_point: fields.start_point ?? '',
+          },
+        });
+        onClose();
+        onUpdated?.();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save changes.');
+      }
+      return;
+    }
+
+    // Create path
     try {
-      const event = await createEvent.mutateAsync({
-        title: trimmedTitle,
-        description: description.trim() || undefined,
-        location: location.trim() || undefined,
-        event_date: Math.floor(eventDateMs / 1000),
-        event_type: eventType,
-        // Athletic fields only sent when not social.
-        ...(showAthleticFields && distanceParsed !== null ? { distance_km: distanceParsed } : {}),
-        ...(showAthleticFields && speedParsed !== null ? { expected_avg_speed_kmh: speedParsed } : {}),
-        ...(showAthleticFields && surface ? { surface } : {}),
-        ...(startPoint.trim() ? { start_point: startPoint.trim() } : {}),
-        // v9.8.0 — flag passed-through if user accepted an AI draft and
-        // didn't edit it. Edits clear the flag (handled in textarea onChange).
-        ...(descIsAi ? { description_ai_generated: true } : {}),
+      const created = await createEvent.mutateAsync({
+        title: fields.title,
+        description: fields.description ?? undefined,
+        location: fields.location ?? undefined,
+        event_date: fields.event_date,
+        event_type: fields.event_type,
+        ...(fields.distance_km !== null ? { distance_km: fields.distance_km } : {}),
+        ...(fields.expected_avg_speed_kmh !== null ? { expected_avg_speed_kmh: fields.expected_avg_speed_kmh } : {}),
+        ...(fields.surface ? { surface: fields.surface } : {}),
+        ...(fields.start_point ? { start_point: fields.start_point } : {}),
+        ...(fields.description_ai_generated ? { description_ai_generated: true } : {}),
       });
       onClose();
-      onCreated?.(event);
+      onCreated?.(created);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create event.');
     }
@@ -204,10 +273,12 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
           >
             <h2 id="club-event-title" className={styles.title}>
-              Create an <em>event</em>.
+              {isEdit ? <>Edit <em>event</em>.</> : <>Create an <em>event</em>.</>}
             </h2>
             <p className={styles.lede}>
-              Any member can post a ride. Your circle sees it on the calendar.
+              {isEdit
+                ? 'Update the details. Members see the changes immediately.'
+                : 'Any member can post a ride. Your circle sees it on the calendar.'}
             </p>
 
             <form className={styles.form} onSubmit={handleSubmit}>
@@ -399,15 +470,17 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
                   type="submit"
                   variant="primary"
                   size="md"
-                  disabled={createEvent.isPending}
+                  disabled={createEvent.isPending || patchEvent.isPending}
                 >
-                  {createEvent.isPending ? 'Posting…' : 'Post event'}
+                  {isEdit
+                    ? (patchEvent.isPending ? 'Saving…' : 'Save changes')
+                    : (createEvent.isPending ? 'Posting…' : 'Post event')}
                 </Button>
                 <button
                   type="button"
                   className={styles.cancelBtn}
                   onClick={onClose}
-                  disabled={createEvent.isPending}
+                  disabled={createEvent.isPending || patchEvent.isPending}
                 >
                   Cancel
                 </button>

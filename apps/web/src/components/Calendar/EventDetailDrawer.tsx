@@ -24,9 +24,13 @@ interface EventDetailDrawerProps {
   callerAthleteId?: number | null;
   /** v9.7.3 — caller's role in this club ('admin' | 'member' | other). */
   callerRole?: string | null;
+  /** v9.9.0 (#60) — Edit button click handler. When absent, button is hidden.
+   *  Caller (ScheduleTab) maps CalendarEvent → ClubEvent and bubbles up to
+   *  ClubDashboard which owns the modal. */
+  onEdit?: (event: CalendarEvent) => void;
 }
 
-export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, callerRole }: EventDetailDrawerProps) {
+export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, callerRole, onEdit }: EventDetailDrawerProps) {
   const cancelMutation = useCancelClubEvent(clubId ?? 0);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -176,9 +180,15 @@ export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, cal
             }
             return (
               <>
-                <button type="button" className={styles.drawerBtn} disabled title="Edit ships in v9.7.3.1">
-                  Edit
-                </button>
+                {onEdit && (
+                  <button
+                    type="button"
+                    className={styles.drawerBtn}
+                    onClick={() => onEdit(event)}
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   type="button"
                   className={`${styles.drawerBtn} ${styles.drawerBtnDanger}`}
@@ -186,9 +196,6 @@ export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, cal
                 >
                   Cancel event
                 </button>
-                <p className={styles.drawerNote}>
-                  Edit ships in v9.7.3.1 (creator/admin only).
-                </p>
               </>
             );
           })()}

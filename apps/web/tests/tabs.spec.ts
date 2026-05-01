@@ -33,9 +33,12 @@ test.describe('Tabs flag — /dashboard navigation behaviour', () => {
     });
 
     await page.goto(`${BASE}/dashboard`);
-    await page.waitForLoadState('domcontentloaded');
 
-    // beforeLoad redirect should have moved us to /dashboard/today.
+    // v9.9.0 (#73): TanStack Router's beforeLoad redirect runs AFTER the JS
+    // bundle loads — wait for the URL to settle at /dashboard/today rather
+    // than checking on domcontentloaded (was flaky — first attempt failed,
+    // retry passed, indicating timing-sensitive race).
+    await page.waitForURL(/\/dashboard\/today/, { timeout: 10000 });
     expect(page.url()).toMatch(/\/dashboard\/today/);
   });
 });

@@ -39,6 +39,9 @@ test.describe('Mobile tabs — viewport 390×844', () => {
     expect(page.url()).toMatch(/\/dashboard\/today/);
 
     // At least one <header> element must be in the DOM.
+    // v9.9.0 (#73): wait up to 5s — TopBar mounts after route resolution
+    // which can lag on cold-start under WB/CI conditions.
+    await page.locator('header').first().waitFor({ state: 'attached', timeout: 5000 });
     const headerCount = await page.locator('header').count();
     expect(headerCount).toBeGreaterThanOrEqual(1);
 

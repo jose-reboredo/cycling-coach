@@ -4,6 +4,72 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.9.0] — 2026-05-01
+
+**First MINOR-correct feature release.** Bundles `#60` Edit UX (event lifecycle completion) + `#73` e2e drift fixes. Closes both. Per Sprint 1 retro Improvement #6 (one risk theme per release), this is technically two themes — but they don't share blast radius (Edit UX is in the drawer/modal; e2e drift is test-only) so founder approved bundling.
+
+### `#60` follow-up — Edit UX in EventDetailDrawer
+
+The v9.7.3 PATCH endpoint has been wired-but-unused since shipping. v9.9.0 turns on the UI: the drawer's previously-disabled Edit button now opens `ClubEventModal` in edit mode.
+
+**State lifting (`ClubDashboard.tsx`):** `[eventToEdit, setEventToEdit]` state added at the dashboard level so create + edit share a single modal instance. Three handlers:
+
+```tsx
+const openCreateEvent = () => { setEventToEdit(null); setEventModalOpen(true); };
+const openEditEvent = (e: ClubEvent) => { setEventToEdit(e); setEventModalOpen(true); };
+const closeEventModal = () => { setEventModalOpen(false); setEventToEdit(null); };
+```
+
+The "+ Post event" admin button calls `openCreateEvent`. The drawer's Edit button (via ScheduleTab) calls `openEditEvent`. Both close via `closeEventModal` which resets the edit state.
+
+**Threading (`ScheduleTab.tsx`):** new `onEditEvent?: (event: ClubEvent) => void` prop. Threaded down to `<EventDetailDrawer onEdit={...}>`. The drawer holds a `CalendarEvent` (subset shape — what the calendar primitives need); on Edit click, ScheduleTab maps the calendar event back to its full `ClubEvent` from the range query results before bubbling up.
+
+**Drawer Edit button (`EventDetailDrawer.tsx`):** now functional when `onEdit` prop provided. Cancel-event UI unchanged. Note: button hides entirely when `onEdit` is absent (e.g. personal scheduler aggregation in v9.9.0+1 won't pass it for events the caller doesn't own).
+
+**Modal edit mode (`ClubEventModal.tsx`):** new `event?: ClubEvent | null` + `onUpdated?: () => void` props. When `event` is provided:
+- Pre-fills all 9 form fields from event values (title, description, location, date+time decomposition from event_date epoch, event_type, distance_km, expected_avg_speed_kmh, surface, start_point, descIsAi)
+- Title "Edit event" instead of "Create an event"
+- Lede "Update the details. Members see the changes immediately."
+- Submit button "Save changes" / "Saving…" instead of "Post event" / "Posting…"
+- Submit calls `patchEvent.mutateAsync({eventId, input})` instead of `createEvent.mutateAsync(input)`
+- Athletic fields (distance, speed, surface) get cleared (sent as `null`) when format = social, so a Ride→Social toggle in edit mode doesn't leave stale data
+- `description_ai_generated` preserved on PATCH (server-side endpoint doesn't accept it; flag survives via DB state)
+
+**No backend changes** — `usePatchClubEvent` hook exists from v9.7.3; the PATCH endpoint at `worker.js:678` accepts the allowlisted partial-update body unchanged.
+
+### `#73` — Playwright e2e drift fixes
+
+Pre-existing test failures since v9.7.0 dashboard refactors. 5 assertions updated:
+
+| File:line | Was | Now |
+|---|---|---|
+| `mobile-tabs.spec.ts:43` | `headerCount` count check (instant) | `waitFor({state:'attached', timeout:5000})` first — TopBar mounts after route resolution |
+| `smoke.spec.ts:50` | `getByRole('heading',{level:1})` contains "Marco" | `getByRole('heading').filter({hasText:/Marco/i}).first()` — greeting moved to h2 in dashboard.today refactor |
+| `smoke.spec.ts:97-98` | `expandBtn.scrollIntoViewIfNeeded()` (could time out at 30s) | `expandBtn.waitFor({state:'attached', timeout:10000})` first |
+| `smoke.spec.ts:124-125` | `a[href="#today"]` instant check | `waitFor({state:'attached', timeout:5000})` first |
+| `tabs.spec.ts:35-39` | goto + waitForLoadState + URL check | goto + `waitForURL(/\/dashboard\/today/, {timeout:10000})` — was flaky (first attempt failed, retry passed) |
+
+These are robustness fixes — selectors are now lenient about render timing rather than insisting the page is ready immediately. No production code changes.
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green; manual TS scan; grep for unused imports
+- ✅ #2 Pre-commit grep against `schema.sql` — N/A (no SQL change)
+- ✅ #4 POST → GET round-trip — N/A (no new endpoints; PATCH wired through existing endpoint)
+- ✅ #5 Verification budget within 12% — direct in-context implementation
+- ✅ #6 Bug post-mortems — none required (no hotfix triggered)
+- ⚠ #6 (Sprint 1 retro) "One risk theme per release" — technically violated by bundling Edit UX + e2e drift; founder explicit override given the non-overlapping blast radii
+
+### Bundle
+
+Dashboard chunk: 86.70 → 88.33 KB (+1.63 KB / +1.9%) — edit-mode branching + state lifting.
+
+### Versions: 9.8.2 → 9.9.0 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.8.2] — 2026-05-01
 
 **Architectural fix — Create Club modal replaced with dedicated page route.** Closes `#71` (P0) + `#72`.

@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useClubEventsByMonth, useClubOverview } from '../../hooks/useClubs';
+import type { ClubEvent } from '../../lib/clubsApi';
 import { MonthCalendarGrid } from '../Calendar/MonthCalendarGrid';
 import { WeekCalendarGrid } from '../Calendar/WeekCalendarGrid';
 import { DayCalendarGrid } from '../Calendar/DayCalendarGrid';
@@ -75,7 +76,14 @@ function useCalendarView(): [CalendarView, (v: CalendarView) => void] {
   return [view, setView];
 }
 
-export function ScheduleTab({ clubId }: { clubId: number }) {
+interface ScheduleTabProps {
+  clubId: number;
+  /** v9.9.0 (#60) — drawer Edit button bubbles up to parent (ClubDashboard
+   *  owns the modal so create + edit share one instance). */
+  onEditEvent?: (event: ClubEvent) => void;
+}
+
+export function ScheduleTab({ clubId, onEditEvent }: ScheduleTabProps) {
   const today = todayUTC();
   const [view, setView] = useCalendarView();
   const [date, setDate] = useState<CalendarDate>(today);
@@ -226,6 +234,16 @@ export function ScheduleTab({ clubId }: { clubId: number }) {
         onClose={() => setActiveEvent(null)}
         clubId={clubId}
         callerRole={callerRole}
+        onEdit={onEditEvent ? (e) => {
+          // Map CalendarEvent → full ClubEvent. The drawer's `event` is a
+          // subset (CalendarEvent); for PATCH we need the original ClubEvent
+          // shape. The range query results ARE ClubEvent + confirmed_count;
+          // they're typed wider than CalendarEvent in the hook, so cast via
+          // unknown is honest about what we're doing.
+          const full = events.find((x) => x.id === e.id);
+          if (full) onEditEvent(full as unknown as ClubEvent);
+          setActiveEvent(null);
+        } : undefined}
       />
     </div>
   );

@@ -46,8 +46,12 @@ test.describe('Smoke — dashboard demo (/dashboard?demo=1)', () => {
     await page.goto('/dashboard?demo=1');
     await page.waitForLoadState('networkidle');
 
-    // Greeting renders with the mock first name "Marco" (greeting word varies by hour)
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Marco');
+    // Greeting renders with the mock first name "Marco" (greeting word varies by hour).
+    // v9.9.0 (#73): the greeting moved from h1 to h2 in the dashboard.today
+    // sub-route refactor; h1 now contains the page-shell title ("Today").
+    // Check that "Marco" appears anywhere in heading-text rather than pinning
+    // to a specific level.
+    await expect(page.getByRole('heading').filter({ hasText: /Marco/i }).first()).toBeVisible();
 
     // AI Coach card eyebrow
     await expect(page.getByText(/AI Coach\s*·\s*Claude/i).first()).toBeVisible();
@@ -94,7 +98,10 @@ test.describe('Smoke — ride detail expand (/dashboard?demo=1)', () => {
     // The expand-button uses aria-label="Toggle detail for {ride name}".
     // The previous-rides section is far down the page on mobile — scroll into
     // view, then nudge up so the sticky TopBar doesn't overlap.
+    // v9.9.0 (#73): wait up to 10s for the button to appear before scrolling
+    // (page is mock-data-heavy and can take time to settle on cold-start).
     const expandBtn = page.getByRole('button', { name: /toggle detail for/i }).first();
+    await expandBtn.waitFor({ state: 'attached', timeout: 10000 });
     await expandBtn.scrollIntoViewIfNeeded();
     await page.evaluate(() => window.scrollBy(0, -80));
     await expect(expandBtn).toBeVisible();
@@ -121,7 +128,10 @@ test.describe('Smoke — BottomNav scroll sync (/dashboard?demo=1)', () => {
     await page.waitForLoadState('networkidle');
 
     // Initial state — Today tab active.
+    // v9.9.0 (#73): wait for hash-anchor BottomNav to render (only present
+    // when cc_tabsEnabled=false, which is the default for this test).
     const todayTab = page.locator('a[href="#today"]');
+    await todayTab.waitFor({ state: 'attached', timeout: 5000 });
     await expect(todayTab).toHaveAttribute('aria-current', 'page');
 
     // Scroll the train (AI Coach) section into the middle of the viewport.
