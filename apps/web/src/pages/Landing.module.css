@@ -543,79 +543,89 @@
   border-top: 1px solid var(--c-line);
 }
 
-/* v9.12.5 — Built / Shipping-next dual-column status grid.
- * Lives below the 3 FeatureSpread blocks in the WHAT-YOU-GET section.
- * On mobile: stacked columns. ≥768px: side-by-side. */
-.builtSection {
-  position: relative;
-  padding: var(--s-12) 0 var(--s-20);
-  border-top: 1px solid var(--c-line);
-  background: var(--c-bg-deep);
+/* v9.12.6 — SchedulePreview visual for FeatureSpread #03.
+ * Mini week-calendar showing personal sessions (zone-coloured) + a
+ * Saturday club ride (accent) — visual proof of "your week, on one
+ * calendar". Mirrors WorkoutPreview's brutalist look (dark surface,
+ * monospace day labels, sharp pill rows). */
+.schedPrev {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-md);
+  padding: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
 }
-.builtGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--s-10);
-  margin-top: var(--s-10);
+.schedHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--c-line);
 }
-@media (min-width: 768px) {
-  .builtGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--s-12);
-  }
-}
-.builtCol h3 {
-  font: 600 1rem/1 var(--font-mono);
-  letter-spacing: 0.02em;
+.schedHeadDay {
+  font: 600 0.6875rem/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--c-text-faint);
   text-transform: uppercase;
-  color: var(--c-text);
-  margin: 0 0 var(--s-5) 0;
-  padding-bottom: var(--s-2);
-  border-bottom: 1px solid var(--c-line-strong);
 }
-.builtCol h3.builtNext {
-  color: var(--c-accent);
-}
-.builtCol ul {
+.schedList {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-}
-.builtCol li {
-  display: grid;
-  grid-template-columns: auto 1fr;
   gap: var(--s-3);
-  align-items: baseline;
-  font: 400 0.9375rem/1.45 var(--font-sans);
-  color: var(--c-text-muted);
-  padding-bottom: var(--s-3);
-  border-bottom: 1px dashed var(--c-line);
 }
-.builtCol li:last-child {
-  border-bottom: none;
+.schedRow {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: var(--s-3);
 }
-.builtCol strong {
-  color: var(--c-text);
-  font: 600 0.9375rem/1.4 var(--font-sans);
-}
-.builtCol .builtTag {
-  font: 500 0.6875rem/1 var(--font-mono);
-  letter-spacing: 0.04em;
+.schedDay {
+  font: 600 0.6875rem/1 var(--font-mono);
+  letter-spacing: 0.06em;
   color: var(--c-text-faint);
-  text-transform: uppercase;
-  white-space: nowrap;
 }
-.inlineLink {
+.schedItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.schedRest {
+  font: 400 0.8125rem/1 var(--font-mono);
+  color: var(--c-text-faint);
+  font-style: italic;
+}
+.schedPill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font: 500 0.8125rem/1 var(--font-sans);
+  border: 1px solid transparent;
+}
+.schedPillTitle {
+  font-weight: 600;
+}
+.schedPillDur {
+  font: 500 0.6875rem/1 var(--font-mono);
+  opacity: 0.85;
+}
+.schedPillZ1 { background: rgba(59, 140, 232, 0.16); color: var(--c-z1); border-color: rgba(59, 140, 232, 0.32); }
+.schedPillZ2 { background: rgba(74, 222, 128, 0.16); color: var(--c-z2); border-color: rgba(74, 222, 128, 0.32); }
+.schedPillZ3 { background: rgba(250, 204, 21, 0.16); color: var(--c-z3); border-color: rgba(250, 204, 21, 0.32); }
+.schedPillZ4 { background: rgba(251, 146, 60, 0.16); color: var(--c-z4); border-color: rgba(251, 146, 60, 0.32); }
+.schedPillZ5 { background: rgba(239, 68, 68, 0.16); color: var(--c-z5); border-color: rgba(239, 68, 68, 0.32); }
+.schedPillZ6 { background: rgba(168, 85, 247, 0.16); color: var(--c-z6); border-color: rgba(168, 85, 247, 0.32); }
+.schedPillZ7 { background: rgba(165, 91, 224, 0.16); color: var(--c-z7); border-color: rgba(165, 91, 224, 0.32); }
+.schedPillClub {
+  background: var(--c-accent-soft);
   color: var(--c-accent-light);
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
-  text-decoration-thickness: 1px;
-}
-.inlineLink:hover {
-  color: var(--c-accent);
+  border-color: rgba(255, 77, 0, 0.32);
 }
 
 .priceRow {

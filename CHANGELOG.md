@@ -4,6 +4,121 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.6] — 2026-05-01
+
+**Landing page UX correction — back to a marketing landing.** Founder feedback right after v9.12.5: the "Built · Shipping next" issue grid I added wasn't a marketing surface, it was an engineering log. Wrong tool for the conversion page.
+
+> "The 'what you get' landing is not a list of issues delivered — it's a list of features our personas can use. It's a marketing landing page. Pick functional features we are adding (with value for the final user) and do this marketing landing. Goal: share with potential members of the app — they must understand what they get and understand the value of using our app."
+
+### What changed
+
+| Section | Before (v9.12.5) | After (v9.12.6) |
+|---|---|---|
+| `№01` | Daily form (PMC) | Daily form (PMC) — unchanged |
+| `№02` | "Plan and ride structured sessions" | **Reverted** to "Today's session, ready to ride" (the AI-coach value pillar) — what cyclist friends responded to |
+| `№02b` | Issue grid: 15 built / 8 queued | **REMOVED entirely** |
+| `№03` | Club that runs itself | **NEW**: "Your week, on one calendar" — Sprint 5 hero as a value pillar |
+| `№04` | — | Club that runs itself (was №03) |
+
+### Removed
+
+The `№ 02b — Built · Shipping next` 2-column status grid is gone. With it: `.builtSection`, `.builtGrid`, `.builtCol`, `.builtTag`, `.inlineLink` CSS classes and the inline `<a href="/whats-next">` link.
+
+Roadmap-detail content (15 built + 8 queued items) belongs at `/whats-next` (the existing public roadmap page, GitHub-Issues-driven). That surface is for engineering transparency. The marketing landing is for value pillars.
+
+### Added — FeatureSpread #03 "Your week, on one calendar"
+
+The Sprint 5 hero feature (personal scheduler + plan-a-session + drawer actions + zone-coloured pills) was previously buried in #02's body copy. Now it's its own marketing value pillar:
+
+```jsx
+<FeatureSpread
+  num="03"
+  title="Your week, on one calendar"
+  kicker="Solo sessions + club rides — same surface, zone-coloured."
+  body="Block out tomorrow's sweet-spot day or Sunday's recovery spin in
+        seconds. Your personal sessions sit next to your club rides on the
+        same calendar — colour-coded by zone so you read the week at a glance.
+        Edit, swap, mark done, cancel. The calendar is honest about your time:
+        a 2-hour ride visually books two hours."
+  visual={<SchedulePreview />}
+/>
+```
+
+### Added — SchedulePreview visual component
+
+Page-local component, brutalist mini-week. Shows 6 days with stacked pills:
+
+- TUE · Z2 Endurance · 1.5h (green)
+- WED · Z4 Sweet-spot · 1h (orange)
+- THU · *rest* (italic faint)
+- FRI · Z1 Recovery · 0.75h (blue)
+- SAT · Saturday Crew · 2.5h (accent — club ride)
+- SUN · Z3 Tempo · 2h (yellow)
+
+Header shows "THIS WEEK" + a Marco-persona pill ("Marco · FTP 285"). Visual proof of the "solo + club on one calendar, zone-coloured, time-blocked" promise.
+
+CSS classes added to `Landing.module.css`: `.schedPrev`, `.schedHead`, `.schedHeadDay`, `.schedList`, `.schedRow`, `.schedDay`, `.schedItems`, `.schedRest`, `.schedPill`, `.schedPillTitle`, `.schedPillDur`, `.schedPillZ1`…`.schedPillZ7`, `.schedPillClub`. Mirrors `WorkoutPreview`'s brutalist tokens (`var(--c-surface)` background, `var(--c-line-strong)` border, monospace day labels, 0.16-alpha zone-coloured pill backgrounds with 0.32-alpha borders, `var(--c-accent-soft)` for club rides).
+
+### #02 body refresh
+
+```diff
+- Today's session, ready to ride
+- One tap. The workout, the zones, a route that fits.
+- The plan adapts to how you're feeling. Hard day after a strong week. Easy
+- day after a slammed one. Routes from your saved Strava list, ranked against
+- today's target. Open in Strava with one tap and go.
+
++ Today's session, ready to ride
++ One tap. The workout, the zones, the watts.
++ The plan reads your form and matches the effort. Hard day after a strong
++ week. Easy day after a slammed one. The session lands as a structured
++ brief — duration in hours, zone-tagged blocks, target watts. Tick it done
++ as you ride; your form curve catches up automatically.
+```
+
+Removed the "saved Strava routes ranked" line — route picker hasn't shipped yet (queued for v9.10/Sprint 6). Replaced with "tick it done as you ride; your form curve catches up automatically" — true value of the structured-brief + Mark-done UX flow now live.
+
+### #04 (was #03) kicker refresh
+
+```diff
+- kicker="Overview · Schedule · Members"
++ kicker="Overview · Schedule · Members · Metrics."
+```
+
+Reflects the actual 4-tab club shell (Metrics tab shipped in v9.7.x).
+
+### Net effect on the page
+
+The WHAT-YOU-GET section now tells **4 value-pillar stories**, each with a brutalist visual:
+
+1. **Daily form** (Marco) — `<PmcStrip>` showing CTL/ATL/TSB
+2. **Today's session** (Marco) — `<WorkoutPreview>` showing the structured workout
+3. **Your week, on one calendar** (Marco) — `<SchedulePreview>` showing 6 days of zone-coloured pills + a club ride
+4. **A club that runs itself** (Sofia + Léa) — `<ClubLayerPreview>` showing club stats + AI Circle Note
+
+Each is a marketing-tone value pillar a potential member would recognise. The roadmap-detail page (`/whats-next`) still ships everything else.
+
+### Bundle
+
+Landing chunk: -3 KB (issue grid + 5 CSS classes removed) + 2 KB (SchedulePreview component + 14 CSS classes added) = net **-1 KB**. Visually richer, technically lighter.
+
+### Why PATCH (not MINOR)
+
+Per the project's locked SemVer rule (CONTRIBUTING.md, post-v9.7.x): MINOR for new features, PATCH for hotfixes / corrections. v9.12.6 is a UX correction to a marketing-surface miss in v9.12.5 — no new app feature, no new endpoint, no schema change. PATCH is right.
+
+### Sprint 5 process
+
+- ✅ Founder caught the framing miss within minutes — fast feedback loop, exactly what cyclist-testing is for
+- ✅ Right-sized ceremony: this is a small surgical correction, no plan/spec needed
+- ✅ Pre-deploy verification: the diff is contained to Landing.tsx + Landing.module.css
+- ✅ No risk surface: pure marketing copy + one new visual component
+
+### Versions: 9.12.5 → 9.12.6 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.12.5] — 2026-05-01
 
 **Personal-session UX bundle + Landing page features sweep.** Single risk theme: personal sessions become first-class on the calendar and in the drawer. Three items, all wired to existing backend endpoints — no schema, no worker change beyond version bump. Bundled with a Landing page refresh driven by Marco-persona cyclist-friend feedback.
