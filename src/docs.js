@@ -23,6 +23,102 @@ const STUB = (name, stepRef) => `<h1>${name}</h1>
 
 export const SPEC_PAGES = [
   {
+    slug: 'sprint-roadmap',
+    title: '0. Sprint Roadmap — What\'s Next',
+    storage: `<h1>Sprint Roadmap — What's Next</h1>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Forward-looking plan for the next 4 sprints (S5–S8) with the GitHub issues included per sprint. <strong>Auto-managed</strong>: canonical content lives in <code>src/docs.js</code> and is upserted on every prod deploy. Founder decisions are baked in (see §1). For per-issue status (open/closed/labels) see the auto-generated <strong>Roadmap</strong> page; for shipped releases see <strong>Releases</strong>.</p></ac:rich-text-body></ac:structured-macro>
+
+<p><strong>Product baseline:</strong> v9.6.5 (live, 2026-05-01). Source plan: <code>docs/post-demo-sprint/4-sprint-plan-2026-05.md</code>.</p>
+
+<h2>§1. Founder decisions (locked 2026-05-01)</h2>
+<table>
+<tr><th>#</th><th>Decision</th><th>Status</th></tr>
+<tr><td>1</td><td>Sprint 5–6 = clubs Phase 3–5 finish (Persona B/C wedge)</td><td>✅ Approved</td></tr>
+<tr><td>2</td><td>Domain migration to <code>cadenceclub.cc</code> (<a href="https://github.com/jose-reboredo/cycling-coach/issues/32">#32</a>)</td><td>⏸ Deferred indefinitely — not important for the moment</td></tr>
+<tr><td>3</td><td>Anthropic key storage (<a href="https://github.com/jose-reboredo/cycling-coach/issues/52">#52</a>)</td><td>✅ Stay in <code>localStorage</code> until <a href="https://github.com/jose-reboredo/cycling-coach/issues/56">#56</a> share-flow forces multi-device</td></tr>
+<tr><td>4</td><td>Issue <a href="https://github.com/jose-reboredo/cycling-coach/issues/10">#10</a> split — narrow to offline PMC tile only</td><td>✅ Approved — pure cleanup</td></tr>
+<tr><td>5</td><td>Lighthouse remediation (<a href="https://github.com/jose-reboredo/cycling-coach/issues/12">#12</a>)</td><td>⏸ Deferred — features over polish; revisit only if score &lt; 85</td></tr>
+<tr><td>6</td><td>Clubs share/invite (<a href="https://github.com/jose-reboredo/cycling-coach/issues/56">#56</a>)</td><td>✅ Own release as medium feature (v9.7.2 in Sprint 5)</td></tr>
+<tr><td>7</td><td>Komoot revisit (Route Generation)</td><td>⏸ Deferred until post-Sprint 6 — review after clubs ship</td></tr>
+<tr><td>8</td><td>Adopt sprint retro + nightly daily-retro routine</td><td>✅ Approved — nightly Mon–Fri 22:00 Zurich</td></tr>
+</table>
+
+<h2>§2. Sprint 5 — Clubs Phase 3+4 (Schedule tab + statistical AI moments)</h2>
+<table>
+<tr><th>Aspect</th><th>Detail</th></tr>
+<tr><td><strong>Theme</strong></td><td>Persona B/C wedge: Schedule tab + cron infra + readiness/trend statistical AI moments</td></tr>
+<tr><td><strong>Releases</strong></td><td>v9.7.0 (Schedule tab + Migration 0006) → v9.7.1 (cron + readiness dots + trend arrows) → v9.7.2 (clubs share/invite — <a href="https://github.com/jose-reboredo/cycling-coach/issues/56">#56</a>) → hotfix band</td></tr>
+<tr><td><strong>Effort</strong></td><td>~22h (Phase 3 9h + Phase 4 7h + #56 ~6h)</td></tr>
+<tr><td><strong>Issues to close</strong></td><td>Phase 3+4 of <a href="https://github.com/jose-reboredo/cycling-coach/issues/53">#53</a>, <a href="https://github.com/jose-reboredo/cycling-coach/issues/56">#56</a> — plus hygiene-close on <a href="https://github.com/jose-reboredo/cycling-coach/issues/44">#44</a> <a href="https://github.com/jose-reboredo/cycling-coach/issues/45">#45</a> <a href="https://github.com/jose-reboredo/cycling-coach/issues/3">#3</a> (work shipped in v9.5.2 but commit lacked "Closes #N")</td></tr>
+<tr><td><strong>ADRs</strong></td><td>ADR-S5.1 cron failure mode (log-and-skip, no retry); ADR-S5.2 readiness-dot threshold (CTL Δ %?)</td></tr>
+<tr><td><strong>Risk</strong></td><td>First Worker <code>scheduled</code> handler in this codebase + largest UI piece since the dashboard refactor</td></tr>
+<tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-5.md</code> committed</td></tr>
+</table>
+
+<h2>§3. Sprint 6 — Clubs Phase 5 (LLM AI moments)</h2>
+<table>
+<tr><th>Aspect</th><th>Detail</th></tr>
+<tr><td><strong>Theme</strong></td><td>Phase 5 LLM moments: Circle Note auto-draft, Metrics tab AI insights, post-ride callout</td></tr>
+<tr><td><strong>Releases</strong></td><td>v9.8.0 (Circle Note + Metrics tab + Migration 0007) → v9.8.1 (post-ride callout) → hotfix band</td></tr>
+<tr><td><strong>Effort</strong></td><td>~16h (Phase 5)</td></tr>
+<tr><td><strong>Issues to close</strong></td><td>Phase 5 of <a href="https://github.com/jose-reboredo/cycling-coach/issues/53">#53</a>; <a href="https://github.com/jose-reboredo/cycling-coach/issues/11">#11</a> Strangler-Fig fold-in if scope holds</td></tr>
+<tr><td><strong>ADRs</strong></td><td>ADR-S6.1 multi-tenant prompt shape (no <code>athlete_id</code> leak); ADR-S6.2 cost-ceiling alarm (per-club Haiku spend tracking)</td></tr>
+<tr><td><strong>Risk</strong></td><td>First user-facing LLM output across multiple recipients — Circle Note review tax is real</td></tr>
+<tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-6.md</code> committed; <strong>post-S6 review of Route Generation feature direction (founder decision §1-7)</strong></td></tr>
+</table>
+
+<h2>§4. Sprint 7 — Personal-loop closure (Persona A)</h2>
+<table>
+<tr><th>Aspect</th><th>Detail</th></tr>
+<tr><td><strong>Theme</strong></td><td>AI year-end forecast, You-tab full profile, volume-chart tooltips</td></tr>
+<tr><td><strong>Releases</strong></td><td>v9.9.0 (<a href="https://github.com/jose-reboredo/cycling-coach/issues/50">#50</a> + <a href="https://github.com/jose-reboredo/cycling-coach/issues/49">#49</a> bundled — goal field + forecast) → v9.9.1 (<a href="https://github.com/jose-reboredo/cycling-coach/issues/52">#52</a> You-tab) → v9.9.2 (<a href="https://github.com/jose-reboredo/cycling-coach/issues/5">#5</a> volume tooltips)</td></tr>
+<tr><td><strong>Effort</strong></td><td>~25h (#49/#50/#52 ~16h + #5 5h + spike/integration 4h — simplified by §1-3 keeping the key in localStorage)</td></tr>
+<tr><td><strong>Issues to close</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/49">#49</a>, <a href="https://github.com/jose-reboredo/cycling-coach/issues/50">#50</a>, <a href="https://github.com/jose-reboredo/cycling-coach/issues/52">#52</a>, <a href="https://github.com/jose-reboredo/cycling-coach/issues/5">#5</a></td></tr>
+<tr><td><strong>ADRs</strong></td><td>ADR-S7.1 forecast model (linear vs ML, latency budget)</td></tr>
+<tr><td><strong>Risk</strong></td><td>Migration 0008 (<code>annual_goal_km</code>); forecast latency budget</td></tr>
+<tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-7.md</code> committed</td></tr>
+</table>
+
+<h2>§5. Sprint 8 — Tech debt + selective polish</h2>
+<table>
+<tr><th>Aspect</th><th>Detail</th></tr>
+<tr><td><strong>Theme</strong></td><td>Long-tail retirement: CORS lockdown + CSP tightening + offline PMC tile</td></tr>
+<tr><td><strong>Releases</strong></td><td>v9.10.0 (<a href="https://github.com/jose-reboredo/cycling-coach/issues/16">#16</a> CORS + CSP) → v9.10.1 (<a href="https://github.com/jose-reboredo/cycling-coach/issues/10">#10</a> offline PMC tile)</td></tr>
+<tr><td><strong>Effort</strong></td><td>~14h (down from ~20h after §1-2 deferred the domain migration)</td></tr>
+<tr><td><strong>Issues to close</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/10">#10</a> (offline PMC sub-point), <a href="https://github.com/jose-reboredo/cycling-coach/issues/16">#16</a></td></tr>
+<tr><td><strong>ADRs</strong></td><td>ADR-S8.1 CSP <code>'unsafe-inline'</code> removal strategy (nonce-everything vs hashes)</td></tr>
+<tr><td><strong>Deferred</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/32">#32</a> domain migration (§1-2), <a href="https://github.com/jose-reboredo/cycling-coach/issues/12">#12</a> Lighthouse (§1-5)</td></tr>
+<tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-8.md</code> committed</td></tr>
+</table>
+
+<h2>§6. Backlog not slotted</h2>
+<ul>
+<li><a href="https://github.com/jose-reboredo/cycling-coach/issues/8">#8</a> Retroactive TSS backfill — gated on FTP being populated; 1-shot admin op when triggered</li>
+<li><a href="https://github.com/jose-reboredo/cycling-coach/issues/31">#31</a> <code>safeWarn</code> rate-limit — trigger-condition only (recurring log floods); no slot until signal appears</li>
+<li><a href="https://github.com/jose-reboredo/cycling-coach/issues/12">#12</a> Lighthouse remediation — deferred per §1-5</li>
+<li><a href="https://github.com/jose-reboredo/cycling-coach/issues/32">#32</a> Domain migration — deferred per §1-2</li>
+</ul>
+
+<h2>§7. Token budget projection</h2>
+<table>
+<tr><th>Sprint</th><th>Planning</th><th>Implementation</th><th>Verification + retro</th><th>Total daily-quota</th></tr>
+<tr><td>5</td><td>~8%</td><td>~40%</td><td>~7%</td><td>~55%</td></tr>
+<tr><td>6</td><td>~6%</td><td>~35%</td><td>~7%</td><td>~48%</td></tr>
+<tr><td>7</td><td>~8%</td><td>~30%</td><td>~5%</td><td>~43%</td></tr>
+<tr><td>8</td><td>~5%</td><td>~25%</td><td>~5%</td><td>~35%</td></tr>
+</table>
+
+<h2>§8. Process changes (effective S5+)</h2>
+<ul>
+<li><strong>Sprint retro</strong> — mandatory in every sprint's DoD; template at <code>docs/retros/sprint-1.md</code>; aim &le; 220 lines, time-box 30 min</li>
+<li><strong>Bug post-mortem</strong> — mandatory for any release that triggers a hotfix or rollback; output to <code>docs/post-mortems/v9.X.Y-&lt;short-name&gt;.md</code>; aim &le; 80 lines, time-box 15 min</li>
+<li><strong>Nightly daily-retro routine</strong> — fires Mon–Fri 22:00 Zurich; outputs <code>docs/retros/daily/YYYY-MM-DD.md</code> with day numbers, what shipped, retro signals, plan delta, and a <code>gh</code> command list for issue maintenance the founder runs morning-of</li>
+<li><strong>Sub-agent dispatch rule</strong> — every Sonnet implementation is paired with a verification dispatch in the same release window (closes the v9.6.1/v9.6.2 root cause)</li>
+</ul>
+
+<p><em>For the full plan with strategist + CTO views, sub-agent reliability patterns, retro-rule adherence scoring, and risk surface details, see <code>docs/post-demo-sprint/4-sprint-plan-2026-05.md</code> in the repo.</em></p>`,
+  },
+  {
     slug: 'systems-architecture',
     title: '1. Systems & Architecture',
     storage: `<h1>Systems &amp; Architecture</h1>
