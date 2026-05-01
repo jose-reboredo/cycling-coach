@@ -4,6 +4,118 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.7.4] — 2026-05-01
+
+**Hotfix — 5 UX bugs from v9.7.3 visual review (`#66`).** Founder reviewed v9.7.3 in the wild and reported a bundle of issues that needed fixing before the next feature ships. Bundled into a single hotfix so v9.7.5 (AI description + Edit UX + Route picker, previously labelled "v9.7.3.1") ships into a clean shell.
+
+### Bug 1 — Emoji Format chips violated the design system
+
+Format chips in `ClubEventModal` and `TYPE_LABEL` in `Calendar/types.ts` used literal emojis (🚴 Ride / ☕ Social / 🏁 Race). The Sprint 5 / v9.7.2 design lock was **CC line-icon SVGs in the design system, persona-focused JSDoc**. Emojis render with platform-default fonts (Apple Color Emoji vs Segoe etc.), break brand consistency, and contrast with the brutalist mono typography.
+
+**Fix:** Three new branded SVG components in `apps/web/src/design/icons/index.tsx`:
+
+- `RideIcon` — bicycle silhouette: two wheels + frame + handlebar (Marco's primary format)
+- `SocialIcon` — coffee cup with steam (Sofia's post-ride coffee, Léa's social anchor)
+- `RaceIcon` — chequered flag (Marco's race-day signal, universally cycling)
+
+All 1.6px stroke / 24×24 viewBox / `currentColor` / `aria-hidden` — same conventions as the v9.7.2 nav icons. Stripped emojis from `TYPE_LABEL` (now plain `'Ride' / 'Social' / 'Race'`). Updated 3 consumers:
+
+- `ClubEventModal` Format chips: render `<Icon size={16} /> {label}` inline
+- `ScheduleTab` filter chips: same pattern with `TYPE_ICON` lookup map
+- `EventDetailDrawer` drawerType badge: same pattern at `size={14}`
+
+Each chip CSS gained `display: inline-flex; align-items: center; gap: 6px; svg { flex-shrink: 0; }` so the icon sits cleanly beside the label.
+
+### Bug 2 — EventDetailDrawer covered by BottomNav on mobile
+
+Drawer z-index was hardcoded `100`. `tokens.css` defines `--z-nav: 200`, `--z-modal: 500`. So BottomNav (200) overlaid the drawer (100), hiding the bottom edge — Cancel button unreachable.
+
+**Fix:** `apps/web/src/components/Calendar/Calendar.module.css`:
+
+```css
+.drawerBackdrop { z-index: var(--z-modal, 500); }
+```
+
+Now the drawer covers BottomNav on mobile.
+
+### Bug 3 — Overview tab footer hidden behind BottomNav
+
+ClubDashboard had no `padding-bottom` to clear the fixed BottomNav. Last section + invite hint were cut off on mobile (Members + Metrics tabs had the same gap).
+
+**Fix:** `apps/web/src/components/ClubDashboard/ClubDashboard.module.css`:
+
+```css
+@media (max-width: 599px) {
+  .root {
+    padding-bottom: calc(var(--s-6) + 72px + env(safe-area-inset-bottom, 0));
+  }
+}
+```
+
+Desktop unaffected (BottomNav is hidden ≥ 600px).
+
+### Bug 4 — ClubEventModal had horizontal scroll on mobile
+
+Inputs inside the modal pushed past the modal width on narrow viewports (≤ 390px), causing horizontal scroll.
+
+**Root cause:** `.input` and `.textarea` had `width: 100%` but no `box-sizing` rule. Default `content-box` adds the `padding: var(--s-3)` on top of the 100%, so inputs computed wider than the field container.
+
+**Fix:** `apps/web/src/components/ClubEventModal/ClubEventModal.module.css`:
+
+```css
+.input, .textarea { box-sizing: border-box; width: 100%; ... }
+.modal { ...; overflow-x: hidden; box-sizing: border-box; }
+.field { ...; min-width: 0; }
+```
+
+`overflow-x: hidden` + `min-width: 0` are belt-and-braces against any other overflow source we haven't found.
+
+### Bug 5 — iOS Safari toolbar covered BottomNav
+
+iPhone Safari's bottom toolbar (back / forward / share / bookmarks) was covering BottomNav. Tab menu unreachable.
+
+**Root cause:** BottomNav was at `position: fixed; bottom: 0`. In iOS Safari with the bottom URL bar visible, `bottom: 0` is at `100vh`, which is HIDDEN under the toolbar. Per Apple guidance, Safari treats the toolbar height as part of `safe-area-inset-bottom`, so the BottomNav needs to FLOAT above the inset, not extend into it.
+
+**Fix:** `apps/web/src/components/BottomNav/BottomNav.module.css`:
+
+```css
+.root {
+  bottom: env(safe-area-inset-bottom, 0);   /* was: bottom: 0 */
+  /* removed: padding-bottom: env(...) — no longer needed */
+}
+```
+
+The bar now floats above the toolbar safely. Home indicator on iPhone X+ is still cleared (the env() value covers both cases).
+
+### Sprint 5 plan re-numbering
+
+The previously-deferred work labelled "v9.7.3.1" (AI description + Edit UX + Route picker) is now **v9.7.5** to keep semver patch-segment clean. Subsequent releases shift down by one:
+
+- v9.7.5 — AI description + Edit UX + Route picker (was "v9.7.3.1")
+- v9.7.6 — Personal scheduler at `/dashboard/schedule` (was v9.7.4)
+- v9.7.7 — Clubs share/invite (was v9.7.5)
+- v9.7.6 was previously the Sprint 5.5 Landing copy rewrite — that becomes **v9.7.8** (still Sprint 5.5)
+
+Confluence Sprint Roadmap will be updated with v9.7.5 deploy.
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green + manual scan
+- ✅ #2 Pre-commit grep against `schema.sql` — N/A (no SQL change)
+- ✅ #4 POST → GET round-trip — N/A (no new endpoints)
+- ✅ #5 Verification budget — direct in-context implementation; no new sub-agent dispatch
+- ✅ #6 Bug post-mortems — none required (fixes are in the same release window as the v9.7.3 ship; CHANGELOG entry above documents root cause + fix in post-mortem-shaped form for each of the 5 bugs)
+
+### Bundle impact
+
+Dashboard chunk: 87.30 → 88.49 KB (+1.19 KB / +1.4%) — 3 small SVG icons + chip flex layout. gzip 25.56 → 25.81 KB (+0.25 KB).
+
+### Versions: 9.7.3 → 9.7.4 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.7.3] — 2026-05-01
 
 **Sprint 5 / `#60` event model expansion + lifecycle + `#63` Privacy header removal.** Largest single release in Sprint 5 — adds 7 columns to `club_events`, 2 new endpoints, extends POST + GET, expands the Create modal, wires Cancel UX end-to-end. AI-description endpoint and Edit (PATCH UX) deliberately deferred to v9.7.3.1 to keep this release shippable inside the 12% verification budget.

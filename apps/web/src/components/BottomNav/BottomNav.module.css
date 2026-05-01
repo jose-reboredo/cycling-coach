@@ -1,6 +1,12 @@
+/* v9.7.4 (#66 bug 5) — iOS Safari bottom toolbar (back/forward/share/
+ * bookmarks) was covering BottomNav. Per Apple guidance, Safari treats
+ * its own toolbar height as part of `safe-area-inset-bottom`, so floating
+ * BottomNav above this inset (`bottom: env(...)`) clears the toolbar.
+ * The padding-bottom is removed since the bar itself now sits above the
+ * safe area instead of extending into it. */
 .root {
   position: fixed;
-  bottom: 0;
+  bottom: env(safe-area-inset-bottom, 0);
   left: 0;
   right: 0;
   z-index: var(--z-nav);
@@ -8,7 +14,6 @@
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: 1px solid var(--c-line);
-  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .list {

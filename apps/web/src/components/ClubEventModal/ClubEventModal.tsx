@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { Button } from '../Button/Button';
 import { useCreateClubEvent } from '../../hooks/useClubs';
+import { RideIcon, SocialIcon, RaceIcon } from '../../design/icons';
 import type { ClubEvent, ClubEventSurface, ClubEventType } from '../../lib/clubsApi';
 import styles from './ClubEventModal.module.css';
 
@@ -13,10 +14,11 @@ interface ClubEventModalProps {
   onCreated?: (event: ClubEvent) => void;
 }
 
-const FORMATS: { id: ClubEventType; label: string }[] = [
-  { id: 'ride', label: '🚴 Ride' },
-  { id: 'social', label: '☕ Social' },
-  { id: 'race', label: '🏁 Race' },
+// v9.7.4 (#66) — branded SVG icons replace the emoji placeholders.
+const FORMATS: { id: ClubEventType; label: string; Icon: typeof RideIcon }[] = [
+  { id: 'ride', label: 'Ride', Icon: RideIcon },
+  { id: 'social', label: 'Social', Icon: SocialIcon },
+  { id: 'race', label: 'Race', Icon: RaceIcon },
 ];
 
 const SURFACES: { id: ClubEventSurface; label: string }[] = [
@@ -182,16 +184,17 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
               <div className={styles.field}>
                 <label className={styles.fieldLabel}>Format</label>
                 <div className={styles.chipRow} role="radiogroup" aria-label="Event format">
-                  {FORMATS.map((f) => (
+                  {FORMATS.map(({ id, label, Icon }) => (
                     <button
-                      key={f.id}
+                      key={id}
                       type="button"
                       role="radio"
-                      aria-checked={eventType === f.id}
-                      className={`${styles.chip} ${eventType === f.id ? styles.chipActive : ''}`}
-                      onClick={() => setEventType(f.id)}
+                      aria-checked={eventType === id}
+                      className={`${styles.chip} ${eventType === id ? styles.chipActive : ''}`}
+                      onClick={() => setEventType(id)}
                     >
-                      {f.label}
+                      <Icon size={16} />
+                      <span>{label}</span>
                     </button>
                   ))}
                 </div>

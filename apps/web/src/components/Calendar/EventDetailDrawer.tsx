@@ -9,7 +9,10 @@ import { useEffect, useState } from 'react';
 import type { CalendarEvent } from './types';
 import { TYPE_LABEL } from './types';
 import { useCancelClubEvent } from '../../hooks/useClubs';
+import { RideIcon, SocialIcon, RaceIcon } from '../../design/icons';
 import styles from './Calendar.module.css';
+
+const TYPE_ICON = { ride: RideIcon, social: SocialIcon, race: RaceIcon } as const;
 
 interface EventDetailDrawerProps {
   event: CalendarEvent | null;
@@ -65,7 +68,8 @@ export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, cal
       >
         <header className={styles.drawerHead}>
           <span className={`${styles.drawerType} ${styles[`pill_${event.event_type}`]}`}>
-            {TYPE_LABEL[event.event_type]}
+            {(() => { const Icon = TYPE_ICON[event.event_type]; return <Icon size={14} />; })()}
+            <span>{TYPE_LABEL[event.event_type]}</span>
           </span>
           <button
             type="button"

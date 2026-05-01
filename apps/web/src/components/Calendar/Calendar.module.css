@@ -293,11 +293,13 @@
 }
 
 /* ===== EVENT DETAIL DRAWER ===== */
+/* v9.7.4 (#66 bug 2) — z-index above --z-nav (200) so the drawer covers
+ * the BottomNav on mobile. tokens.css has --z-modal: 500. */
 .drawerBackdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  z-index: 100;
+  z-index: var(--z-modal, 500);
   display: flex;
   align-items: flex-end;
   justify-content: stretch;
@@ -336,11 +338,16 @@
   gap: var(--s-3);
 }
 .drawerType {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
   border-radius: var(--r-pill);
   font: 500 0.75rem/1 var(--font-sans);
   letter-spacing: 0.02em;
+}
+.drawerType svg {
+  flex-shrink: 0;
 }
 .drawerClose {
   background: transparent;

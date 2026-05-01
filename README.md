@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.7.3](./CHANGELOG.md#973--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.7.4](./CHANGELOG.md#974--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.7.4
+
+**Hotfix.** 5 UX bugs from v9.7.3 visual review (`#66`). (1) Replaced emoji Format chips (🚴/☕/🏁) with branded CC line-icon SVGs — added `RideIcon`, `SocialIcon`, `RaceIcon` to the design system at `apps/web/src/design/icons/index.tsx`. Used in ClubEventModal Format chips, ScheduleTab filter chips, and EventDetailDrawer drawerType badge. (2) Drawer z-index lifted from hardcoded `100` to `var(--z-modal, 500)` — was below `--z-nav: 200`, so BottomNav covered the drawer on mobile. (3) Added mobile bottom-padding to ClubDashboard (`calc(72px + safe-area-inset-bottom)`) so the last section / footer isn't hidden behind BottomNav. (4) Modal horizontal scroll fix: `box-sizing: border-box` on `.input` and `.textarea` (root cause — inputs missed the rule, padding pushed them past 100% width); plus `overflow-x: hidden` on `.modal` and `min-width: 0` on `.field` as belt-and-braces. (5) iOS Safari toolbar fix: BottomNav `bottom: 0` → `bottom: env(safe-area-inset-bottom, 0)`. Per Apple guidance, Safari treats its toolbar height as part of the safe-area inset, so floating BottomNav above this inset clears the back/forward/share/bookmarks chrome. The previously-deferred AI description + Edit UX + Route picker (was "v9.7.3.1") becomes **v9.7.5**. Dashboard chunk: 87 → 88 KB (+1 KB).
 
 ## What's new in v9.7.3
 

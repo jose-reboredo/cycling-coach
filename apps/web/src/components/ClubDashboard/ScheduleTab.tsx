@@ -8,6 +8,7 @@ import { MonthCalendarGrid } from '../Calendar/MonthCalendarGrid';
 import { WeekCalendarGrid } from '../Calendar/WeekCalendarGrid';
 import { DayCalendarGrid } from '../Calendar/DayCalendarGrid';
 import { EventDetailDrawer } from '../Calendar/EventDetailDrawer';
+import { RideIcon, SocialIcon, RaceIcon } from '../../design/icons';
 import {
   type CalendarEvent,
   type CalendarDate,
@@ -17,6 +18,13 @@ import {
   todayUTC,
   weekStart,
 } from '../Calendar/types';
+
+// v9.7.4 (#66) — branded SVG icons replace the emoji placeholders.
+const TYPE_ICON: Record<ClubEventType, typeof RideIcon> = {
+  ride: RideIcon,
+  social: SocialIcon,
+  race: RaceIcon,
+};
 import styles from './ScheduleTab.module.css';
 
 const ALL_TYPES: ClubEventType[] = ['ride', 'social', 'race'];
@@ -154,19 +162,23 @@ export function ScheduleTab({ clubId }: { clubId: number }) {
         </div>
       </div>
 
-      {/* FILTER CHIPS */}
+      {/* FILTER CHIPS — v9.7.4 (#66): SVG icons replace emoji placeholders. */}
       <div className={styles.filters} role="group" aria-label="Filter events by type">
-        {ALL_TYPES.map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={`${styles.chip} ${activeFilters.has(t) ? styles.chipActive : ''}`}
-            onClick={() => toggleFilter(t)}
-            aria-pressed={activeFilters.has(t)}
-          >
-            {TYPE_LABEL[t]}
-          </button>
-        ))}
+        {ALL_TYPES.map((t) => {
+          const Icon = TYPE_ICON[t];
+          return (
+            <button
+              key={t}
+              type="button"
+              className={`${styles.chip} ${activeFilters.has(t) ? styles.chipActive : ''}`}
+              onClick={() => toggleFilter(t)}
+              aria-pressed={activeFilters.has(t)}
+            >
+              <Icon size={16} />
+              <span>{TYPE_LABEL[t]}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* GRID — Month / Week / Day */}

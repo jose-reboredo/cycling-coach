@@ -5,6 +5,16 @@
   padding: var(--s-6) 0;
 }
 
+/* v9.7.4 (#66 bug 3) — make room for the fixed BottomNav on mobile so the
+ * last section / footer isn't hidden under it. BottomNav is ~60 px tall +
+ * safe-area-inset-bottom. Desktop (>=600px) hides BottomNav so no padding
+ * needed. */
+@media (max-width: 599px) {
+  .root {
+    padding-bottom: calc(var(--s-6) + 72px + env(safe-area-inset-bottom, 0));
+  }
+}
+
 /* SLIM STICKY HEADER — club name + metadata band. Replaces the cover hero
  * (founder directive 2026-04-30). Reclaims ~280 px of vertical space. */
 .slimHeader {

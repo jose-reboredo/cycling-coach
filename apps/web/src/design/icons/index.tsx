@@ -124,3 +124,52 @@ export function MetricsIcon(p: IconProps = {}) {
     </svg>
   );
 }
+
+// =============================================================================
+// Sprint 5 / v9.7.4 (#66) — Event-type icons replacing emoji placeholders.
+// Branded for Cadence Club: same 1.6px stroke / 24×24 / currentColor as the
+// nav icons above. Used in ClubEventModal Format chips, ScheduleTab filter
+// chips, EventDetailDrawer drawerType badge, and (cosmetic) calendar pills.
+// =============================================================================
+
+/** **Ride** — bicycle silhouette. Marco's primary format; default for new
+ *  events. Two wheels + frame; geometric, not photographic. */
+export function RideIcon(p: IconProps = {}) {
+  return (
+    <svg {...svgProps(p)}>
+      <circle cx={6} cy={17} r={3.5} />
+      <circle cx={18} cy={17} r={3.5} />
+      <path d="M6 17 L11 9 L17 17" />
+      <path d="M9 9 L14 9" />
+      <path d="M14 9 L18 17" />
+    </svg>
+  );
+}
+
+/** **Social** — coffee cup with steam. Sofia's "post-ride coffee" anchor;
+ *  Léa's "let's hang out" entry point. Cycling-club coffee culture is
+ *  iconic; the steam line signals warmth + social. */
+export function SocialIcon(p: IconProps = {}) {
+  return (
+    <svg {...svgProps(p)}>
+      <path d="M5 9 H15 V17 A3 3 0 0 1 12 20 H8 A3 3 0 0 1 5 17 Z" />
+      <path d="M15 11 H17 A2 2 0 0 1 17 15 H15" />
+      <path d="M8 6 v-2 M11 6 v-2" />
+    </svg>
+  );
+}
+
+/** **Race** — chequered flag. Marco's race-day signal; the universally
+ *  recognised cycling motif for "this is competitive, plan accordingly". */
+export function RaceIcon(p: IconProps = {}) {
+  return (
+    <svg {...svgProps(p)}>
+      <path d="M5 4 v17" />
+      <rect x={5} y={5} width={14} height={8} />
+      <rect x={5.5} y={5.5} width={3.25} height={3.5} fill="currentColor" stroke="none" />
+      <rect x={12} y={5.5} width={3.25} height={3.5} fill="currentColor" stroke="none" />
+      <rect x={8.75} y={9} width={3.25} height={3.5} fill="currentColor" stroke="none" />
+      <rect x={15.25} y={9} width={3.25} height={3.5} fill="currentColor" stroke="none" />
+    </svg>
+  );
+}

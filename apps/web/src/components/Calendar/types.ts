@@ -42,10 +42,13 @@ export const TIME_GRID_START_HOUR = 6;
 export const TIME_GRID_END_HOUR = 22;
 export const TIME_GRID_HOURS = TIME_GRID_END_HOUR - TIME_GRID_START_HOUR;
 
+// v9.7.4 (#66) — emoji removed; consumers render the matching SVG icon
+// from `apps/web/src/design/icons/` next to the label (RideIcon /
+// SocialIcon / RaceIcon).
 export const TYPE_LABEL: Record<ClubEventType, string> = {
-  ride: '🚴 Ride',
-  social: '☕ Social',
-  race: '🏁 Race',
+  ride: 'Ride',
+  social: 'Social',
+  race: 'Race',
 };
 
 export function todayUTC(): CalendarDate {
