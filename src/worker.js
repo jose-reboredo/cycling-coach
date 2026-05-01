@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.7.5';
+const WORKER_VERSION = 'v9.8.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -830,6 +830,148 @@ async function handleRequest(request, env) {
       }
       await db.prepare('UPDATE club_events SET cancelled_at = ? WHERE id = ?').bind(now, eventId).run();
       return new Response(JSON.stringify({ id: eventId, club_id: clubId, cancelled_at: now }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // POST /api/clubs/:id/events/draft-description — Sprint 5 / v9.8.0 (#60).
+    // Generates a 2-3 sentence event description via system-paid Haiku.
+    // Used by ClubEventModal's "Generate with AI" button on create + edit
+    // flows. Members of the club only (404 OWASP). Rate-limited 5/min/athlete
+    // on the new event-ai-draft scope per ADR-S5.3. ~$0.001 / draft.
+    const draftDescMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/events\/draft-description$/);
+    if (draftDescMatch && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const clubId = parseInt(draftDescMatch[1], 10);
+      const db = env.cycling_coach_db;
+
+      // Membership gate (404 OWASP).
+      const membership = await db
+        .prepare('SELECT 1 AS member FROM club_members WHERE club_id = ? AND athlete_id = ? LIMIT 1')
+        .bind(clubId, authResult.athleteId)
+        .first();
+      if (!membership) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Rate limit: 5/min/athlete on the new event-ai-draft scope.
+      const rl = await checkRateLimit(env, 'event-ai-draft', String(authResult.athleteId), 5, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
+
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const TYPE_ALLOWLIST = new Set(['ride', 'social', 'race']);
+      const SURFACE_ALLOWLIST = new Set(['road', 'gravel', 'mixed']);
+      const title = (body?.title || '').toString().trim().slice(0, 200);
+      const eventType = TYPE_ALLOWLIST.has(body?.event_type) ? body.event_type : 'ride';
+      const distanceKm = typeof body?.distance_km === 'number' && body.distance_km > 0 ? body.distance_km : null;
+      const speedKmh = typeof body?.expected_avg_speed_kmh === 'number' && body.expected_avg_speed_kmh > 0 ? body.expected_avg_speed_kmh : null;
+      const surface = SURFACE_ALLOWLIST.has(body?.surface) ? body.surface : null;
+      const startPoint = body?.start_point ? body.start_point.toString().trim().slice(0, 200) : null;
+      const location = body?.location ? body.location.toString().trim().slice(0, 200) : null;
+
+      if (!title) {
+        return new Response(JSON.stringify({ error: 'title required for draft' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // System-paid key (Sprint 4 ADR — club AI moments are free for users).
+      const systemKey = env.SYSTEM_ANTHROPIC_KEY || env.ANTHROPIC_API_KEY;
+      if (!systemKey) {
+        safeWarn('[draft-description] SYSTEM_ANTHROPIC_KEY not set — endpoint disabled');
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const formatLabel = eventType === 'ride' ? 'cycling ride' : eventType === 'race' ? 'race' : 'social meetup';
+      const promptLines = [
+        'You are drafting a short event description for a cycling club.',
+        '',
+        `EVENT TITLE: ${title}`,
+        `FORMAT: ${formatLabel}`,
+      ];
+      if (distanceKm) promptLines.push(`DISTANCE: ${distanceKm} km`);
+      if (speedKmh) promptLines.push(`EXPECTED PACE: ${speedKmh} km/h average`);
+      if (surface) promptLines.push(`SURFACE: ${surface}`);
+      if (startPoint) promptLines.push(`START POINT: ${startPoint}`);
+      if (location) promptLines.push(`AREA: ${location}`);
+      promptLines.push(
+        '',
+        'Write a 2-3 sentence event description in casual, club-friendly tone. Speak directly to members ("we", "the crew"). Mention pace/effort honestly so newer members know if they can hang. End with one practical detail (coffee stop, regroup point, meet-time reminder) if appropriate.',
+        '',
+        'Respond with ONLY the description text — no markdown, no quotes, no preface, no labels.',
+      );
+      const prompt = promptLines.join('\n');
+
+      let aiResp;
+      try {
+        aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': systemKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 250,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+      } catch (e) {
+        safeWarn(`[draft-description] Anthropic fetch error: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!aiResp.ok) {
+        const errText = await aiResp.text().catch(() => '');
+        safeWarn(`[draft-description] Anthropic returned ${aiResp.status}: ${errText.slice(0, 200)}`);
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      let description;
+      try {
+        const data = await aiResp.json();
+        description = data.content?.find((c) => c.type === 'text')?.text?.trim() || '';
+      } catch (e) {
+        safeWarn(`[draft-description] Anthropic response parse error: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!description) {
+        return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Cap to 2000 chars (matches club_events.description column upper bound).
+      return new Response(JSON.stringify({ description: description.slice(0, 2000) }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

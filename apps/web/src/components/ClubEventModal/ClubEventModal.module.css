@@ -89,6 +89,43 @@
   color: var(--c-text-muted);
 }
 
+/* v9.8.0 — Notes field label row with inline "Generate with AI" button. */
+.fieldLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.aiDraftBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px var(--s-3);
+  border: 1px solid var(--c-accent);
+  border-radius: var(--r-pill);
+  background: rgba(255, 77, 0, 0.08);
+  color: var(--c-accent);
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background var(--d-fast) var(--e-out);
+}
+
+.aiDraftBtn:hover:not(:disabled) {
+  background: rgba(255, 77, 0, 0.16);
+}
+
+.aiDraftBtn:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
+.aiDraftBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .input,
 .textarea {
   /* v9.7.4 (#66 bug 4) — explicit border-box so width:100% + padding

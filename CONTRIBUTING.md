@@ -47,18 +47,54 @@ gh auth login
 
 The script is idempotent — re-running won't duplicate labels, milestones, or issues.
 
+## Release-naming convention (locked 2026-05-01)
+
+Strict semver — three segments, `MAJOR.MINOR.PATCH`:
+
+| Bump | When | Reset | Example |
+|---|---|---|---|
+| **MAJOR** | One of the 5 triggers below | MINOR + PATCH → 0 | `9.x.x` → `10.0.0` |
+| **MINOR** | Feature release | PATCH → 0 | `9.7.0` → `9.8.0` |
+| **PATCH** | Hotfix or in-release polish to the same feature theme | — | `9.8.0` → `9.8.1` |
+
+**Read the third digit as "this feature has had N hotfixes."** A version like `9.10.2` says the 10th feature release in the 9.x line has had 2 hotfixes.
+
+### MAJOR (`X.0.0`) triggers — any ONE qualifies
+
+CTO call. Conservative on purpose; loose criteria dilute what `vX.0.0` means.
+
+1. **New architectural system** — replaces or fundamentally extends current stack (real-time presence via WebSockets/Durable Objects; native mobile replacing PWA; multi-platform integration beyond Strava; multi-tenant infrastructure).
+2. **Breaking data-model change** — schema migration that requires a new D1 database, drops or renames primary tables, or migrates to a different storage layer. *Additive `ALTER TABLE ADD COLUMN` migrations stay MINOR per cumulative-schema policy.*
+3. **Public-launch milestone** — Beta exit / GA, first paid tier, press launch, domain migration to `cadenceclub.cc` (#32). The kind of event a press release would describe.
+4. **Breaking API change** — versioned API (`/api/v2/`), removal of public endpoints, contract-incompatible response shapes. *Additive endpoints / new optional response fields stay MINOR.*
+5. **Strategic persona pivot** — primary persona changes (not adding personas; swapping which one drives the roadmap).
+
+### MINOR (`X.Y.0`) — feature release
+
+Adding capabilities, new endpoints, new components, schema columns, redesigns, copy rewrites — all MINOR even when substantial. Example: AI moments (Sprint 6) is MINOR because it's evolution, not breaking.
+
+### PATCH (`X.Y.Z`) — hotfix or polish
+
+Bug fixes, CSS hardening, regressions, in-flight visual refinements to the same feature theme. Examples: `9.7.4` and `9.7.5` were PATCH because they refined the v9.7.3 event model release without adding new features.
+
+### Anti-patterns
+
+- **Don't** use PATCH for new features (was the v9.7.0 → v9.7.5 mistake — corrected at v9.8.0)
+- **Don't** bump MAJOR for marketing reasons alone — the trigger needs to be present
+- **Don't** stack hotfixes inside a feature release (each hotfix gets its own PATCH bump for traceability — preserves the post-mortem audit trail per the founder retro directive 2026-04-30)
+
 ## Weekly release cadence
 
 Mondays:
-1. Triage open issues, assign milestones (`v8.x.0`).
+1. Triage open issues, assign milestones.
 2. Move started ones into "In progress" by adding the `status:in-progress` label or assigning yourself.
 
 Throughout the week:
-3. Close issues as work merges to `main`.
+3. Close issues as work merges to `main`. Use the `Closes #N` keyword in commit messages — paren-only `(#N)` does NOT auto-close (Sprint 3 retro Improvement #1).
 4. Push to `main` → Cloudflare Workers Builds picks it up (or run `npm run deploy` locally).
 
-End of week:
-5. Bump the version in `package.json`, root `package.json`, `apps/web/package.json`, `src/worker.js` (`WORKER_VERSION`), and `apps/web/src/pages/Landing.tsx` footer.
+End of week (or per-feature, depending on cadence):
+5. Bump the version in `package.json`, root `package.json`, `apps/web/package.json`, `src/worker.js` (`WORKER_VERSION`), and `apps/web/src/lib/version.ts`. Also update `README.md` "Current release" line.
 6. Add a `## [vX.Y.Z]` entry to `CHANGELOG.md`.
 7. Tag the commit: `git tag vX.Y.Z && git push --tags`.
 8. The roadmap auto-updates from the now-closed issues.

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useVisualViewportHeight } from '../../hooks/useVisualViewportHeight';
 import { Button } from '../Button/Button';
-import { useCreateClubEvent } from '../../hooks/useClubs';
+import { useCreateClubEvent, useDraftEventDescription } from '../../hooks/useClubs';
 import { RideIcon, SocialIcon, RaceIcon } from '../../design/icons';
 import type { ClubEvent, ClubEventSurface, ClubEventType } from '../../lib/clubsApi';
 import styles from './ClubEventModal.module.css';
@@ -49,9 +49,13 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
   const [error, setError] = useState<string | null>(null);
   const modalRef = useFocusTrap<HTMLDivElement>(open);
   const createEvent = useCreateClubEvent(clubId);
+  const draftDescription = useDraftEventDescription(clubId);
   // v9.7.5 (#69) — track visual viewport so modal stays inside the
   // visible area when the iOS keyboard opens.
   const vvh = useVisualViewportHeight();
+  // v9.8.0 — AI-draft state. Set to true once user accepts an AI draft
+  // without further edits; passed to backend as `description_ai_generated`.
+  const [descIsAi, setDescIsAi] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -63,6 +67,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
     setSpeedKmh('');
     setSurface('');
     setStartPoint('');
+    setDescIsAi(false);
     setError(null);
     // Default = next Saturday at 09:00
     const now = new Date();
@@ -131,11 +136,40 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
         ...(showAthleticFields && speedParsed !== null ? { expected_avg_speed_kmh: speedParsed } : {}),
         ...(showAthleticFields && surface ? { surface } : {}),
         ...(startPoint.trim() ? { start_point: startPoint.trim() } : {}),
+        // v9.8.0 — flag passed-through if user accepted an AI draft and
+        // didn't edit it. Edits clear the flag (handled in textarea onChange).
+        ...(descIsAi ? { description_ai_generated: true } : {}),
       });
       onClose();
       onCreated?.(event);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create event.');
+    }
+  }
+
+  /** v9.8.0 — call the backend draft endpoint, populate the textarea. */
+  async function handleGenerateAi() {
+    setError(null);
+    if (!title.trim()) {
+      setError('Add a title before generating a description.');
+      return;
+    }
+    try {
+      const distanceParsed = distanceKm ? Number(distanceKm) : null;
+      const speedParsed = speedKmh ? Number(speedKmh) : null;
+      const result = await draftDescription.mutateAsync({
+        title: title.trim(),
+        event_type: eventType,
+        ...(showAthleticFields && distanceParsed !== null ? { distance_km: distanceParsed } : {}),
+        ...(showAthleticFields && speedParsed !== null ? { expected_avg_speed_kmh: speedParsed } : {}),
+        ...(showAthleticFields && surface ? { surface } : {}),
+        ...(startPoint.trim() ? { start_point: startPoint.trim() } : {}),
+        ...(location.trim() ? { location: location.trim() } : {}),
+      });
+      setDescription(result.description);
+      setDescIsAi(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate description.');
     }
   }
 
@@ -324,16 +358,32 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
               </div>
 
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="ev-description">Notes</label>
+                <div className={styles.fieldLabelRow}>
+                  <label className={styles.fieldLabel} htmlFor="ev-description">Notes</label>
+                  <button
+                    type="button"
+                    className={styles.aiDraftBtn}
+                    onClick={handleGenerateAi}
+                    disabled={draftDescription.isPending || !title.trim()}
+                  >
+                    {draftDescription.isPending ? 'Drafting…' : 'Generate with AI ✨'}
+                  </button>
+                </div>
                 <textarea
                   id="ev-description"
                   className={styles.textarea}
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    if (descIsAi) setDescIsAi(false); // user edited → no longer purely AI
+                  }}
                   maxLength={2000}
                   placeholder="Pace, regroup points, coffee stop — whatever the circle should know."
                 />
-                <span className={styles.fieldHint}>Optional. Up to 2,000 characters. (AI-draft button ships in v9.7.3.1.)</span>
+                <span className={styles.fieldHint}>
+                  Optional. Up to 2,000 characters.
+                  {descIsAi && ' AI-drafted — edit to refine.'}
+                </span>
               </div>
 
               {error && <div className={styles.error} role="alert">{error}</div>}

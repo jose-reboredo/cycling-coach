@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.7.5](./CHANGELOG.md#975--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.8.0](./CHANGELOG.md#980--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.8.0
+
+**First MINOR-correct feature release** under the new naming convention (locked in `CONTRIBUTING.md` this release). v9.8.0 closes the AI-description piece of `#60` (the event lifecycle work that started in v9.7.3): a "Generate with AI ✨" button next to the Notes field in ClubEventModal calls a new system-paid Haiku endpoint and populates the textarea with a 2-3 sentence club-friendly description. New `POST /api/clubs/:id/events/draft-description` accepts current form values (title + format + distance + speed + surface + start_point + location), prompts Haiku for a casual member-direct ("we / the crew") description, returns plaintext. Membership-gated 404 (OWASP); rate-limited 5/min/athlete on a new `event-ai-draft` scope per ADR-S5.3; system-paid via `SYSTEM_ANTHROPIC_KEY` (~$0.001/draft). Frontend tracks an `ai_generated` flag — set true when user accepts the draft as-is, cleared the moment they edit. Sent as `description_ai_generated: true` on the create POST so analytics can track AI-vs-human authorship over time. Edit UX (PATCH wired in drawer) + Route picker integration deferred to v9.9.0 + v9.10.0 — split for tighter verification budget per Sprint 4 retro Improvement #5. Also in this release: `CONTRIBUTING.md` updated with the locked release-naming convention + 5 MAJOR-bump triggers. Confluence Sprint Roadmap re-synced with corrected version labels (v9.7.x past releases stay frozen as labelled; v9.8.0 onward follows strict SemVer).
 
 ## What's new in v9.7.5
 

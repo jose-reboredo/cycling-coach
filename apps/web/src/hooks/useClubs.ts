@@ -2,7 +2,7 @@
 // as useStravaData hooks (5 min stale, 30 min gc).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clubsApi, type CancelClubEventResponse, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type JoinClubResponse, type PatchClubEventInput, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
+import { clubsApi, type CancelClubEventResponse, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type DraftEventDescriptionInput, type JoinClubResponse, type PatchClubEventInput, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
 
 const FIVE_MIN = 5 * 60 * 1000;
 const THIRTY_MIN = 30 * 60 * 1000;
@@ -116,6 +116,15 @@ export function usePatchClubEvent(clubId: number) {
       qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] });
       qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
     },
+  });
+}
+
+/** v9.8.0 (#60) — AI-drafted event description (system-paid Haiku).
+ *  Returns the draft string; caller decides whether to populate the form
+ *  with it or discard. No cache invalidation (read-only generation). */
+export function useDraftEventDescription(clubId: number) {
+  return useMutation<{ description: string }, Error, DraftEventDescriptionInput>({
+    mutationFn: (input) => clubsApi.draftEventDescription(clubId, input),
   });
 }
 

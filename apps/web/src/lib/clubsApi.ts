@@ -154,6 +154,18 @@ export interface CancelClubEventResponse {
   already_cancelled?: boolean;
 }
 
+/** v9.8.0 (#60) — AI description draft input. All fields optional except
+ *  title; the LLM uses whatever the form has filled in so far. */
+export interface DraftEventDescriptionInput {
+  title: string;
+  event_type?: ClubEventType;
+  distance_km?: number | null;
+  expected_avg_speed_kmh?: number | null;
+  surface?: ClubEventSurface | null;
+  start_point?: string | null;
+  location?: string | null;
+}
+
 // ---- /overview endpoint types (Phase 1) ----
 
 export interface ClubStatTiles {
@@ -215,6 +227,13 @@ export const clubsApi = {
     call<CancelClubEventResponse>(`/api/clubs/${clubId}/events/${eventId}/cancel`, {
       method: 'POST',
       body: '{}',
+    }),
+  // v9.8.0 (#60) — AI-drafted event description. System-paid Haiku.
+  // Members of the club only; rate-limit 5/min/athlete on event-ai-draft scope.
+  draftEventDescription: (clubId: number, input: DraftEventDescriptionInput) =>
+    call<{ description: string }>(`/api/clubs/${clubId}/events/draft-description`, {
+      method: 'POST',
+      body: JSON.stringify(input),
     }),
   overview: (clubId: number) =>
     call<ClubOverview>(`/api/clubs/${clubId}/overview`),

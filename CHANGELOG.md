@@ -4,6 +4,93 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.8.0] — 2026-05-01
+
+**First MINOR-correct feature release.** Closes the AI-description piece of `#60` (event-lifecycle work started in v9.7.3). Also: locks the release-naming convention in `CONTRIBUTING.md` and re-syncs the Confluence Sprint Roadmap with corrected labels going forward.
+
+### `#60` follow-up — AI-drafted event description
+
+Founder spec (Sprint 4 ADR-S5.3): AI moments at the club level are system-paid Haiku, free for users. ~$0.001/draft. Members generate a 2-3 sentence event description from the form values they've already filled in.
+
+**New endpoint** — `POST /api/clubs/:id/events/draft-description`:
+
+- **Auth:** `resolveAthleteId` (Strava bearer required)
+- **Membership gate:** 404 OWASP — non-members of the club can't probe
+- **Rate limit:** new `event-ai-draft` scope, 5/min/athlete (independent from `clubs-write` 30/min)
+- **Body:** `{ title (required), event_type, distance_km?, expected_avg_speed_kmh?, surface?, start_point?, location? }` — accepts whatever the form has filled so far
+- **Allowlists:** `event_type ∈ {ride, social, race}`; `surface ∈ {road, gravel, mixed}`; numeric ranges as per POST `/events`
+- **System key:** `SYSTEM_ANTHROPIC_KEY` (falls back to `ANTHROPIC_API_KEY` for legacy single-user dev)
+- **Model:** `claude-haiku-4-5-20251001`, max_tokens 250
+- **Response:** `{ description: string }` — plain text capped at 2000 chars (matches `club_events.description` upper bound)
+- **Failure modes:** 503 with logged `safeWarn` if SYSTEM_ANTHROPIC_KEY missing, Anthropic fetch errors, response parsing fails, or empty content
+
+The prompt is conversational — speaks directly to club members ("we", "the crew"), mentions pace/effort honestly so newer riders can self-assess, ends with one practical detail (coffee stop, regroup, meet-time reminder). No markdown, no labels, no preface.
+
+### Frontend wiring
+
+- `clubsApi.draftEventDescription(clubId, input)` + `DraftEventDescriptionInput` type added
+- `useDraftEventDescription(clubId)` Tanstack mutation hook (no cache invalidation — pure read-only generation)
+- ClubEventModal: new **"Generate with AI ✨"** button inside the Notes field's label row
+  - Disabled when title is empty or while a request is in flight
+  - On success, populates the textarea + sets `descIsAi = true`
+  - User edits clear the flag (so subsequent submissions don't lie about AI authorship)
+  - Hint copy below textarea updates: "AI-drafted — edit to refine."
+- POST `/events` body now passes `description_ai_generated: true` when the flag is set, so analytics can track AI-vs-human authorship over time
+
+### CSS
+
+`.fieldLabelRow` (flex row, label + button); `.aiDraftBtn` (accent pill with hover + disabled + focus-visible states). All design-system tokens; no hardcoded colors.
+
+### Bundle
+
+Dashboard chunk: 88.98 → 89.86 KB (+0.88 KB / +1.0%) for the AI button + hook.
+
+### Deferred to v9.9.0 + v9.10.0
+
+The original v9.8.0 plan bundled three pieces (AI description + Edit UX + Route picker). Splitting was the right call:
+
+- **v9.9.0** — Edit UX (PATCH wired in drawer; modal in edit mode)
+- **v9.10.0** — Route picker integration (`route_strava_id` field UI; reuses `RoutesPicker` from `/coach`)
+
+Each gets its own release theme + verification budget per Sprint 4 retro Improvement #5. Total Sprint 5 release count climbs by 2 (was 5 ahead, now 7), but each release stays under 12% verification budget.
+
+### Naming convention locked — `CONTRIBUTING.md`
+
+Strict SemVer: MAJOR for the 5 specific triggers (CTO call), MINOR for features, PATCH for hotfixes. Past v9.7.x releases stay labelled as shipped. New convention applies from v9.8.0 onward.
+
+5 MAJOR-bump triggers (any ONE qualifies):
+
+1. New architectural system (real-time presence, native mobile, multi-platform integration, multi-tenant infrastructure)
+2. Breaking data-model change (new D1 db, primary table drops/renames, storage layer migration — additive `ALTER TABLE` stays MINOR per cumulative-schema policy)
+3. Public-launch milestone (Beta exit / GA, first paid tier, press launch, `cadenceclub.cc` domain migration)
+4. Breaking API change (versioned API, removal of public endpoints — additive endpoints stay MINOR)
+5. Strategic persona pivot (primary persona changes, not adding personas)
+
+Anti-patterns documented: don't use PATCH for new features (the v9.7.0–v9.7.3 mistake); don't bump MAJOR for marketing reasons alone; don't stack hotfixes inside a feature release.
+
+### Confluence Sprint Roadmap re-sync
+
+`src/docs.js` sprint-roadmap entry updated:
+
+- v9.7.0–v9.7.5 marked as shipped with their actual labels (frozen)
+- v9.8.0 → v9.11.0 mapped to upcoming features (AI description ✓ this release, Edit UX, Route picker, Personal scheduler, Clubs share/invite, Sprint 5.5 Landing rewrite)
+- v9.12.0 → v9.14.0 mapped to Sprint 6 (Phase 4 cron, Phase 5 LLM Circle Note + Metrics, post-ride callout)
+- Naming-convention-correction note added inline so future readers understand the v9.7.x labelling is intentional historical record, not a typo
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green; manual TS scan; rate-limit + auth gate verified at smoke
+- ✅ #2 Pre-commit grep against `schema.sql` — N/A (no SQL change)
+- ✅ #4 POST → GET round-trip — endpoint is read-only (no persistent state); auth gate + 503 fallback both verified
+- ✅ #5 Verification budget within 12% — split AI description from Edit + Route picker to keep this release contained
+- ✅ #6 Bug post-mortems — none required (no hotfix triggered; v9.7.5 closed all open prod bugs)
+
+### Versions: 9.7.5 → 9.8.0 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.7.5] — 2026-05-01
 
 **iOS Safari hardening — closes 3 P0/P1 issues from v9.7.4 visual verification.** Founder reported on iPhone Safari that v9.7.4's iOS attempts (changing BottomNav from `bottom: 0` to `bottom: env(safe-area-inset-bottom, 0)`) didn't cover the actual platform behaviour. v9.7.5 systematically addresses the three iOS Safari edge cases that surfaced.
