@@ -43,27 +43,44 @@ export const SPEC_PAGES = [
 <tr><td>8</td><td>Adopt sprint retro + nightly daily-retro routine</td><td>✅ Approved — nightly Mon–Fri 22:00 Zurich</td></tr>
 </table>
 
-<h2>§2. Sprint 5 — Clubs Phase 3+4 (Schedule tab + statistical AI moments)</h2>
+<h2>§1b. Sprint 5 design locks (2026-05-01)</h2>
 <table>
-<tr><th>Aspect</th><th>Detail</th></tr>
-<tr><td><strong>Theme</strong></td><td>Persona B/C wedge: Schedule tab + cron infra + readiness/trend statistical AI moments</td></tr>
-<tr><td><strong>Releases</strong></td><td>v9.7.0 (Schedule tab + Migration 0006) → v9.7.1 (cron + readiness dots + trend arrows) → v9.7.2 (clubs share/invite — <a href="https://github.com/jose-reboredo/cycling-coach/issues/56">#56</a>) → hotfix band</td></tr>
-<tr><td><strong>Effort</strong></td><td>~22h (Phase 3 9h + Phase 4 7h + #56 ~6h)</td></tr>
-<tr><td><strong>Issues to close</strong></td><td>Phase 3+4 of <a href="https://github.com/jose-reboredo/cycling-coach/issues/53">#53</a>, <a href="https://github.com/jose-reboredo/cycling-coach/issues/56">#56</a> — plus hygiene-close on <a href="https://github.com/jose-reboredo/cycling-coach/issues/44">#44</a> <a href="https://github.com/jose-reboredo/cycling-coach/issues/45">#45</a> <a href="https://github.com/jose-reboredo/cycling-coach/issues/3">#3</a> (work shipped in v9.5.2 but commit lacked "Closes #N")</td></tr>
-<tr><td><strong>ADRs</strong></td><td>ADR-S5.1 cron failure mode (log-and-skip, no retry); ADR-S5.2 readiness-dot threshold (CTL Δ %?)</td></tr>
-<tr><td><strong>Risk</strong></td><td>First Worker <code>scheduled</code> handler in this codebase + largest UI piece since the dashboard refactor</td></tr>
-<tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-5.md</code> committed</td></tr>
+<tr><th>Decision</th><th>Locked value</th></tr>
+<tr><td>Sprint 5 sizing</td><td><strong>Path A</strong> — single sprint with 5 releases (~40h). Coherent theme: events + scheduler experience.</td></tr>
+<tr><td>Scheduler view modes</td><td><strong>Month / Week / Day</strong> — Outlook-style. Multi-view applies to <strong>both</strong> club Schedule tab AND personal scheduler (consistency rule).</td></tr>
+<tr><td>Week view band</td><td><strong>06:00–22:00</strong> (16h, covers 99% of cycling events; cleaner UI density)</td></tr>
+<tr><td>Day view band</td><td><strong>06:00–22:00</strong> (16h, consistent with Week — same band on mobile and desktop)</td></tr>
+<tr><td>Default view</td><td>Month on desktop; Day on mobile (&lt; 600px breakpoint)</td></tr>
+<tr><td>Event detail open</td><td>Tap any pill on any view → drawer (mobile bottom-sheet; desktop right-side panel)</td></tr>
+<tr><td>Responsive nav</td><td>Desktop = TopTabs always; Mobile = BottomNav always — applied to BOTH clubs and individual contexts. Breakpoint: 600px.</td></tr>
+<tr><td>CC icon library</td><td>Line-icon SVGs at <code>apps/web/src/design/icons/</code>, branded to Cadence Club, persona-focused JSDoc. 8 icons: Today/Train/Rides/You + Overview/Schedule/Members/Metrics.</td></tr>
 </table>
 
-<h2>§3. Sprint 6 — Clubs Phase 5 (LLM AI moments)</h2>
+<h2>§2. Sprint 5 — Events + Scheduler Experience (Path A · ~40h · 5 releases)</h2>
 <table>
 <tr><th>Aspect</th><th>Detail</th></tr>
-<tr><td><strong>Theme</strong></td><td>Phase 5 LLM moments: Circle Note auto-draft, Metrics tab AI insights, post-ride callout</td></tr>
-<tr><td><strong>Releases</strong></td><td>v9.8.0 (Circle Note + Metrics tab + Migration 0007) → v9.8.1 (post-ride callout) → hotfix band</td></tr>
-<tr><td><strong>Effort</strong></td><td>~16h (Phase 5)</td></tr>
-<tr><td><strong>Issues to close</strong></td><td>Phase 5 of <a href="https://github.com/jose-reboredo/cycling-coach/issues/53">#53</a>; <a href="https://github.com/jose-reboredo/cycling-coach/issues/11">#11</a> Strangler-Fig fold-in if scope holds</td></tr>
-<tr><td><strong>ADRs</strong></td><td>ADR-S6.1 multi-tenant prompt shape (no <code>athlete_id</code> leak); ADR-S6.2 cost-ceiling alarm (per-club Haiku spend tracking)</td></tr>
-<tr><td><strong>Risk</strong></td><td>First user-facing LLM output across multiple recipients — Circle Note review tax is real</td></tr>
+<tr><td><strong>Theme</strong></td><td>Persona-led: Marco zooms in to today's session; Sofia plans week-by-week and creates rich events; Léa scans a unified personal view across her clubs and routine.</td></tr>
+<tr><td><strong>v9.7.0</strong></td><td>✅ <strong>Shipped 2026-05-01</strong> — Schedule tab Month view + Migration 0006 (<code>club_events.event_type</code>) + GET /api/clubs/:id/events?range=YYYY-MM. Closed Phase 3 of <a href="https://github.com/jose-reboredo/cycling-coach/issues/53">#53</a>.</td></tr>
+<tr><td><strong>v9.7.1</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/57">#57</a> — Multi-view scheduler (Month / Week / Day) + event-detail drawer. ~7h. Reuses v9.7.0 endpoint; no new backend.</td></tr>
+<tr><td><strong>v9.7.2</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/59">#59</a> — Responsive nav consistency + CC line-icon library (8 icons). ~5h. Foundation refactor.</td></tr>
+<tr><td><strong>v9.7.3</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/60">#60</a> — Event model expansion + lifecycle. ~10h. Migration 0007 (distance, speed, surface, start_point, route_strava_id, description_ai_generated, cancelled_at), PATCH + cancel + AI-description endpoints, Create/Edit modal expansion, Cancel UX.</td></tr>
+<tr><td><strong>v9.7.4</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/61">#61</a> — Personal scheduler at <code>/dashboard/schedule</code> aggregating: club RSVPs + events I created + AI plan items + goals. ~12h. New endpoint <code>GET /api/me/schedule?range=</code>.</td></tr>
+<tr><td><strong>v9.7.5</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/56">#56</a> — Clubs share/invite flow (Detail → Share Sheet → Link Copied → Invitee Landing). ~6h.</td></tr>
+<tr><td><strong>Effort total</strong></td><td>~40h across 5 releases (v9.7.0 already done; v9.7.1–v9.7.5 ahead)</td></tr>
+<tr><td><strong>ADRs to lock</strong></td><td>ADR-S5.1 cron failure mode ✅ (deferred to Sprint 6 with cron); ADR-S5.2 readiness-dot threshold ✅ (deferred to Sprint 6); ADR-S5.3 AI-description prompt shape + cost ceiling (v9.7.3); ADR-S5.4 AI plan parsing contract (v9.7.4)</td></tr>
+<tr><td><strong>Risk</strong></td><td>Event model expansion + lifecycle (v9.7.3) is the largest single piece — multiple new endpoints + permissions + AI integration. Verification budget bumped to 12% per Sprint 4 retro.</td></tr>
+<tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-5.md</code> committed at sprint close</td></tr>
+</table>
+
+<h2>§3. Sprint 6 — AI Infrastructure (Phase 4 cron + Phase 5 LLM moments)</h2>
+<table>
+<tr><th>Aspect</th><th>Detail</th></tr>
+<tr><td><strong>Theme</strong></td><td>Cron handler + statistical AI (readiness dots, trend arrows) + LLM AI (Circle Note, Metrics insights, post-ride callout). Originally Sprint 5 Phase 4+5; deferred when Sprint 5 grew to absorb the multi-view + personal scheduler.</td></tr>
+<tr><td><strong>Releases</strong></td><td>v9.8.0 (cron handler + readiness dots + trend arrows — Phase 4) → v9.8.1 (Circle Note + Metrics tab + Migration 0008 — Phase 5 part 1) → v9.8.2 (post-ride callout — Phase 5 part 2) → hotfix band</td></tr>
+<tr><td><strong>Effort</strong></td><td>~23h (Phase 4 7h + Phase 5 16h)</td></tr>
+<tr><td><strong>Issues to close</strong></td><td>Phase 4+5 of <a href="https://github.com/jose-reboredo/cycling-coach/issues/53">#53</a>; <a href="https://github.com/jose-reboredo/cycling-coach/issues/11">#11</a> Strangler-Fig fold-in if scope holds</td></tr>
+<tr><td><strong>ADRs</strong></td><td>ADR-S5.1 cron failure mode (log-and-skip, no retry — locked 2026-05-01); ADR-S5.2 readiness-dot thresholds (TSB ≥ +5 / -10 to +5 / &lt; -10 — locked 2026-05-01); ADR-S6.1 multi-tenant prompt shape (no <code>athlete_id</code> leak); ADR-S6.2 cost-ceiling alarm (per-club Haiku spend tracking)</td></tr>
+<tr><td><strong>Risk</strong></td><td>First Worker <code>scheduled</code> handler + first user-facing LLM output across multiple recipients</td></tr>
 <tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-6.md</code> committed; <strong>post-S6 review of Route Generation feature direction (founder decision §1-7)</strong></td></tr>
 </table>
 
@@ -99,14 +116,15 @@ export const SPEC_PAGES = [
 <li><a href="https://github.com/jose-reboredo/cycling-coach/issues/32">#32</a> Domain migration — deferred per §1-2</li>
 </ul>
 
-<h2>§7. Token budget projection</h2>
+<h2>§7. Token budget projection (revised 2026-05-01 for Path A)</h2>
 <table>
-<tr><th>Sprint</th><th>Planning</th><th>Implementation</th><th>Verification + retro</th><th>Total daily-quota</th></tr>
-<tr><td>5</td><td>~8%</td><td>~40%</td><td>~7%</td><td>~55%</td></tr>
-<tr><td>6</td><td>~6%</td><td>~35%</td><td>~7%</td><td>~48%</td></tr>
-<tr><td>7</td><td>~8%</td><td>~30%</td><td>~5%</td><td>~43%</td></tr>
-<tr><td>8</td><td>~5%</td><td>~25%</td><td>~5%</td><td>~35%</td></tr>
+<tr><th>Sprint</th><th>Planning + ADRs</th><th>Implementation</th><th>Verification + retro</th><th>Total daily-quota</th><th>Note</th></tr>
+<tr><td>5 (Path A)</td><td>~10%</td><td>~50%</td><td>~12%</td><td><strong>~72%</strong></td><td>5 releases · 12% verification per Sprint 4 retro</td></tr>
+<tr><td>6</td><td>~8%</td><td>~38%</td><td>~9%</td><td>~55%</td><td>Absorbs Phase 4 cron from Sprint 5</td></tr>
+<tr><td>7</td><td>~8%</td><td>~30%</td><td>~5%</td><td>~43%</td><td>Personal-loop closure (#49/#50/#52/#5)</td></tr>
+<tr><td>8</td><td>~5%</td><td>~25%</td><td>~5%</td><td>~35%</td><td>Tech debt</td></tr>
 </table>
+<p><strong>Sprint 5 risk:</strong> 72% daily quota is high. If burn exceeds 80% mid-sprint, split off v9.7.4 (personal scheduler) + v9.7.5 (#56) into a Sprint 5.5 to maintain the verification budget.</p>
 
 <h2>§8. Process changes (effective S5+)</h2>
 <ul>
