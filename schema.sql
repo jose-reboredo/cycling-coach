@@ -259,6 +259,11 @@ CREATE TABLE planned_sessions (
   ai_report_id INTEGER REFERENCES ai_reports(id) ON DELETE SET NULL,
   completed_at INTEGER,
   cancelled_at INTEGER,
+  -- v10.8.0 / Migration 0011 — AI plan link + auto-update lock.
+  ai_plan_session_id INTEGER REFERENCES ai_plan_sessions(id) ON DELETE SET NULL,
+  elevation_gained INTEGER,
+  surface TEXT,
+  user_edited_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -278,3 +283,33 @@ CREATE TABLE rwgps_tokens (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX idx_rwgps_tokens_user ON rwgps_tokens(rwgps_user_id) WHERE rwgps_user_id IS NOT NULL;
+
+-- v10.8.0 / Migration 0011 — AI-generated weekly training plan sessions.
+-- Reuses planned_sessions for scheduled rows; this table holds the
+-- pre-scheduled plan output from the AI coach. See design docs:
+--   docs/post-demo-sprint/train-tab-goal-driven-planning.md
+--   docs/post-demo-sprint/train-tab-api-spec.md
+CREATE TABLE ai_plan_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  week_start_date TEXT NOT NULL,
+  suggested_date TEXT NOT NULL,
+  title TEXT NOT NULL,
+  target_zone TEXT,
+  duration INTEGER,
+  elevation_gained INTEGER,
+  surface TEXT,
+  reasoning TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(athlete_id, suggested_date, title)
+);
+CREATE INDEX idx_ai_plan_sessions_athlete_week ON ai_plan_sessions(athlete_id, week_start_date);
+
+-- planned_sessions extensions (Migration 0011):
+--   ai_plan_session_id, elevation_gained, surface, user_edited_at
+-- Updates inline above are NOT shown — schema.sql describes the cumulative
+-- final state; consult the migration files for ALTER TABLE history.
+
+-- v10.8.0 — preferred_surface on users (canonical AI plan input).
+-- Per founder design: ALTER TABLE users ADD COLUMN preferred_surface TEXT;

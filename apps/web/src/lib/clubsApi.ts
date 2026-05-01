@@ -227,6 +227,11 @@ export interface PlannedSession {
   ai_report_id: number | null;
   completed_at: number | null;
   cancelled_at: number | null;
+  // v10.8.0 — AI plan link + extended targets + auto-update lock.
+  ai_plan_session_id?: number | null;
+  elevation_gained?: number | null;
+  surface?: string | null;
+  user_edited_at?: number | null;
   created_at: number;
   updated_at: number;
 }

@@ -70,6 +70,12 @@ interface SessionRoutePickerProps {
   sessionId: number;
   zone: number | null;
   durationMinutes: number | null;
+  /** v10.8.0 — AI plan target elevation gain (m). Used to default the
+   *  elevation pref selector to the right band. */
+  targetElevationM?: number | null;
+  /** v10.8.0 — AI plan / user surface preference. Used to default the
+   *  cycling type. */
+  targetSurface?: string | null;
 }
 
 function surfaceToCyclingType(surface: string | undefined): CyclingType {
@@ -83,7 +89,7 @@ const RWGPS_UPLOAD_URL = 'https://ridewithgps.com/upload';
 const KOMOOT_PLAN_URL = 'https://www.komoot.com/plan';
 const GARMIN_CONNECT_URL = 'https://connect.garmin.com/modern/courses-by-activity/cycling';
 
-export function SessionRoutePicker({ sessionId, zone, durationMinutes }: SessionRoutePickerProps) {
+export function SessionRoutePicker({ sessionId, zone, durationMinutes, targetElevationM, targetSurface }: SessionRoutePickerProps) {
   const { prefs, update: updatePrefs } = useTrainingPrefs();
   const [tab, setTab] = useState<SourceTab>('generate');
   const [address, setAddress] = useState(prefs.start_address ?? '');
@@ -91,7 +97,17 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pending, setPending] = useState<SourceTab | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [elevationPref, setElevationPref] = useState<ElevationPreference>('medium');
+  // v10.8.0 — initialize elevation pref from AI plan target when present.
+  // Bands: low <15 m/km, medium 15-30 m/km, high 30+ m/km.
+  const [elevationPref, setElevationPref] = useState<ElevationPreference>(() => {
+    if (targetElevationM == null || durationMinutes == null || durationMinutes <= 0) return 'medium';
+    const targetKm = (durationMinutes / 60) * 25; // rough Z2 pace baseline
+    if (targetKm <= 0) return 'medium';
+    const mPerKm = targetElevationM / targetKm;
+    if (mPerKm < 15) return 'low';
+    if (mPerKm < 30) return 'medium';
+    return 'high';
+  });
   const [downloadedRouteId, setDownloadedRouteId] = useState<string | null>(null);
 
   // RWGPS connection status — fetched once on mount + after returning from
@@ -142,7 +158,13 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes }: Session
   }, [tab, rwgpsConnected]);
 
   const targetDistance = estimateDistanceKm(durationMinutes, zone);
-  const cyclingType = surfaceToCyclingType(prefs.surface_pref);
+  // v10.8.0 — prefer per-session surface (AI plan) over user-pref baseline.
+  const sessionSurface = targetSurface
+    ? targetSurface.toLowerCase() === 'paved' ? 'paved'
+      : targetSurface.toLowerCase() === 'gravel' ? 'gravel'
+      : prefs.surface_pref
+    : prefs.surface_pref;
+  const cyclingType = surfaceToCyclingType(sessionSurface);
 
   // -------------------------------------------------------------------------
   // Tab 1 — Generate via ORS.

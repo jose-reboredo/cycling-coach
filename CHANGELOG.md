@@ -4,6 +4,144 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.8.0] — 2026-05-01
+
+**Goal-driven AI training plan with dynamic session scheduling — Phases A + B + C bundled.**
+
+Founder request: "make everything in one release, its late and i want to test everything tomorrow and do not depend on pending releases." Original 4-phase split collapsed into a single release.
+
+### What's in
+
+| Phase | Theme | Status |
+|---|---|---|
+| **A** | Schema + plan generation API + Train tab list UI | ✅ |
+| **B** | Schedule a session (Train → calendar via prefill modal) | ✅ |
+| **C** | Today + route picker uses AI plan elevation/surface targets | ✅ |
+| **D** | Strava webhook auto-regenerate | **Deferred** (needs server-side OAuth migration first; placeholder hook added). User-triggered "Regenerate" button covers the core loop |
+
+### Migration 0011
+
+```sql
+CREATE TABLE ai_plan_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  week_start_date TEXT NOT NULL,
+  suggested_date TEXT NOT NULL,
+  title TEXT NOT NULL,
+  target_zone TEXT,
+  duration INTEGER,
+  elevation_gained INTEGER,
+  surface TEXT,
+  reasoning TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(athlete_id, suggested_date, title)
+);
+CREATE INDEX idx_ai_plan_sessions_athlete_week ON ai_plan_sessions(athlete_id, week_start_date);
+
+ALTER TABLE planned_sessions ADD COLUMN ai_plan_session_id INTEGER REFERENCES ai_plan_sessions(id) ON DELETE SET NULL;
+ALTER TABLE planned_sessions ADD COLUMN elevation_gained INTEGER;
+ALTER TABLE planned_sessions ADD COLUMN surface TEXT;
+ALTER TABLE planned_sessions ADD COLUMN user_edited_at INTEGER;
+CREATE INDEX idx_planned_sessions_ai_plan ON planned_sessions(ai_plan_session_id) WHERE ai_plan_session_id IS NOT NULL;
+
+ALTER TABLE users ADD COLUMN preferred_surface TEXT;
+```
+
+Applied to remote D1 + local. `schema.sql` updated.
+
+### New endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/plan/generate` | AI plan generation (Haiku, system-paid). Inputs: weeks, force. Output: feasible/sessions or feasible:false/alternative_goal |
+| `GET`  | `/api/plan/current` | Read latest persisted plan (current Monday + 4 weeks ahead) |
+| `POST` | `/api/plan/schedule` | Move ai_plan_sessions row → planned_sessions with FK link |
+
+Auth-gated, rate-limited (`plan-gen` 5/h, `plan-schedule` 30/min).
+
+### AI plan generation flow
+
+1. Worker reads goal (existing `events` table), recent 30 days of `activities`, and `users.preferred_surface`.
+2. Client-side feasibility heuristic: < 2 weeks until goal → block + alternative.
+3. Build prompt → Haiku → strict JSON response.
+4. Validate schema server-side (zone in {Z1..Z7, Recovery}, duration 15-600, surface in {Paved, Mixed, Gravel, Any}).
+5. UPSERT into `ai_plan_sessions` keyed by `(athlete_id, suggested_date, title)`.
+
+If goal infeasible: response includes `block_reason` + `alternative_goal { distance_km, elevation_m, weeks_required }`. UI renders the blocked card with "Generate anyway" override.
+
+### Frontend
+
+**New component**: `apps/web/src/components/AiPlanCard/AiPlanCard.tsx` — sits above `AiCoachCard` on Train tab.
+
+- Loads `/api/plan/current` on mount; shows "Generate plan" if 404 / no plan.
+- Each session row shows: date, zone Pill, title, `duration · elevation · surface` mono line, AI reasoning (italic muted).
+- "+ Schedule" button opens the existing `SessionPrefillModal` (v10.2.0+) with fields prefilled from the AI plan row.
+- After save: `POST /api/plan/schedule`, button transitions to `✓ Scheduled`.
+- "Regenerate" button (header) triggers `POST /api/plan/generate?force=true`.
+- Goal-blocked state: warning surface + alternative + "Generate anyway" override.
+
+**New API client**: `apps/web/src/lib/aiPlanApi.ts` (`generatePlan`, `fetchCurrentPlan`, `schedulePlanSession`).
+
+### Phase C — Route picker uses AI plan targets
+
+`CalendarEvent` extended:
+```ts
+elevation_gained?: number | null;
+surface?: string | null;
+```
+
+Mappers in `dashboard.schedule.tsx` and `TodayDossier.tsx` thread these through from `planned_sessions`. The `EventDetailDrawer` passes them as new props `targetElevationM` + `targetSurface` to `SessionRoutePicker`.
+
+`SessionRoutePicker`:
+- Initialises `elevationPref` from the target band (m/km calc): low <15, medium 15-30, high 30+.
+- Prefers per-session `targetSurface` over user-pref baseline when computing `cyclingType`.
+
+Result: opening a personal session linked to an AI plan row auto-tunes the route picker's elevation + surface defaults.
+
+### Phase D placeholder
+
+`/webhook/{secret}` handler (Strava activity events) gets a code comment marking the auto-regen insertion point. The current Worker uses browser-side token storage, so the webhook event can't reliably look up an athlete's tokens to call Anthropic on their behalf. v10.9 will migrate Strava OAuth to server-side D1 token storage (parallels the v10.6.0 RWGPS pattern), then Phase D becomes a 5-line `ctx.waitUntil(regeneratePlanForAthlete(...))`.
+
+### Architectural decisions baked in (per design docs)
+
+- **Q1**: `elevation_gained` editable in prefill modal ✓
+- **Q2**: User-overridable surface per session at route-match time ✓
+- **Q3**: Reuse `planned_sessions` (NOT `club_events`, NOT new `scheduled_sessions`) ✓
+- **Q4**: Webhook-triggered cascade-update — deferred to v10.9 ⏳
+- **Q5**: `user_edited_at` lock column added to schema ✓; PATCH handler doesn't set it yet (v10.9)
+
+### Token economy (recap)
+
+Haiku, system-paid via existing `SYSTEM_ANTHROPIC_KEY`. ~3000 input + 2400 output tokens per call. ~$0.005/user/week → $0.02/user/month → ~$2/100 MAU/month.
+
+### Files changed (combined Phase A + B + C)
+
+```
+migrations/0011_ai_plan_sessions.sql              # NEW
+schema.sql                                        # +ai_plan_sessions + planned_sessions extensions
+src/routes/aiPlan.js                              # NEW (3 handlers)
+src/worker.js                                     # +imports, +3 dispatches, +mapSessionRow extends, webhook placeholder
+apps/web/src/lib/aiPlanApi.ts                     # NEW
+apps/web/src/lib/clubsApi.ts                      # +PlannedSession extensions
+apps/web/src/components/AiPlanCard/AiPlanCard.tsx       # NEW
+apps/web/src/components/AiPlanCard/AiPlanCard.module.css # NEW
+apps/web/src/routes/dashboard.train.tsx           # +AiPlanCard mount
+apps/web/src/components/Calendar/types.ts         # +elevation_gained + surface
+apps/web/src/components/Calendar/EventDetailDrawer.tsx  # picker gets targetElevationM + targetSurface
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.tsx  # auto-tune elevation pref + cyclingType
+apps/web/src/routes/dashboard.schedule.tsx        # mapper threads new fields
+apps/web/src/components/TodayDossier/TodayDossier.tsx  # mapper threads new fields
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Why MINOR
+
+New feature (goal-driven plan); no breaking changes vs v10.7.0. PlannedSession's new fields are all optional. Per locked SemVer.
+
+---
+
 ## [10.7.0] — 2026-05-01
 
 **Route picker bug fixes + RWGPS disconnect UI + token refresh + goal-driven AI plan design doc.**

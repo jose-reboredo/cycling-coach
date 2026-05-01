@@ -135,6 +135,9 @@ function PersonalSchedule() {
       // v9.12.5 — zone drives pill color; completed_at drives drawer "✓" banner.
       zone: s.zone,
       completed_at: s.completed_at,
+      // v10.8.0 — AI plan targets carry into the route picker.
+      elevation_gained: s.elevation_gained,
+      session_surface: s.surface,
     }));
     return [...club, ...personal].sort((a, b) => a.event_date - b.event_date);
   }, [data]);

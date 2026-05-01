@@ -48,6 +48,15 @@ export interface CalendarEvent {
    *  "✓ Completed on [date]" banner instead of action buttons. PATCH'd
    *  via usePatchPlannedSession({ completed_at: now }). */
   completed_at?: number | null;
+  /** v10.8.0 — target elevation gain (m) carried from AI plan or user
+   *  edit. The route picker uses this as a signal to bias generated
+   *  routes toward the right terrain band. */
+  elevation_gained?: number | null;
+  /** v10.8.0 — preferred surface for personal sessions (Paved | Mixed |
+   *  Gravel | Any) carried from AI plan / planned_sessions. Drives the
+   *  route picker's default cycling type. Distinct from the existing
+   *  club-event `surface` enum (road | gravel | mixed) above. */
+  session_surface?: string | null;
   /** v9.12.5 — owning club id for club events (so the personal scheduler
    *  can wire Cancel / Unsubscribe mutations against the right club). Set
    *  by the dashboard.schedule.tsx mapper from `MyScheduleEvent.club_id`.

@@ -1,0 +1,162 @@
+/* AiPlanCard — Sprint 5++ / v10.8.0 Phase A.
+ * Brutalist card mirroring the existing AiCoachCard look (dark surface,
+ * accent strip on left, list rows separated by hairlines). */
+
+.card {
+  background: var(--c-surface-elev);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  padding: var(--s-6);
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--c-accent);
+  pointer-events: none;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-5);
+}
+
+.empty {
+  margin: 0;
+  font: 400 0.875rem/1.55 var(--font-sans);
+  color: var(--c-text-muted);
+  padding: var(--s-3) 0;
+}
+
+.error {
+  margin: 0;
+  padding: var(--s-3);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  border-radius: 4px;
+  font: 500 0.8125rem/1.4 var(--font-sans);
+  color: var(--c-danger, #ef4444);
+}
+
+/* ---- Goal blocked state (feasible: false) ---- */
+.blocked {
+  padding: var(--s-4);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.32);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.blockedTitle {
+  font: 600 0.9375rem/1.2 var(--font-sans);
+  color: var(--c-warn, #f59e0b);
+  margin: 0;
+}
+.blockedReason {
+  font: 400 0.875rem/1.5 var(--font-sans);
+  color: var(--c-text);
+  margin: 0;
+}
+.blockedAlt {
+  margin-top: var(--s-2);
+  padding: var(--s-3);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-line);
+  border-radius: 4px;
+}
+.blockedAltLabel {
+  font: 600 0.6875rem/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+  margin: 0 0 var(--s-1) 0;
+}
+.blockedAlt p {
+  margin: 0;
+  font: 500 0.875rem/1.4 var(--font-sans);
+  color: var(--c-text);
+}
+.blockedActions {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+/* ---- Sessions list ---- */
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: var(--s-3);
+  align-items: start;
+  padding: var(--s-4) 0;
+  border-bottom: 1px solid var(--c-line);
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.rowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.rowDate {
+  font: 600 0.6875rem/1.1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text);
+}
+.rowMain {
+  min-width: 0;
+}
+.rowTitle {
+  margin: 0 0 var(--s-1) 0;
+  font: 600 0.9375rem/1.3 var(--font-sans);
+  color: var(--c-text);
+}
+.rowSub {
+  margin: 0 0 var(--s-1) 0;
+  font: 500 0.75rem/1.2 var(--font-mono);
+  color: var(--c-text-muted);
+  letter-spacing: 0.04em;
+}
+.rowReasoning {
+  margin: 0;
+  font: 400 0.8125rem/1.4 var(--font-sans);
+  color: var(--c-text-muted);
+  font-style: italic;
+}
+.rowAction {
+  align-self: center;
+}
+
+@media (max-width: 599px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: var(--s-2);
+  }
+  .rowMeta {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--s-3);
+  }
+  .rowAction {
+    margin-top: var(--s-2);
+  }
+}

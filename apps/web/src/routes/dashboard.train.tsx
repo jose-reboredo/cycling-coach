@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { Container } from '../components/Container/Container';
 import { AiCoachCard } from '../components/AiCoachCard/AiCoachCard';
+import { AiPlanCard } from '../components/AiPlanCard/AiPlanCard';
 import { GoalEventCard } from '../components/GoalEventCard/GoalEventCard';
 import {
   SessionPrefillModal,
@@ -188,6 +189,19 @@ function TrainTab() {
               />
             </div>
           )}
+        </motion.section>
+
+        {/* v10.8.0 — Goal-driven AI plan card. System-paid Haiku generation;
+            reads goal + recent rides + user prefs from D1; persists to
+            ai_plan_sessions. Schedule a session → opens existing prefill
+            modal → POST /api/plan/schedule → row in planned_sessions. */}
+        <motion.section
+          className={styles.section}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.05 }}
+        >
+          <AiPlanCard />
         </motion.section>
 
         {/* AI COACH / WEEKLY PLAN */}

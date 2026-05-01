@@ -95,6 +95,9 @@ export function TodayDossier({ callerAthleteId }: TodayDossierProps = {}) {
         is_personal: true,
         zone: s.zone,
         completed_at: s.completed_at,
+        // v10.8.0 — AI plan targets carry into the drawer's route picker.
+        elevation_gained: s.elevation_gained,
+        session_surface: s.surface,
       });
     });
     return events.sort((a, b) => a.event_date - b.event_date);

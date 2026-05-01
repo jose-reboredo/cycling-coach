@@ -20,10 +20,15 @@ import {
   handleRwgpsDisconnect,
   handleRwgpsRoutes,
 } from './routes/rwgpsRoutes.js';
+import {
+  handlePlanGenerate,
+  handlePlanCurrent,
+  handlePlanSchedule,
+} from './routes/aiPlan.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.7.0';
+const WORKER_VERSION = 'v10.8.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -63,6 +68,11 @@ function mapSessionRow(row) {
     ai_report_id: row.ai_report_id ?? null,
     completed_at: row.completed_at ?? null,
     cancelled_at: row.cancelled_at ?? null,
+    // v10.8.0 — AI plan link + auto-update lock + extended targets.
+    ai_plan_session_id: row.ai_plan_session_id ?? null,
+    elevation_gained: row.elevation_gained ?? null,
+    surface: row.surface ?? null,
+    user_edited_at: row.user_edited_at ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -1440,7 +1450,9 @@ async function handleRequest(request, env, ctx) {
       const { results: sessionRows } = await db.prepare(
         'SELECT id, athlete_id, session_date, title, description, zone, ' +
         '       duration_minutes, target_watts, source, ai_report_id, ' +
-        '       completed_at, cancelled_at, created_at, updated_at ' +
+        '       completed_at, cancelled_at, ai_plan_session_id, ' +
+        '       elevation_gained, surface, user_edited_at, ' +
+        '       created_at, updated_at ' +
         'FROM planned_sessions ' +
         'WHERE athlete_id = ? AND session_date BETWEEN ? AND ? ' +
         '  AND cancelled_at IS NULL ' +
@@ -1491,7 +1503,9 @@ async function handleRequest(request, env, ctx) {
       const { results: rows } = await db.prepare(
         'SELECT id, athlete_id, session_date, title, description, zone, ' +
         '       duration_minutes, target_watts, source, ai_report_id, ' +
-        '       completed_at, cancelled_at, created_at, updated_at ' +
+        '       completed_at, cancelled_at, ai_plan_session_id, ' +
+        '       elevation_gained, surface, user_edited_at, ' +
+        '       created_at, updated_at ' +
         'FROM planned_sessions ' +
         'WHERE athlete_id = ? AND session_date BETWEEN ? AND ? ' +
         'ORDER BY session_date ASC',
@@ -1529,6 +1543,23 @@ async function handleRequest(request, env, ctx) {
     }
     if (url.pathname === '/api/routes/rwgps-saved' && request.method === 'GET') {
       return handleRwgpsRoutes({ request, env, deps: rwgpsDeps });
+    }
+
+    // ============= AI PLAN — v10.8.0 Phase A =============
+    // Goal-driven AI training plan generation. Reads goal + recent rides
+    // + user prefs from D1, calls Anthropic Haiku, persists to ai_plan_sessions.
+    // Phase B (next release) wires POST /api/plan/schedule into the calendar.
+    // Phase C (v10.8.2) integrates with Today tab + route picker.
+    // Phase D (v10.8.3) adds Strava-webhook-triggered cascade-update.
+    const planDeps = { resolveAthleteId, checkRateLimit, safeWarn, corsHeaders };
+    if (url.pathname === '/api/plan/generate' && request.method === 'POST') {
+      return handlePlanGenerate({ request, env, deps: planDeps });
+    }
+    if (url.pathname === '/api/plan/current' && request.method === 'GET') {
+      return handlePlanCurrent({ request, env, deps: planDeps });
+    }
+    if (url.pathname === '/api/plan/schedule' && request.method === 'POST') {
+      return handlePlanSchedule({ request, env, deps: planDeps });
     }
 
     // POST /api/routes/generate — Sprint 5+ / v10.4.0.
@@ -2578,6 +2609,15 @@ Respond ONLY with valid JSON, no markdown:
         // Strava expects fast 200 response. Logging only since architecture is browser-storage.
         // safeLog redacts any sensitive patterns before they hit persistent logs (#20).
         safeLog('Webhook event:', event);
+        // v10.8.0 Phase D placeholder — when token-tracking infrastructure
+        // exists per athlete (server-side OAuth tokens vs browser-storage),
+        // this is the right place to fire-and-forget plan regeneration:
+        //   if (event.object_type === 'activity' && event.aspect_type === 'create') {
+        //     ctx.waitUntil(regeneratePlanForAthlete(env, event.owner_id));
+        //   }
+        // For v10.8.0 we ship manual "Regenerate" on the AI plan card; the
+        // user re-clicks after a Strava ride syncs. Auto-trigger ships in
+        // a follow-up release once server-side OAuth migration lands.
       } catch { /* malformed body — Strava expects 200 anyway */ }
       return new Response('OK', { status: 200 });
     }
