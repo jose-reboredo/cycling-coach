@@ -4,6 +4,42 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.6.5] — 2026-05-01
+
+**Marketing rewrite.** Landing page realigned to current product direction (clubs-first with AI embedded across three personas) after the 4-sprint trajectory was locked. No backend, schema, or routing changes.
+
+### Landing page copy pivot — `apps/web/src/pages/Landing.tsx`
+
+The page was last rewritten when Cadence Club was a single-persona product (Marco — power-meter cyclist with FTP 285 and an Etape du Tour goal). Sprint 4 introduced clubs as the differentiator and three-persona framing (Marco + Sofia/captain + Léa/casual commuter). The marketing copy hadn't caught up.
+
+| Section | Before | After |
+|---|---|---|
+| Hero pill | "For the performance-driven amateur · v9" | "Cycling clubs with an AI training brain · v9" |
+| Hero H1 | "Train like the *metrics* matter." | "Train solo. *Ride together.* Smarter." |
+| Hero lede | PMC + workouts + routes (Persona A only) | PMC + club Overview/Schedule/RSVPs + AI-drafted Circle Note + 3-persona framing |
+| §01 H2 | "For cyclists who care *about the numbers*" | "Three riders, one *shared toolkit*" |
+| §01 For-You list | 6 items, all Marco | Broadened to A + B (captain a Saturday crew) + C (belong without intimidation) |
+| §02 H2 | "Three screens. *One coherent training brain*" | "Solo training brain. *Plus a club layer*" |
+| §02 Feature 02 | "Today's workout" only | Workout + saved-Strava-route picker absorbed into one feature; BYOK Sonnet pricing inline |
+| §02 Feature 03 | "Routes that match the plan" + RoutePreview SVG | "A club layer, AI embedded" — Overview/Schedule/Members/Metrics, RSVP, FTP-private-by-default, AI Circle Note (system-paid Haiku, free) |
+| §03 Pricing | 4 rows, BYOK only | 5 rows: app + clubs free, club AI included (system-paid), personal AI BYOK (~$0.02/plan), total <$0.50/mo |
+| Final CTA | "PMC, plan, route picker — all yours" | "PMC, plan, route picker, club layer — all yours" |
+
+### Component changes
+
+- **New:** `ClubLayerPreview` function (~15 lines) — reuses existing `.routePrev` / `.routeStats` classes. Renders "Saturday Crew" mock with collective-stat tiles and an AI Circle Note pill. No new CSS.
+- **Removed:** `RoutePreview` function (38 lines) — no longer referenced after the §02 pivot. Per project convention (no backwards-compat shims for unused code), deleted outright.
+
+### README sweep
+
+Tagline rewritten from "Performance training intelligence for serious cyclists. … Built around the persona of Marco" to "Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: Marco / Sofia / Léa." Per the auto-memory rule "Release-time README sweep is mandatory" — every `chore(release)` reconciles README's surface text with shipped state.
+
+### Versions: 9.6.4 → 9.6.5 in 5 places.
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION` + `BUILD_DATE` → `2026-05-01`), `apps/web/src/lib/version.ts` ("April 2026" → "May 2026"), `README.md` Current-release line.
+
+---
+
 ## [9.6.4] — 2026-04-30
 
 **Hotfix-of-hotfix. v9.6.3's `LEFT JOIN event_rsvps` was technically correct, but D1 verified `event_rsvps` had 0 rows ever — RSVPs never actually persisted in Phase 2. Real cause: a misuse of `checkRateLimit` in two endpoints. Plus: Club tabs typography aligned with BottomNav labels per founder feedback.**

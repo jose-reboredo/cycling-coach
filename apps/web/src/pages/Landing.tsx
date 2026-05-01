@@ -40,18 +40,19 @@ export function Landing() {
         <Container width="base">
           <motion.div className={styles.heroInner} {...fade}>
             <Pill tone="accent" dot>
-              For the performance-driven amateur · v9
+              Cycling clubs with an AI training brain · v9
             </Pill>
 
             <h1 className={styles.heroH1}>
-              Train like the
-              <span className={styles.heroH1Italic}> metrics </span>
-              matter.
+              Train solo.
+              <span className={styles.heroH1Italic}> Ride together. </span>
+              Smarter.
             </h1>
 
             <p className={styles.heroLede}>
-              PMC, structured workouts, smart route picker — built for cyclists who
-              already know their FTP. Strava-native. Local-first. Bring your own AI key.
+              PMC for the solo rider. Overview, schedule, RSVPs and an AI-drafted weekly
+              note for the club. Three personas, one app — AI embedded where it matters,
+              not bolted on. Strava-native, mobile-first, free.
             </p>
 
             <div className={styles.heroCtas}>
@@ -142,30 +143,30 @@ export function Landing() {
           <div className={styles.sectionHead}>
             <Eyebrow rule tone="accent">№ 01 — Honesty</Eyebrow>
             <h2 className={styles.sectionH2}>
-              For cyclists who care
-              <em> about the numbers</em>.
+              Three riders, one
+              <em> shared toolkit</em>.
             </h2>
             <p className={styles.sectionLede}>
-              We're brutally specific about who this is for. If you don't recognise yourself
+              We're brutally specific about who this serves. If you don't recognise yourself
               on the left, you'll save 30 seconds and we'll save you a download.
             </p>
           </div>
           <div className={styles.forGrid}>
             <ForList variant="for" title="For you if…" items={[
-              'You already know your FTP and care about W/kg',
-              'You train 6+ hours a week with a power meter or smart trainer',
-              'You have a goal event you\'re peaking for',
-              'You want PMC, not "calories burned"',
-              'You read your data the morning after, before the kettle',
-              'You think Strava\'s feed is for kudos, not training',
+              'You already know your FTP and want CTL/ATL/TSB at-a-glance',
+              'You captain a Saturday crew and want better tools than a WhatsApp group',
+              'You\'d rather belong to a cycling club than scroll a kudos feed',
+              'You read your dashboard the morning after, before the kettle',
+              'You want AI that helps quietly — not pop-ups every five minutes',
+              'You\'d rather pay for what you use than for a monthly subscription',
             ]} />
             <ForList variant="not" title="Not for you if…" items={[
               'You just want to log rides for kudos',
-              'You don\'t care what your CTL is',
-              'You want gamification, badges, leaderboards',
-              'You\'re looking for a casual fitness app',
+              'Gamification, badges and leaderboards are the value proposition',
+              'You want chat with strangers\' bikes',
+              'You\'re looking for a casual fitness tracker',
               'You want to be told you "crushed it" every day',
-              'A monthly subscription is the value proposition',
+              'A monthly subscription is the only pricing you trust',
             ]} />
           </div>
         </Container>
@@ -177,8 +178,8 @@ export function Landing() {
           <div className={styles.sectionHead}>
             <Eyebrow rule tone="accent">№ 02 — The product</Eyebrow>
             <h2 className={styles.sectionH2}>
-              Three screens.
-              <em> One coherent training brain</em>.
+              Solo training brain.
+              <em> Plus a club layer</em>.
             </h2>
           </div>
 
@@ -192,19 +193,19 @@ export function Landing() {
 
           <FeatureSpread
             num="02"
-            title="Today's workout, in your pocket"
-            kicker="One tap to start. Zones, target watts, rationale."
-            body="The plan adapts to your form. Hard day after a fresh score. Easy day after a slammed score. The coach voice tells you why, then gets out of the way."
+            title="Today's workout + a route to ride it on"
+            kicker="One tap. Zones, target watts, a saved Strava route that fits."
+            body="The plan adapts to your form. The route picker reads your saved Strava routes and ranks them against today's target zone and duration. Open in Strava with one tap. AI coaching runs on your own Anthropic key (~$0.02/plan)."
             visual={<WorkoutPreview />}
             reverse
           />
 
           <FeatureSpread
             num="03"
-            title="Routes that match the plan"
-            kicker="Saved Strava routes, ranked by today's target."
-            body="Picking the right route is half the workout. Cadence Club reads your saved Strava routes, scores them against today's target zone and duration, and surfaces the top three."
-            visual={<RoutePreview />}
+            title="A club layer, AI embedded"
+            kicker="Overview · Schedule · Members · Metrics"
+            body="Captain a Saturday crew without WhatsApp gymnastics. RSVP with optimistic counts, roster sortable by recency, FTP private by default. An AI Circle Note drafts the weekly recap automatically — system-paid Haiku, free for the club. Designed for organisers, casual commuters, and the power-meter rider in the same group."
+            visual={<ClubLayerPreview />}
           />
         </Container>
       </section>
@@ -219,15 +220,17 @@ export function Landing() {
               Bring your own key.
             </h2>
             <p className={styles.sectionLede}>
-              Cadence Club itself costs nothing. AI coaching uses your own Anthropic
-              API key — about $0.02 per report. Most users spend less than $0.50 a month total.
+              Cadence Club costs nothing. Club AI moments — Circle Notes, weekly insights —
+              are system-paid Haiku, free for the club. Personal AI plans use your own
+              Anthropic key (~$0.02/plan). Most riders spend under $0.50 a month total.
             </p>
           </div>
           <div className={styles.priceGrid}>
-            <PriceRow label="App" price="Free" detail="No subscription. No tier upgrades. No login wall." />
+            <PriceRow label="App + clubs" price="Free" detail="No subscription. No tier upgrades. No login wall." />
             <PriceRow label="Strava data" price="Free" detail="Their API. We just proxy it. Your tokens stay in your browser." />
-            <PriceRow label="AI coaching" price="≈ $0.02" detail="Per report. Anthropic Claude. Your key, your bill." />
-            <PriceRow label="Estimated total" price="< $0.50/mo" detail="For most riders. Skip AI and it's $0." emphasis />
+            <PriceRow label="Club AI moments" price="Included" detail="Circle Note, members trend, post-ride callout. System-paid Haiku." />
+            <PriceRow label="Personal AI plans" price="≈ $0.02" detail="Per /coach plan. Anthropic Sonnet. Your key, your bill." />
+            <PriceRow label="Estimated total" price="< $0.50/mo" detail="For most riders. Skip personal AI and it's $0." emphasis />
           </div>
         </Container>
       </section>
@@ -249,8 +252,8 @@ export function Landing() {
               Don't break <em>the chain</em>.
             </h2>
             <p className={styles.finalLede}>
-              One click. Full Strava history imported. PMC, plan, route picker —
-              all yours, all local, all free.
+              One click. Full Strava history imported. PMC, plan, route picker, club
+              layer — all yours, all local, all free.
             </p>
             <Button href={connectUrl()} size="lg" variant="primary" withArrow>
               Connect with Strava
@@ -338,29 +341,18 @@ function WorkoutPreview() {
   );
 }
 
-function RoutePreview() {
+function ClubLayerPreview() {
   return (
     <div className={styles.routePrev}>
-      <svg viewBox="0 0 280 140" aria-hidden="true" className={styles.routeMap}>
-        <defs>
-          <linearGradient id="rg" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--c-accent)" stopOpacity={0.3} />
-            <stop offset="100%" stopColor="var(--c-accent)" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M10 120 C 40 80, 70 60, 100 70 S 160 110, 200 50 S 250 25, 270 30"
-          fill="none" stroke="url(#rg)" strokeWidth={2.5} strokeLinecap="round"
-        />
-        <circle cx={10} cy={120} r={4} fill="var(--c-accent)" />
-        <circle cx={270} cy={30} r={4} fill="var(--c-accent)" />
-      </svg>
       <div className={styles.routeStats}>
-        <div><span>Albis Loop</span><Pill tone="success">94% match</Pill></div>
+        <div>
+          <span>Saturday Crew</span>
+          <Pill tone="accent">AI Circle Note · weekly</Pill>
+        </div>
         <ul>
-          <li><span>62 km</span><span>distance</span></li>
-          <li><span>1,140 m</span><span>elevation</span></li>
-          <li><span>Z2 → Z4</span><span>zones hit</span></li>
+          <li><span>42 h</span><span>collective · 28d</span></li>
+          <li><span>1,240 km</span><span>distance</span></li>
+          <li><span>3</span><span>group rides</span></li>
         </ul>
       </div>
     </div>

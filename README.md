@@ -1,8 +1,12 @@
 # Cadence Club
 
-Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker. Built around the persona of **Marco** — the performance-driven amateur (Zürich, FTP 285, Etape du Tour goal).
+Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.6.4](./CHANGELOG.md#964--2026-04-30)** · 2026-04-30 · [Security](./SECURITY.md)
+**Current release: [v9.6.5](./CHANGELOG.md#965--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.6.5
+
+Marketing rewrite. Landing page (`/` and `/#what`) was still Persona A only ("performance-driven amateur, FTP, W/kg"); the product has shifted to clubs-first with AI embedded across three personas. Surgical copy edits in `apps/web/src/pages/Landing.tsx`: hero pivots to "Train solo. *Ride together.* Smarter."; §01 broadens "For you if…" to include club captains and casual commuters; §02 Feature 03 replaces the route preview with a club-layer feature (Overview / Schedule / Members / Metrics, AI Circle Note); pricing splits the dual-tier AI cost model (system-paid Haiku for club moments, BYOK Sonnet for personal /coach plans). New `ClubLayerPreview` component reuses existing route-preview CSS; the now-unused `RoutePreview` was deleted (38 lines). README tagline updated to match. No backend, schema, or routing changes.
 
 ## What's new in v9.6.4
 
