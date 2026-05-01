@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.7.2';
+const WORKER_VERSION = 'v9.7.3';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -541,12 +541,29 @@ async function handleRequest(request, env) {
             status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
+
+        // v9.7.3 (Migration 0007) — event_type + new model columns.
+        // Allowlists guard against bad inputs.
+        const TYPE_ALLOWLIST = new Set(['ride', 'social', 'race']);
+        const SURFACE_ALLOWLIST = new Set(['road', 'gravel', 'mixed']);
+        const eventType = TYPE_ALLOWLIST.has(body?.event_type) ? body.event_type : 'ride';
+        const distanceKm = typeof body?.distance_km === 'number' && body.distance_km >= 0 && body.distance_km < 1000
+          ? body.distance_km : null;
+        const speedKmh = typeof body?.expected_avg_speed_kmh === 'number' && body.expected_avg_speed_kmh > 0 && body.expected_avg_speed_kmh < 100
+          ? body.expected_avg_speed_kmh : null;
+        const surface = SURFACE_ALLOWLIST.has(body?.surface) ? body.surface : null;
+        const startPoint = body?.start_point ? body.start_point.toString().trim().slice(0, 200) : null;
+        const routeStravaId = body?.route_strava_id ? body.route_strava_id.toString().trim().slice(0, 64) : null;
+        const descAi = body?.description_ai_generated === true || body?.description_ai_generated === 1 ? 1 : 0;
+
         const inserted = await db
           .prepare(
-            'INSERT INTO club_events (club_id, created_by, title, description, event_date, location, created_at) ' +
-            'VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
+            'INSERT INTO club_events (club_id, created_by, title, description, event_date, location, created_at, ' +
+            '  event_type, distance_km, expected_avg_speed_kmh, surface, start_point, route_strava_id, description_ai_generated) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?, ?, ?) RETURNING id',
           )
-          .bind(clubId, authResult.athleteId, title, description, eventDate, location, now)
+          .bind(clubId, authResult.athleteId, title, description, eventDate, location, now,
+                eventType, distanceKm, speedKmh, surface, startPoint, routeStravaId, descAi)
           .first();
         if (!inserted?.id) {
           safeWarn(`[clubs] event insert returned no id for club ${clubId}`);
@@ -563,6 +580,14 @@ async function handleRequest(request, env) {
           location,
           event_date: eventDate,
           created_at: now,
+          event_type: eventType,
+          distance_km: distanceKm,
+          expected_avg_speed_kmh: speedKmh,
+          surface,
+          start_point: startPoint,
+          route_strava_id: routeStravaId,
+          description_ai_generated: descAi,
+          cancelled_at: null,
         }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
@@ -597,6 +622,8 @@ async function handleRequest(request, env) {
         const { results: rangeRows } = await db.prepare(
           'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
           '       e.event_date, e.event_type, e.created_at, ' +
+          '       e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point, ' +
+          '       e.route_strava_id, e.description_ai_generated, e.cancelled_at, ' +
           '       u.firstname AS creator_firstname, u.lastname AS creator_lastname, ' +
           '       COUNT(CASE WHEN r.status = \'going\' THEN 1 END) AS confirmed_count ' +
           'FROM club_events e ' +
@@ -604,7 +631,10 @@ async function handleRequest(request, env) {
           'LEFT JOIN event_rsvps r ON r.event_id = e.id ' +
           'WHERE e.club_id = ? AND e.event_date BETWEEN ? AND ? ' +
           'GROUP BY e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
-          '         e.event_date, e.event_type, e.created_at, u.firstname, u.lastname ' +
+          '         e.event_date, e.event_type, e.created_at, ' +
+          '         e.distance_km, e.expected_avg_speed_kmh, e.surface, e.start_point, ' +
+          '         e.route_strava_id, e.description_ai_generated, e.cancelled_at, ' +
+          '         u.firstname, u.lastname ' +
           'ORDER BY e.event_date ASC',
         ).bind(clubId, startEpoch, endEpoch).all();
         const events = (rangeRows || []).map((e) => ({
@@ -637,6 +667,169 @@ async function handleRequest(request, env) {
       const stmt = includePast ? db.prepare(sql).bind(clubId) : db.prepare(sql).bind(clubId, now);
       const { results } = await stmt.all();
       return new Response(JSON.stringify({ club_id: clubId, events: results || [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // PATCH /api/clubs/:id/events/:eventId — Sprint 5 / v9.7.3 (#60).
+    // Edit an existing event. Creator OR admin only (403 otherwise; 404 if
+    // not a club member, OWASP). Same field set as POST + the new model
+    // columns from Migration 0007. Rate-limited on clubs-write 30/min.
+    const eventEditMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/events\/(\d+)$/);
+    if (eventEditMatch && request.method === 'PATCH') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const clubId = parseInt(eventEditMatch[1], 10);
+      const eventId = parseInt(eventEditMatch[2], 10);
+      const db = env.cycling_coach_db;
+
+      // Membership + role check + event ownership in one batch.
+      const [memberRow, eventRow] = await db.batch([
+        db.prepare('SELECT m.role FROM club_members m WHERE m.club_id = ? AND m.athlete_id = ? LIMIT 1')
+          .bind(clubId, authResult.athleteId),
+        db.prepare('SELECT id, club_id, created_by FROM club_events WHERE id = ? AND club_id = ? LIMIT 1')
+          .bind(eventId, clubId),
+      ]);
+      const membership = memberRow?.results?.[0];
+      const event = eventRow?.results?.[0];
+      if (!membership || !event) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const isAdmin = membership.role === 'admin';
+      const isCreator = event.created_by === authResult.athleteId;
+      if (!isAdmin && !isCreator) {
+        return new Response(JSON.stringify({ error: 'creator or admin only' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const rl = await checkRateLimit(env, 'clubs-write', String(authResult.athleteId), 30, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
+
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Allowlist of patchable fields. Caller sends partial body — only
+      // present keys are updated. Empty-string clears nullable text fields
+      // (so the UI can erase them).
+      const TYPE_ALLOWLIST = new Set(['ride', 'social', 'race']);
+      const SURFACE_ALLOWLIST = new Set(['road', 'gravel', 'mixed']);
+      const updates = [];
+      const params = [];
+      const out = {};
+
+      const setIfPresent = (key, sqlCol, parser) => {
+        if (key in body) {
+          const value = parser(body[key]);
+          if (value === undefined) return; // parser rejected; skip silently
+          updates.push(`${sqlCol} = ?`);
+          params.push(value);
+          out[sqlCol] = value;
+        }
+      };
+
+      setIfPresent('title', 'title', (v) => {
+        const s = String(v || '').trim();
+        return s && s.length <= 200 ? s : undefined;
+      });
+      setIfPresent('description', 'description', (v) => v == null || v === '' ? null : String(v).trim().slice(0, 2000));
+      setIfPresent('location', 'location', (v) => v == null || v === '' ? null : String(v).trim().slice(0, 200));
+      setIfPresent('event_date', 'event_date', (v) => {
+        const n = typeof v === 'number' ? Math.floor(v) : v ? Math.floor(new Date(v).getTime() / 1000) : NaN;
+        return Number.isFinite(n) && n > 0 ? n : undefined;
+      });
+      setIfPresent('event_type', 'event_type', (v) => TYPE_ALLOWLIST.has(v) ? v : undefined);
+      setIfPresent('distance_km', 'distance_km', (v) => v === null ? null : (typeof v === 'number' && v >= 0 && v < 1000 ? v : undefined));
+      setIfPresent('expected_avg_speed_kmh', 'expected_avg_speed_kmh', (v) => v === null ? null : (typeof v === 'number' && v > 0 && v < 100 ? v : undefined));
+      setIfPresent('surface', 'surface', (v) => v === null ? null : (SURFACE_ALLOWLIST.has(v) ? v : undefined));
+      setIfPresent('start_point', 'start_point', (v) => v == null || v === '' ? null : String(v).trim().slice(0, 200));
+      setIfPresent('route_strava_id', 'route_strava_id', (v) => v == null || v === '' ? null : String(v).trim().slice(0, 64));
+
+      if (updates.length === 0) {
+        return new Response(JSON.stringify({ error: 'no patchable fields' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      params.push(eventId);
+      await db.prepare(`UPDATE club_events SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();
+
+      return new Response(JSON.stringify({ id: eventId, club_id: clubId, ...out }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // POST /api/clubs/:id/events/:eventId/cancel — Sprint 5 / v9.7.3 (#60).
+    // Soft-cancel an event. Sets cancelled_at = now. Creator OR admin only.
+    // Idempotent — second call is a no-op (cancelled_at unchanged on already-
+    // cancelled events; UI is responsible for un-cancel UX if needed later).
+    const eventCancelMatch = url.pathname.match(/^\/api\/clubs\/(\d+)\/events\/(\d+)\/cancel$/);
+    if (eventCancelMatch && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const clubId = parseInt(eventCancelMatch[1], 10);
+      const eventId = parseInt(eventCancelMatch[2], 10);
+      const db = env.cycling_coach_db;
+
+      const [memberRow, eventRow] = await db.batch([
+        db.prepare('SELECT m.role FROM club_members m WHERE m.club_id = ? AND m.athlete_id = ? LIMIT 1')
+          .bind(clubId, authResult.athleteId),
+        db.prepare('SELECT id, club_id, created_by, cancelled_at FROM club_events WHERE id = ? AND club_id = ? LIMIT 1')
+          .bind(eventId, clubId),
+      ]);
+      const membership = memberRow?.results?.[0];
+      const event = eventRow?.results?.[0];
+      if (!membership || !event) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const isAdmin = membership.role === 'admin';
+      const isCreator = event.created_by === authResult.athleteId;
+      if (!isAdmin && !isCreator) {
+        return new Response(JSON.stringify({ error: 'creator or admin only' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const rl = await checkRateLimit(env, 'clubs-write', String(authResult.athleteId), 30, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      // Idempotent — preserves the original cancellation time if already set.
+      if (event.cancelled_at) {
+        return new Response(JSON.stringify({ id: eventId, club_id: clubId, cancelled_at: event.cancelled_at, already_cancelled: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      await db.prepare('UPDATE club_events SET cancelled_at = ? WHERE id = ?').bind(now, eventId).run();
+      return new Response(JSON.stringify({ id: eventId, club_id: clubId, cancelled_at: now }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

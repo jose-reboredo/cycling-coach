@@ -434,6 +434,41 @@
   flex-basis: 100%;
 }
 
+/* v9.7.3 (#60) — cancelled / confirm / error states for the Cancel UX */
+.drawerCancelled {
+  margin: 0;
+  font: 400 0.875rem/1.4 var(--font-sans);
+  color: var(--c-text-muted);
+  font-style: italic;
+}
+.drawerConfirmText {
+  margin: 0 0 var(--s-2) 0;
+  font: 400 0.9375rem/1.4 var(--font-sans);
+  color: var(--c-text);
+  flex-basis: 100%;
+}
+.drawerError {
+  margin: var(--s-1) 0 0 0;
+  font: 400 0.8125rem/1.3 var(--font-sans);
+  color: var(--c-warn, #e0a060);
+  flex-basis: 100%;
+}
+
+/* v9.7.3 (#60) — strikethrough on cancelled pills (Month / Week / Day grids).
+ * Reduced opacity + line-through on the title; pillTime stays legible so
+ * members can still see when the cancelled event was scheduled. */
+.pill.cancelled,
+.weekEvent.cancelled,
+.dayEvent.cancelled {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.pill.cancelled .pillTitle,
+.weekEvent.cancelled .pillTitle,
+.dayEvent.cancelled .dayEventTitle {
+  text-decoration: line-through;
+}
+
 /* ===== DESKTOP — drawer slides in from right ===== */
 @media (min-width: 600px) {
   .drawerBackdrop {

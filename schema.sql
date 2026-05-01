@@ -206,10 +206,18 @@ CREATE TABLE club_events (
   created_by INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  event_date INTEGER NOT NULL,    -- unix epoch seconds, when the event happens
-  location TEXT,                  -- optional free-text ("Richmond Park · Sheen Gate")
+  event_date INTEGER NOT NULL,                  -- unix epoch seconds, when the event happens
+  location TEXT,                                -- optional free-text ("Richmond Park · Sheen Gate")
   created_at INTEGER NOT NULL,
-  event_type TEXT NOT NULL DEFAULT 'ride'  -- v9.7.0 (migration 0006): Schedule tab filter chips — 'ride' / 'social' / 'race'
+  event_type TEXT NOT NULL DEFAULT 'ride',      -- v9.7.0 (migration 0006): Schedule tab filter chips — 'ride' / 'social' / 'race'
+  -- v9.7.3 (migration 0007) — event model expansion + lifecycle
+  distance_km REAL,                             -- nullable; social events skip
+  expected_avg_speed_kmh REAL,                  -- nullable; pace proxy for ride/race
+  surface TEXT CHECK (surface IS NULL OR surface IN ('road', 'gravel', 'mixed')),
+  start_point TEXT,                             -- free text address ("Limmatquai 8")
+  route_strava_id TEXT,                         -- nullable; link to user's saved Strava route
+  description_ai_generated INTEGER NOT NULL DEFAULT 0,  -- boolean: was description AI-drafted?
+  cancelled_at INTEGER                          -- nullable; epoch seconds when creator/admin cancelled (soft-delete)
 );
 
 CREATE INDEX idx_club_events_club_date ON club_events(club_id, event_date);

@@ -68,7 +68,7 @@ export function DayCalendarGrid({
               <button
                 key={e.id}
                 type="button"
-                className={`${styles.dayEvent} ${styles[`pill_${e.event_type}`]}`}
+                className={`${styles.dayEvent} ${styles[`pill_${e.event_type}`]} ${e.cancelled_at ? styles.cancelled : ''}`}
                 style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                 onClick={() => onEventClick(e)}
               >

@@ -2,7 +2,7 @@
 // as useStravaData hooks (5 min stale, 30 min gc).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clubsApi, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type JoinClubResponse, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
+import { clubsApi, type CancelClubEventResponse, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type JoinClubResponse, type PatchClubEventInput, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
 
 const FIVE_MIN = 5 * 60 * 1000;
 const THIRTY_MIN = 30 * 60 * 1000;
@@ -101,6 +101,32 @@ export function useRsvp(clubId: number, eventId: number) {
   return useMutation<RsvpResponse, Error, 'going' | 'not_going'>({
     mutationFn: (status) => clubsApi.rsvp(clubId, eventId, status),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
+    },
+  });
+}
+
+/** v9.7.3 (#60) — PATCH /api/clubs/:id/events/:eventId. Creator/admin only.
+ *  Invalidates the event range query so the calendar refetches on success. */
+export function usePatchClubEvent(clubId: number) {
+  const qc = useQueryClient();
+  return useMutation<{ id: number }, Error, { eventId: number; input: PatchClubEventInput }>({
+    mutationFn: ({ eventId, input }) => clubsApi.patchEvent(clubId, eventId, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] });
+      qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
+    },
+  });
+}
+
+/** v9.7.3 (#60) — POST /api/clubs/:id/events/:eventId/cancel. Soft-delete.
+ *  Creator/admin only. Invalidates calendar caches on success. */
+export function useCancelClubEvent(clubId: number) {
+  const qc = useQueryClient();
+  return useMutation<CancelClubEventResponse, Error, number>({
+    mutationFn: (eventId) => clubsApi.cancelEvent(clubId, eventId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] });
       qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
     },
   });

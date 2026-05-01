@@ -116,6 +116,42 @@
   color: var(--c-text-faint);
 }
 
+/* v9.7.3 (#60) — chip row for Format + Surface selectors. */
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.chip {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--c-text-muted);
+  font: 500 13px/1 var(--font-sans);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  min-height: var(--hit-min);
+  transition: color var(--d-fast) var(--e-out), border-color var(--d-fast) var(--e-out), background var(--d-fast) var(--e-out);
+}
+
+.chip:hover {
+  color: var(--c-text);
+  border-color: var(--c-text-muted);
+}
+
+.chip:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
+.chipActive {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+  background: rgba(255, 77, 0, 0.08);
+}
+
 .error {
   background: var(--c-accent-soft);
   border-left: 2px solid var(--c-accent);

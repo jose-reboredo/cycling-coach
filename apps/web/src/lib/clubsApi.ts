@@ -95,6 +95,7 @@ export interface JoinClubResponse {
 }
 
 export type ClubEventType = 'ride' | 'social' | 'race';
+export type ClubEventSurface = 'road' | 'gravel' | 'mixed';
 
 export interface ClubEvent {
   id: number;
@@ -106,6 +107,14 @@ export interface ClubEvent {
   event_date: number; // unix epoch seconds
   event_type: ClubEventType; // v9.7.0 (migration 0006) — defaults to 'ride'
   created_at: number;
+  // v9.7.3 (migration 0007) — event model expansion + lifecycle.
+  distance_km?: number | null;
+  expected_avg_speed_kmh?: number | null;
+  surface?: ClubEventSurface | null;
+  start_point?: string | null;
+  route_strava_id?: string | null;
+  description_ai_generated?: number | null;
+  cancelled_at?: number | null;
   creator_firstname?: string | null;
   creator_lastname?: string | null;
 }
@@ -123,6 +132,26 @@ export interface CreateClubEventInput {
   location?: string;
   /** ISO 8601 string OR unix epoch seconds. */
   event_date: string | number;
+  // v9.7.3 — Migration 0007 fields.
+  event_type?: ClubEventType;
+  distance_km?: number | null;
+  expected_avg_speed_kmh?: number | null;
+  surface?: ClubEventSurface | null;
+  start_point?: string | null;
+  route_strava_id?: string | null;
+  description_ai_generated?: boolean;
+}
+
+/** v9.7.3 — partial update; only present keys are applied server-side. */
+export type PatchClubEventInput = Partial<Omit<CreateClubEventInput, 'event_date'>> & {
+  event_date?: string | number;
+};
+
+export interface CancelClubEventResponse {
+  id: number;
+  club_id: number;
+  cancelled_at: number;
+  already_cancelled?: boolean;
 }
 
 // ---- /overview endpoint types (Phase 1) ----
@@ -174,6 +203,18 @@ export const clubsApi = {
     call<ClubEvent>(`/api/clubs/${clubId}/events`, {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+  // v9.7.3 (#60) — partial update; creator OR admin only.
+  patchEvent: (clubId: number, eventId: number, input: PatchClubEventInput) =>
+    call<{ id: number; club_id: number } & Partial<ClubEvent>>(`/api/clubs/${clubId}/events/${eventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  // v9.7.3 (#60) — soft-cancel; creator OR admin only.
+  cancelEvent: (clubId: number, eventId: number) =>
+    call<CancelClubEventResponse>(`/api/clubs/${clubId}/events/${eventId}/cancel`, {
+      method: 'POST',
+      body: '{}',
     }),
   overview: (clubId: number) =>
     call<ClubOverview>(`/api/clubs/${clubId}/overview`),

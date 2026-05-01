@@ -96,9 +96,9 @@ export function MonthCalendarGrid({
                 <button
                   key={e.id}
                   type="button"
-                  className={`${styles.pill} ${styles[`pill_${e.event_type}`]}`}
+                  className={`${styles.pill} ${styles[`pill_${e.event_type}`]} ${e.cancelled_at ? styles.cancelled : ''}`}
                   onClick={() => onEventClick(e)}
-                  title={`${e.title} · ${e.confirmed_count} going`}
+                  title={`${e.title}${e.cancelled_at ? ' · cancelled' : ''} · ${e.confirmed_count} going`}
                 >
                   <span className={styles.pillTime}>
                     {String(new Date(e.event_date * 1000).getUTCHours()).padStart(2, '0')}

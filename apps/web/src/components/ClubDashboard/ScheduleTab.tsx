@@ -3,7 +3,7 @@
 // Tap any pill → EventDetailDrawer. View persists in URL hash.
 
 import { useEffect, useMemo, useState } from 'react';
-import { useClubEventsByMonth } from '../../hooks/useClubs';
+import { useClubEventsByMonth, useClubOverview } from '../../hooks/useClubs';
 import { MonthCalendarGrid } from '../Calendar/MonthCalendarGrid';
 import { WeekCalendarGrid } from '../Calendar/WeekCalendarGrid';
 import { DayCalendarGrid } from '../Calendar/DayCalendarGrid';
@@ -80,6 +80,12 @@ export function ScheduleTab({ clubId }: { clubId: number }) {
   const range = monthToRange(date.year, date.month);
   const { data, isLoading, error } = useClubEventsByMonth(clubId, range);
   const events: CalendarEvent[] = useMemo(() => data?.events ?? [], [data]);
+
+  // v9.7.3 — pass caller's role to drawer for Cancel-button gating.
+  // Athlete-id gating client-side requires another fetch; the server
+  // enforces 403 if non-creator non-admin so we lean on that.
+  const overview = useClubOverview(clubId);
+  const callerRole = overview.data?.club.role ?? null;
 
   const toggleFilter = (t: ClubEventType) => {
     setActiveFilters((prev) => {
@@ -203,7 +209,12 @@ export function ScheduleTab({ clubId }: { clubId: number }) {
       {isLoading && <p className={styles.loading}>Loading events…</p>}
 
       {/* EVENT DETAIL DRAWER */}
-      <EventDetailDrawer event={activeEvent} onClose={() => setActiveEvent(null)} />
+      <EventDetailDrawer
+        event={activeEvent}
+        onClose={() => setActiveEvent(null)}
+        clubId={clubId}
+        callerRole={callerRole}
+      />
     </div>
   );
 }

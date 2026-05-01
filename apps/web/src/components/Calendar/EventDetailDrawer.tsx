@@ -1,20 +1,32 @@
-// EventDetailDrawer — Sprint 5 / v9.7.1.
+// EventDetailDrawer — Sprint 5 / v9.7.1 → v9.7.3 (#60).
 // Mobile (≤ 600px): bottom-sheet sliding up from bottom.
 // Desktop (≥ 601px): right-side panel sliding in from right.
 // Tap pill in any view → opens this drawer with full event detail.
-// Edit / Cancel buttons stub here; wired to creator/admin gating in v9.7.3.
+// v9.7.3: Cancel button wired to clubsApi.cancelEvent (creator/admin only).
+// Edit (PATCH) UX deferred to v9.7.3.1.
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { CalendarEvent } from './types';
 import { TYPE_LABEL } from './types';
+import { useCancelClubEvent } from '../../hooks/useClubs';
 import styles from './Calendar.module.css';
 
 interface EventDetailDrawerProps {
   event: CalendarEvent | null;
   onClose: () => void;
+  /** v9.7.3 — required to wire Cancel mutation. Absent for the personal
+   *  scheduler aggregation in v9.7.4 (read-only across clubs). */
+  clubId?: number | null;
+  /** v9.7.3 — caller's athlete_id to check creator/admin gating client-side. */
+  callerAthleteId?: number | null;
+  /** v9.7.3 — caller's role in this club ('admin' | 'member' | other). */
+  callerRole?: string | null;
 }
 
-export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
+export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, callerRole }: EventDetailDrawerProps) {
+  const cancelMutation = useCancelClubEvent(clubId ?? 0);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   // Lock body scroll while open + handle Escape key.
   useEffect(() => {
     if (!event) return;
@@ -107,19 +119,75 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
         )}
 
         <footer className={styles.drawerFooter}>
-          <button type="button" className={styles.drawerBtn} disabled>
-            Edit
-          </button>
-          <button
-            type="button"
-            className={`${styles.drawerBtn} ${styles.drawerBtnDanger}`}
-            disabled
-          >
-            Cancel event
-          </button>
-          <p className={styles.drawerNote}>
-            Edit / Cancel ship in v9.7.3 (event lifecycle).
-          </p>
+          {(() => {
+            const isCancelled = !!event.cancelled_at;
+            // Permission gating: if caller info is provided, narrow to
+            // creator OR admin. If not provided (e.g. personal scheduler
+            // aggregation in v9.7.4 where role context is heterogeneous),
+            // show the button anyway and let the server enforce 403.
+            const callerInfoKnown = callerAthleteId != null || callerRole != null;
+            const isCreator = !!callerAthleteId && event.created_by === callerAthleteId;
+            const isAdmin = callerRole === 'admin';
+            const canModify = !isCancelled && !!clubId && (callerInfoKnown ? (isCreator || isAdmin) : true);
+            if (isCancelled) {
+              return (
+                <p className={styles.drawerCancelled}>
+                  This event was cancelled on{' '}
+                  {new Date((event.cancelled_at as number) * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}.
+                </p>
+              );
+            }
+            if (!canModify) {
+              return null;
+            }
+            if (showConfirm) {
+              return (
+                <>
+                  <p className={styles.drawerConfirmText}>
+                    Cancel <strong>{event.title}</strong>? Members will see it as cancelled.
+                  </p>
+                  <button type="button" className={styles.drawerBtn} onClick={() => setShowConfirm(false)} disabled={cancelMutation.isPending}>
+                    Keep event
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.drawerBtn} ${styles.drawerBtnDanger}`}
+                    disabled={cancelMutation.isPending}
+                    onClick={() => {
+                      cancelMutation.mutate(event.id, {
+                        onSuccess: () => {
+                          setShowConfirm(false);
+                          onClose();
+                        },
+                      });
+                    }}
+                  >
+                    {cancelMutation.isPending ? 'Cancelling…' : 'Yes, cancel event'}
+                  </button>
+                  {cancelMutation.isError && (
+                    <p className={styles.drawerError}>Couldn't cancel — try again.</p>
+                  )}
+                </>
+              );
+            }
+            return (
+              <>
+                <button type="button" className={styles.drawerBtn} disabled title="Edit ships in v9.7.3.1">
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.drawerBtn} ${styles.drawerBtnDanger}`}
+                  onClick={() => setShowConfirm(true)}
+                >
+                  Cancel event
+                </button>
+                <p className={styles.drawerNote}>
+                  Edit ships in v9.7.3.1 (creator/admin only).
+                </p>
+              </>
+            );
+          })()}
         </footer>
       </div>
     </div>

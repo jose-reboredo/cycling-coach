@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.7.2](./CHANGELOG.md#972--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.7.3](./CHANGELOG.md#973--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.7.3
+
+Sprint 5 / `#60` + `#63` — Event model expansion + lifecycle (cancel) + Privacy header removal. Migration `0007` adds 7 new columns to `club_events` (`distance_km`, `expected_avg_speed_kmh`, `surface` CHECK road/gravel/mixed, `start_point`, `route_strava_id`, `description_ai_generated`, `cancelled_at` for soft-delete). Two new endpoints: `PATCH /api/clubs/:id/events/:eventId` (creator/admin gated, partial-update with allowlisted fields, 30/min clubs-write rate-limit) and `POST /api/clubs/:id/events/:eventId/cancel` (idempotent soft-delete, same gating). Existing `POST` extended to accept all new fields with allowlist guards (event_type ∈ ride/social/race; surface ∈ road/gravel/mixed; numeric ranges 0-1000 km / 0-100 km/h). Existing `GET ?range=` returns the full new column set. ClubEventModal expanded with **Format chips** (🚴 Ride / ☕ Social / 🏁 Race), Distance + Avg-speed inputs, Surface chips (Any / Road / Gravel / Mixed), Start-point text, Location/area text, Notes textarea — with **persona-aware hiding**: Distance/Speed/Surface auto-hide when format = Social. EventDetailDrawer now wires Cancel: tap → confirmation → server-side soft-delete; cancelled events render strikethrough across all 3 calendar views (Month/Week/Day) with reduced opacity + "Cancelled on …" line in the drawer. **`#63` privacy link removed** from the public Landing TopBar (still in footer) — header now focuses on the primary "Connect" CTA. Dashboard chunk: 83 → 87 KB (+4 KB). Edit (PATCH UX) and AI-description button **deferred to v9.7.3.1**.
 
 ## What's new in v9.7.2
 

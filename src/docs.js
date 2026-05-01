@@ -63,13 +63,22 @@ export const SPEC_PAGES = [
 <tr><td><strong>v9.7.0</strong></td><td>✅ <strong>Shipped 2026-05-01</strong> — Schedule tab Month view + Migration 0006 (<code>club_events.event_type</code>) + GET /api/clubs/:id/events?range=YYYY-MM. Closed Phase 3 of <a href="https://github.com/jose-reboredo/cycling-coach/issues/53">#53</a>.</td></tr>
 <tr><td><strong>v9.7.1</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/57">#57</a> — Multi-view scheduler (Month / Week / Day) + event-detail drawer. ~7h. Reuses v9.7.0 endpoint; no new backend.</td></tr>
 <tr><td><strong>v9.7.2</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/59">#59</a> — Responsive nav consistency + CC line-icon library (8 icons). ~5h. Foundation refactor.<br/><a href="https://github.com/jose-reboredo/cycling-coach/issues/62">#62</a> — Members search input height fix (mobile UX bug; bundled here as same UX-consistency theme). ~30 min CSS-only.</td></tr>
-<tr><td><strong>v9.7.3</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/60">#60</a> — Event model expansion + lifecycle. ~10h. Migration 0007 (distance, speed, surface, start_point, route_strava_id, description_ai_generated, cancelled_at), PATCH + cancel + AI-description endpoints, Create/Edit modal expansion, Cancel UX.</td></tr>
+<tr><td><strong>v9.7.3</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/60">#60</a> — Event model expansion + lifecycle. ~10h. Migration 0007 (distance, speed, surface, start_point, route_strava_id, description_ai_generated, cancelled_at), PATCH + cancel + AI-description endpoints, Create/Edit modal expansion, Cancel UX.<br/><a href="https://github.com/jose-reboredo/cycling-coach/issues/63">#63</a> — Privacy link removal from public Landing header (folded in; ~10 min).</td></tr>
 <tr><td><strong>v9.7.4</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/61">#61</a> — Personal scheduler at <code>/dashboard/schedule</code> aggregating: club RSVPs + events I created + AI plan items + goals. ~12h. New endpoint <code>GET /api/me/schedule?range=</code>.</td></tr>
 <tr><td><strong>v9.7.5</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/56">#56</a> — Clubs share/invite flow (Detail → Share Sheet → Link Copied → Invitee Landing). ~6h.</td></tr>
 <tr><td><strong>Effort total</strong></td><td>~40h across 5 releases (v9.7.0 already done; v9.7.1–v9.7.5 ahead)</td></tr>
 <tr><td><strong>ADRs to lock</strong></td><td>ADR-S5.1 cron failure mode ✅ (deferred to Sprint 6 with cron); ADR-S5.2 readiness-dot threshold ✅ (deferred to Sprint 6); ADR-S5.3 AI-description prompt shape + cost ceiling (v9.7.3); ADR-S5.4 AI plan parsing contract (v9.7.4)</td></tr>
 <tr><td><strong>Risk</strong></td><td>Event model expansion + lifecycle (v9.7.3) is the largest single piece — multiple new endpoints + permissions + AI integration. Verification budget bumped to 12% per Sprint 4 retro.</td></tr>
 <tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-5.md</code> committed at sprint close</td></tr>
+</table>
+
+<h2>§2.5. Sprint 5.5 — Brand & Conversion (~4h, 1 release)</h2>
+<table>
+<tr><th>Aspect</th><th>Detail</th></tr>
+<tr><td><strong>Theme</strong></td><td>External UX feedback addressed. Decoupled from Sprint 5 events/scheduler theme so the focus stays clean.</td></tr>
+<tr><td><strong>v9.7.6</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/64">#64</a> — Landing page copy rewrite for non-technical audience (Sofia + Léa). Strip tech jargon (PMC, CTL/ATL/TSB, BYOK Anthropic key, system-paid Haiku); replace with concrete-benefit / friendlier framing. Maintain Marco's technical credibility one click away.</td></tr>
+<tr><td><strong>Trigger</strong></td><td>2026-05-01 external review by Dentsu Creative UX designer: "I think you need to dumb it down. less tech terms easier value proposition."</td></tr>
+<tr><td><strong>Optional pair</strong></td><td>Visual language refresh from <a href="https://github.com/jose-reboredo/cycling-coach/issues/65">#65</a> if the discovery doc lands ahead of v9.7.6 ship date.</td></tr>
 </table>
 
 <h2>§3. Sprint 6 — AI Infrastructure (Phase 4 cron + Phase 5 LLM moments)</h2>
@@ -82,6 +91,7 @@ export const SPEC_PAGES = [
 <tr><td><strong>ADRs</strong></td><td>ADR-S5.1 cron failure mode (log-and-skip, no retry — locked 2026-05-01); ADR-S5.2 readiness-dot thresholds (TSB ≥ +5 / -10 to +5 / &lt; -10 — locked 2026-05-01); ADR-S6.1 multi-tenant prompt shape (no <code>athlete_id</code> leak); ADR-S6.2 cost-ceiling alarm (per-club Haiku spend tracking)</td></tr>
 <tr><td><strong>Risk</strong></td><td>First Worker <code>scheduled</code> handler + first user-facing LLM output across multiple recipients</td></tr>
 <tr><td><strong>DoD</strong></td><td><code>docs/retros/sprint-6.md</code> committed; <strong>post-S6 review of Route Generation feature direction (founder decision §1-7)</strong></td></tr>
+<tr><td><strong>Discovery track (parallel)</strong></td><td><a href="https://github.com/jose-reboredo/cycling-coach/issues/65">#65</a> — Visual language differentiation discovery. ~4h research; produces <code>docs/post-demo-sprint/visual-language-options.md</code> with 3–5 alternative directions for founder + Dentsu Creative designer to evaluate. Implementation lands in a future sprint depending on the picked direction.</td></tr>
 </table>
 
 <h2>§4. Sprint 7 — Personal-loop closure (Persona A)</h2>

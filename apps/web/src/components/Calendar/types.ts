@@ -19,6 +19,13 @@ export interface CalendarEvent {
   description?: string | null;
   creator_firstname?: string | null;
   creator_lastname?: string | null;
+  // v9.7.3 (#60) — event-model expansion + lifecycle.
+  created_by?: number;
+  cancelled_at?: number | null;
+  distance_km?: number | null;
+  expected_avg_speed_kmh?: number | null;
+  surface?: 'road' | 'gravel' | 'mixed' | null;
+  start_point?: string | null;
   // Optional badge — for personal scheduler multi-club view.
   club_name?: string;
 }

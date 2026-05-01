@@ -8,7 +8,6 @@ import { ZonePill } from '../components/ZonePill/ZonePill';
 import { PmcStrip } from '../components/PmcStrip/PmcStrip';
 import { ProgressRing } from '../components/ProgressRing/ProgressRing';
 import { TopBar } from '../components/TopBar/TopBar';
-import { Link } from '@tanstack/react-router';
 import { connectUrl } from '../lib/connectUrl';
 import styles from './Landing.module.css';
 
@@ -23,12 +22,9 @@ export function Landing() {
     <div className={styles.page}>
       <TopBar
         trailing={
-          <>
-            <Link to="/privacy" className={styles.navLink}>Privacy</Link>
-            <Button href={connectUrl()} size="sm" variant="primary" withArrow>
-              Connect
-            </Button>
-          </>
+          <Button href={connectUrl()} size="sm" variant="primary" withArrow>
+            Connect
+          </Button>
         }
       />
 

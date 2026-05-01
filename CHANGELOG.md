@@ -4,6 +4,119 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.7.3] — 2026-05-01
+
+**Sprint 5 / `#60` event model expansion + lifecycle + `#63` Privacy header removal.** Largest single release in Sprint 5 — adds 7 columns to `club_events`, 2 new endpoints, extends POST + GET, expands the Create modal, wires Cancel UX end-to-end. AI-description endpoint and Edit (PATCH UX) deliberately deferred to v9.7.3.1 to keep this release shippable inside the 12% verification budget.
+
+### Migration 0007 — `club_events` expansion
+
+`ALTER TABLE club_events ADD COLUMN` × 7:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `distance_km` | REAL nullable | Marco's "is this Z2 or Z4?" / Léa's "is this too far?" |
+| `expected_avg_speed_kmh` | REAL nullable | Pace proxy / target zone |
+| `surface` | TEXT CHECK ('road','gravel','mixed') nullable | Kit choice / Léa's confidence (no surprise gravel) |
+| `start_point` | TEXT nullable | "Where do we meet?" — separate from Location/area |
+| `route_strava_id` | TEXT nullable | Reuses Coach's RoutePicker pattern; UI lands v9.7.3.1 |
+| `description_ai_generated` | INTEGER NOT NULL DEFAULT 0 | Tracks AI-drafted vs hand-written for analytics |
+| `cancelled_at` | INTEGER nullable | Soft-delete; preserves history; pill renders strikethrough |
+
+Pre-CTO column-shape verification (Sprint 4 retro Improvement #2): grep'd against `schema.sql` before commit. Caught two false-positive substring matches (`distance_km` matches `preferred_distance_km` in `training_prefs` + `event_distance_km` in `goals`; `surface` matches `surface_pref` in `training_prefs`). All 7 verified clear on `club_events`. Applied to local + remote D1; verified all 7 columns present via `PRAGMA table_info` query.
+
+### Backend — extended POST + GET, new PATCH + Cancel
+
+**Extended POST `/api/clubs/:id/events`** to accept all new fields. Allowlist guards on `event_type ∈ {ride, social, race}` and `surface ∈ {road, gravel, mixed}`. Numeric range guards: distance 0–1000 km, speed 0–100 km/h. `description_ai_generated` accepts `true`/`1` only. POST response includes all new fields + `cancelled_at: null`.
+
+**Extended GET `?range=YYYY-MM`** SELECT + GROUP BY to return all new columns + `confirmed_count` from the existing event_rsvps LEFT JOIN. No breaking change for existing callers.
+
+**New PATCH `/api/clubs/:id/events/:eventId`** (`src/worker.js:~675`):
+- Membership-gated (404 if not a member, OWASP)
+- Creator OR admin gating (403 otherwise) — checked against `club_events.created_by` + `club_members.role`
+- `clubs-write` rate-limit 30/min/athlete (shared scope with POST/RSVP)
+- Allowlisted partial-update — only present body keys are applied; empty-string clears nullable text fields
+- Idempotent — replays produce identical UPDATE statements
+
+**New POST `/api/clubs/:id/events/:eventId/cancel`**:
+- Same membership + creator/admin gating as PATCH
+- Soft-delete: sets `cancelled_at = unix_now`
+- Idempotent: second call returns existing `cancelled_at` with `already_cancelled: true` flag (no-op UPDATE)
+
+### Frontend — modal expansion + cancel UX + strikethrough
+
+**ClubEventModal** (`apps/web/src/components/ClubEventModal/ClubEventModal.tsx`, ~290 lines):
+
+- New **Format chip row** (🚴 Ride / ☕ Social / 🏁 Race), default = Ride
+- New **Distance + Avg-speed** numeric inputs, side-by-side (`fieldRow` layout)
+- New **Surface chip row** (Any / Road / Gravel / Mixed)
+- New **Start point** text input ("Bürkliplatz fountain" — meeting spot)
+- Renamed existing Location to **Location / area** ("Albis Loop" — where the ride happens)
+- **Persona-aware hiding**: Distance / Speed / Surface fields auto-hide when format = Social (rendered conditionally on `showAthleticFields`)
+- Hint copy on Notes textarea: "AI-draft button ships in v9.7.3.1"
+
+**EventDetailDrawer** (`apps/web/src/components/Calendar/EventDetailDrawer.tsx`):
+
+- Cancel button now functional: tap → inline confirmation prompt → `useCancelClubEvent` mutation → drawer closes on success
+- Permission gating: if `callerAthleteId` + `callerRole` are passed (club Schedule tab), Cancel only shows for creator OR admin. If absent (personal scheduler in v9.7.4), Cancel shows; server enforces 403 if denied.
+- Cancelled events render a "This event was cancelled on {date}." line instead of action buttons
+- Edit button stub (still disabled) — note explains "Edit ships in v9.7.3.1"
+- Mutation error renders inline ("Couldn't cancel — try again.")
+
+**Strikethrough on cancelled pills** across all 3 calendar grids (Month/Week/Day):
+
+```css
+.pill.cancelled, .weekEvent.cancelled, .dayEvent.cancelled {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.pill.cancelled .pillTitle, ... { text-decoration: line-through; }
+```
+
+`MonthCalendarGrid`, `WeekCalendarGrid`, `DayCalendarGrid` all add `${e.cancelled_at ? styles.cancelled : ''}` to their pill className.
+
+### `#63` — Privacy link removal from public Landing header
+
+External UX feedback (Dentsu Creative designer, 2026-05-01): "the privacy link doesn't need to be in header." Removed `<Link to="/privacy">` from `Landing.tsx` TopBar `trailing` prop. Privacy link still reachable via the Landing footer + the `/privacy` route directly. Authenticated users still have privacy in the UserMenu. Cleaned unused `Link` import.
+
+### New API client methods
+
+`apps/web/src/lib/clubsApi.ts`:
+- `clubsApi.patchEvent(clubId, eventId, input)` → PatchClubEventInput partial body
+- `clubsApi.cancelEvent(clubId, eventId)` → CancelClubEventResponse
+- New types: `ClubEventSurface`, `PatchClubEventInput`, `CancelClubEventResponse`
+- Extended `ClubEvent` with all 7 new optional fields
+- Extended `CreateClubEventInput` with new optional fields
+
+`apps/web/src/hooks/useClubs.ts`:
+- `usePatchClubEvent(clubId)` → invalidates events + overview caches on success
+- `useCancelClubEvent(clubId)` → same invalidation pattern
+
+### Bundle impact
+
+Dashboard chunk: 83.08 → 87.30 KB (+4.22 KB / +5.1%). gzip 24.48 → 25.56 KB (+1.08 KB).
+
+### Sprint 5 process adherence (Sprint 4 retro Improvements applied)
+
+- ✅ #1 Paired verification: build green + manual scan + pre-commit grep + remote D1 PRAGMA verification
+- ✅ #2 Pre-commit grep against `schema.sql` — caught false-positive substring matches; all 7 columns verified clear on `club_events`
+- ✅ #3 Defensive scope on Sonnet sub-agents — N/A (Opus implemented directly)
+- ⏳ #4 POST → GET round-trip smoke — verified locally; production smoke pending visual auth'd test (RELEASE_CHECKLIST per-release gate)
+- ✅ #5 Verification budget within 12% — direct in-context implementation; deferred AI-description + Edit UX to v9.7.3.1 to keep this release scoped
+- ✅ #6 Bug post-mortems — none required (no hotfix triggered)
+
+### Deferred to v9.7.3.1
+
+- **AI-description endpoint** (`POST /api/clubs/:id/events/:eventId/description-ai`) — system-paid Haiku, ~$0.001/draft, new `event-ai-draft` rate-limit scope (5/min)
+- **AI-description button** in ClubEventModal — calls the endpoint with current form values, populates Notes textarea
+- **Edit (PATCH UX)** in EventDetailDrawer — wired button + edit-mode form
+- **Route picker** integration — `route_strava_id` field UI; reuses Coach's RoutesPicker
+
+### Versions: 9.7.2 → 9.7.3 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.7.2] — 2026-05-01
 
 **Sprint 5 / `#59` + `#62` — Responsive nav consistency + CC line-icon library + Members search input bug fix.** Foundation refactor for the rest of Sprint 5: every UX surface that lands in v9.7.3+ inherits a consistent shell. Closes `#59` and `#62`.

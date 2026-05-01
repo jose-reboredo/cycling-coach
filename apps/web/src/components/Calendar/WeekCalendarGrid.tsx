@@ -103,7 +103,7 @@ export function WeekCalendarGrid({
                   <button
                     key={e.id}
                     type="button"
-                    className={`${styles.weekEvent} ${styles[`pill_${e.event_type}`]}`}
+                    className={`${styles.weekEvent} ${styles[`pill_${e.event_type}`]} ${e.cancelled_at ? styles.cancelled : ''}`}
                     style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                     onClick={() => onEventClick(e)}
                   >
