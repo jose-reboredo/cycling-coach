@@ -260,9 +260,11 @@
 
 .day {
   display: grid;
-  grid-template-columns: 56px 1fr 24px;
+  /* v10.1.0 — third column auto-sizes to fit either the static dayMark
+   * (24px wide) or the per-day "+ Schedule" inline button (~90px). */
+  grid-template-columns: 56px 1fr auto;
   gap: var(--s-3);
-  align-items: start;
+  align-items: center;
   padding: var(--s-4);
   border-bottom: 1px solid var(--c-line);
   transition: background var(--d-fast) var(--e-out);
@@ -327,15 +329,33 @@
   letter-spacing: -0.005em;
 }
 
-/* v9.12.9 — single-CTA row to push today's session onto the personal
- * calendar. Sits between WeekPlan and the motivation paragraph. */
-.scheduleTodayRow {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-4) 0;
-  border-top: 1px dashed var(--c-line);
+/* v10.1.0 — per-day "+ Schedule" inline button on the WeekPlan. Replaces
+ * the static dayMark when onScheduleDay is wired. Compact mono pill.
+ * State labels: "+ Schedule" → "…" (pending) → "✓" (done, disabled). */
+.dayScheduleBtn {
+  font: 500 0.6875rem/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--c-accent-light);
+  background: rgba(255, 77, 0, 0.1);
+  border: 1px solid rgba(255, 77, 0, 0.28);
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: center;
+  transition: filter 0.15s, background 0.15s;
+}
+.dayScheduleBtn:hover {
+  background: rgba(255, 77, 0, 0.18);
+  filter: brightness(1.1);
+}
+.dayScheduleBtn:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+.dayScheduleBtn:disabled {
+  cursor: default;
+  opacity: 0.7;
 }
 
 .reportFoot {

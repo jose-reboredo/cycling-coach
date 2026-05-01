@@ -28,6 +28,30 @@ function greetingForHour(h: number): string {
   return 'Evening';
 }
 
+/** v10.1.0 — Consecutive-day streak ending at the most recent activity.
+ *  If the user rode yesterday but not today, streak still counts up to
+ *  yesterday — they haven't broken the chain yet, today's just not over.
+ *  Once a full day passes without a ride and they don't ride the next,
+ *  the streak resets. Returns 0 when no activities. */
+function computeStreak(activities: { date: string }[]): number {
+  if (activities.length === 0) return 0;
+  const dateKeys = new Set(activities.map((a) => a.date.slice(0, 10)));
+  const sortedDesc = Array.from(dateKeys).sort((a, b) => b.localeCompare(a));
+  if (sortedDesc.length === 0) return 0;
+  const cursor = new Date(`${sortedDesc[0]}T12:00:00`); // noon-anchored to dodge DST
+  let count = 0;
+  while (true) {
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+    if (dateKeys.has(key)) {
+      count++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return count;
+}
+
 function TodayTab() {
   const tokens = readTokens();
   const isDemo = useMemo(
@@ -51,6 +75,7 @@ function TodayTab() {
   const weight = usingMock ? MARCO.weight : profile.profile.weight ?? 0;
 
   const pmc = useMemo(() => computePmcDelta(activities), [activities]);
+  const streak = useMemo(() => computeStreak(activities), [activities]);
 
   const weeklyStats = useMemo(() => {
     const since = new Date();
@@ -97,6 +122,13 @@ function TodayTab() {
             <Pill dot tone="success">
               {usingMock ? 'Demo data' : 'In sync'}
             </Pill>
+            {/* v10.1.0 — consistency badge. Reads activities, computes
+                consecutive-day streak ending at the latest ride. Hidden when 0. */}
+            {streak > 0 && (
+              <Pill tone="accent">
+                {streak}-day streak
+              </Pill>
+            )}
           </div>
 
           <h2 className={styles.greet}>

@@ -12,7 +12,8 @@ import { useAthleteProfile } from '../hooks/useAthleteProfile';
 import { useCreatePlannedSession } from '../hooks/useClubs';
 import { useRides } from '../hooks/useStravaData';
 import { readTokens } from '../lib/auth';
-import { computeStats, recentForCoach, todayKey } from '../lib/coachUtils';
+import { computeStats, recentForCoach } from '../lib/coachUtils';
+import { DAY_KEYS, type DayName } from '../lib/coachApi';
 import { parseAiSession } from '../lib/aiSession';
 import { MARCO, MOCK_ACTIVITIES } from '../lib/mockMarco';
 import styles from './TabShared.module.css';
@@ -20,6 +21,21 @@ import styles from './TabShared.module.css';
 export const Route = createFileRoute('/dashboard/train')({
   component: TrainTab,
 });
+
+/** v10.1.0 — Resolves a DayName (monday..sunday) to the next-occurrence
+ *  Date from today (inclusive). Today's day → today; past days → next
+ *  week's matching day. Treats the AI weekly plan as forward-looking so
+ *  users always schedule into the future, never backfill into the past. */
+function dateForWeekday(day: DayName): Date {
+  const targetIdx = DAY_KEYS.indexOf(day); // 0=Mon ... 6=Sun
+  const today = new Date();
+  const todayIdx = (today.getDay() + 6) % 7; // JS Sun=0 → normalize Mon=0
+  let daysAhead = targetIdx - todayIdx;
+  if (daysAhead < 0) daysAhead += 7;
+  const target = new Date(today);
+  target.setDate(today.getDate() + daysAhead);
+  return target;
+}
 
 function TrainTab() {
   const tokens = readTokens();
@@ -68,24 +84,26 @@ function TrainTab() {
     }
   };
 
-  // v9.12.9 — push today's row from the AI weekly plan onto the personal
-  // scheduler. The Today tab's TodayDossier reads /api/me/schedule and
-  // surfaces this session immediately. Resets when a new plan is generated.
+  // v10.1.0 — per-day push from the AI weekly plan onto the personal
+  // scheduler. Each day has its own idle/pending/done state; clicks fire
+  // independently, so the user can add Mon, Wed, Fri (etc.) in any order.
+  // Today's TodayDossier reads /api/me/schedule and reflects them all.
   const createPlannedSession = useCreatePlannedSession();
-  const [scheduleTodayDone, setScheduleTodayDone] = useState(false);
-  const [scheduleTodayError, setScheduleTodayError] = useState<string | null>(null);
-  const handleScheduleToday = () => {
-    const todayDayKey = todayKey();
-    const text = aiReport.report?.weeklyPlan?.[todayDayKey];
-    if (!text || createPlannedSession.isPending) return;
-    setScheduleTodayError(null);
+  const [dayStates, setDayStates] = useState<Partial<Record<DayName, 'idle' | 'pending' | 'done'>>>({});
+  const [scheduleDayError, setScheduleDayError] = useState<string | null>(null);
+
+  const handleScheduleDay = (day: DayName) => {
+    const text = aiReport.report?.weeklyPlan?.[day];
+    if (!text) return;
+    setScheduleDayError(null);
+    setDayStates((prev) => ({ ...prev, [day]: 'pending' }));
     const parsed = parseAiSession(text);
-    const today = new Date();
-    today.setHours(18, 0, 0, 0); // sensible default — user can edit via drawer.
+    const target = dateForWeekday(day);
+    target.setHours(18, 0, 0, 0);
     createPlannedSession.mutate(
       {
         title: parsed.title,
-        session_date: Math.floor(today.getTime() / 1000),
+        session_date: Math.floor(target.getTime() / 1000),
         description: text,
         ...(parsed.zone != null ? { zone: parsed.zone } : {}),
         duration_minutes: parsed.durationMin ?? 60,
@@ -93,11 +111,19 @@ function TrainTab() {
         source: 'ai-coach',
       },
       {
-        onSuccess: () => setScheduleTodayDone(true),
-        onError: (err) =>
-          setScheduleTodayError(err instanceof Error ? err.message : 'Could not add to schedule.'),
+        onSuccess: () =>
+          setDayStates((prev) => ({ ...prev, [day]: 'done' })),
+        onError: (err) => {
+          setDayStates((prev) => ({ ...prev, [day]: 'idle' }));
+          setScheduleDayError(err instanceof Error ? err.message : 'Could not add to schedule.');
+        },
       },
     );
+  };
+
+  const resetDayStates = () => {
+    setDayStates({});
+    setScheduleDayError(null);
   };
 
   return (
@@ -156,19 +182,16 @@ function TrainTab() {
             onSetApiKey={saveApiKey}
             onClearApiKey={clearApiKey}
             onGenerate={() => {
-              setScheduleTodayDone(false);
-              setScheduleTodayError(null);
+              resetDayStates();
               return handleGenerate();
             }}
             onClearReport={() => {
-              setScheduleTodayDone(false);
-              setScheduleTodayError(null);
+              resetDayStates();
               aiReport.clear();
             }}
-            onScheduleToday={handleScheduleToday}
-            scheduleTodayPending={createPlannedSession.isPending}
-            scheduleTodayDone={scheduleTodayDone}
-            scheduleTodayError={scheduleTodayError}
+            onScheduleDay={handleScheduleDay}
+            scheduleDayStates={dayStates}
+            scheduleDayError={scheduleDayError}
           />
         </motion.section>
       </Container>

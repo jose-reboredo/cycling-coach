@@ -4,6 +4,73 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.1.0] — 2026-05-01
+
+**Per-day "+ Schedule" buttons + consecutive-day streak counter on Today.**
+
+Two small additions to the individual dashboard. Single risk theme: completeness of the Train→Today UX loop introduced in v10.0.0.
+
+### Per-day "+ Schedule" on the AI weekly plan
+
+The single "+ Add today to your calendar" button from v10.0.0 (Train tab) is replaced with **per-day inline buttons** on every non-rest row of the WeekPlan. Users can add Mon, Wed, Fri (or any subset) into the personal scheduler in any order — each click fires independently and tracks its own state.
+
+Implementation:
+
+- `AiCoachCard` props swap: `onScheduleToday` / `scheduleTodayPending` / `scheduleTodayDone` → `onScheduleDay(day)` / `scheduleDayStates: Partial<Record<DayName, 'idle' | 'pending' | 'done'>>` / `scheduleDayError`.
+- `WeekPlan` renders an inline `+ Schedule` button beside each non-rest row when `onScheduleDay` is wired. Static dayMark (●/·/↗) preserved for rest days and read-only view modes. Today's `.dayToday` background highlight stays.
+- `dashboard.train.tsx` holds per-day state in a `Partial<Record<DayName, ScheduleDayState>>` map; clicks fire concurrent `useCreatePlannedSession.mutate` calls with the per-day `onSuccess` / `onError` updating only that day's slot.
+- New helper `dateForWeekday(day)` resolves a `DayName` to the next-occurrence local Date from today (inclusive). Past days roll to next week — the AI plan is treated as forward-looking, never backfilled.
+
+CSS: `.day` grid third column changed from fixed `24px` to `auto` to fit the button. New `.dayScheduleBtn` (mono accent pill) replaces the obsolete `.scheduleTodayRow` from v10.0.0.
+
+### Streak counter on Today
+
+Small `Pill` chip beside the greeting row: `12-day streak` (accent-coloured). Hidden when streak is 0.
+
+`computeStreak(activities)` walks back from the most-recent activity date, counting consecutive days with at least one ride. Anchored at noon to dodge DST. Pure derived data — no schema, no new endpoint.
+
+Mental model: streak doesn't require *today*'s ride. If you rode yesterday but not yet today, the streak still counts up to yesterday — today's just not over. Once a full empty day passes, the streak resets on the next ride.
+
+### Files changed
+
+```
+apps/web/src/components/AiCoachCard/AiCoachCard.tsx        # per-day callback + state in WeekPlan
+apps/web/src/components/AiCoachCard/AiCoachCard.module.css # +dayScheduleBtn, grid template auto
+apps/web/src/routes/dashboard.train.tsx                    # per-day state map + dateForWeekday helper
+apps/web/src/routes/dashboard.today.tsx                    # +computeStreak() + streak Pill
+docs/route-generation-service.md                           # NEW: design doc for v10.4.0
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Updated release plan
+
+Per founder request, queued items have been folded in by best-fit theme + minor-impact bundling:
+
+| Release | Theme | Items |
+|---|---|---|
+| **v10.1.0** ✅ | Train+Today UX completeness | Per-day "+ Schedule" buttons, streak counter |
+| **v10.2.0** | Layout restructure | TopTabs under member name (match club layout); single risk theme since it touches every dashboard tab |
+| **v10.3.0** | Schedule polish quick-wins | Quick-add from empty calendar cell, repeat-weekly toggle on Plan a Session, week-summary footer on Schedule (originally quick-wins #3, #4, #5 — bundled because all three touch the Schedule tab) |
+| **v10.4.0** | **Route generation service (backend)** | OSM-based loop route generation via ORS; scoring (distance/elevation/surface/overlap); GPX 1.1 serialization; KV-cached; deterministic seed; new `POST /api/routes/generate`. Full design in `docs/route-generation-service.md`. **Requires `ORS_API_KEY` secret before deploy.** |
+| **v10.5.0** | Route picker UX integration | EventDetailDrawer Routes section for personal sessions only; address input via Nominatim geocoding; 3 route cards with distance/elevation/surface; pick → enables Strava handoff |
+
+The route generation work (v10.4.0/10.5.0) is the largest item ahead — backend-first split keeps risk isolated. v10.4.0 ships invisible to end-users (testable via curl); v10.5.0 wires the UI when the backend is solid.
+
+### Bundle
+
+`AiCoachCard` chunk: ~+0.4 KB (per-day state + button render path). `dashboard.today` chunk: ~+0.3 KB (`computeStreak` + Pill). Trivial.
+
+### Why MINOR
+
+New feature (per-day scheduling, streak counter); no breaking change vs. v10.0.0. The single `onScheduleToday` prop on `AiCoachCard` is replaced by `onScheduleDay`, but the only consumer is `dashboard.train.tsx` (internal). Per locked SemVer: MINOR for new features.
+
+### Versions: 10.0.0 → 10.1.0 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js`, `apps/web/src/lib/version.ts`, `README.md`.
+
+---
+
 ## [10.0.0] — 2026-05-01
 
 **Individual dashboard restructure — major.**

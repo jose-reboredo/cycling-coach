@@ -8,6 +8,8 @@ import { DAY_KEYS, type AiReport, type DayName } from '../../lib/coachApi';
 import { fmtRelative } from '../../lib/format';
 import styles from './AiCoachCard.module.css';
 
+type ScheduleDayState = 'idle' | 'pending' | 'done';
+
 interface AiCoachCardProps {
   apiKey: string | null;
   report: AiReport | null;
@@ -21,14 +23,13 @@ interface AiCoachCardProps {
   onClearApiKey: () => void;
   onGenerate: () => void | Promise<unknown>;
   onClearReport: () => void;
-  /** v9.12.9 — push today's session from the AI plan onto the personal
-   *  scheduler (POSTs `/api/me/sessions`). When provided, a single-button
-   *  CTA renders below the WeekPlan. Disabled while pending or after a
-   *  successful add. */
-  onScheduleToday?: () => void;
-  scheduleTodayPending?: boolean;
-  scheduleTodayDone?: boolean;
-  scheduleTodayError?: string | null;
+  /** v10.1.0 — push any day from the AI weekly plan onto the personal
+   *  scheduler (POSTs `/api/me/sessions`). When provided, the WeekPlan
+   *  renders an inline "+ Schedule" button beside each non-rest day.
+   *  Per-day state controls the button label (idle / pending / done). */
+  onScheduleDay?: (day: DayName) => void;
+  scheduleDayStates?: Partial<Record<DayName, ScheduleDayState>>;
+  scheduleDayError?: string | null;
 }
 
 /**
@@ -80,10 +81,9 @@ export function AiCoachCard(props: AiCoachCardProps) {
           onSetSessions={props.onSetSessions}
           onGenerate={props.onGenerate}
           onClearReport={props.onClearReport}
-          onScheduleToday={props.onScheduleToday}
-          scheduleTodayPending={props.scheduleTodayPending}
-          scheduleTodayDone={props.scheduleTodayDone}
-          scheduleTodayError={props.scheduleTodayError}
+          onScheduleDay={props.onScheduleDay}
+          scheduleDayStates={props.scheduleDayStates}
+          scheduleDayError={props.scheduleDayError}
         />
       )}
     </section>
@@ -188,10 +188,9 @@ function ReportState({
   onSetSessions,
   onGenerate,
   onClearReport,
-  onScheduleToday,
-  scheduleTodayPending,
-  scheduleTodayDone,
-  scheduleTodayError,
+  onScheduleDay,
+  scheduleDayStates,
+  scheduleDayError,
 }: {
   report: AiReport;
   loading: boolean;
@@ -200,15 +199,10 @@ function ReportState({
   onSetSessions: (n: number) => void;
   onGenerate: () => void | Promise<unknown>;
   onClearReport: () => void;
-  onScheduleToday?: () => void;
-  scheduleTodayPending?: boolean;
-  scheduleTodayDone?: boolean;
-  scheduleTodayError?: string | null;
+  onScheduleDay?: (day: DayName) => void;
+  scheduleDayStates?: Partial<Record<DayName, ScheduleDayState>>;
+  scheduleDayError?: string | null;
 }) {
-  const today = todayKey();
-  const todayText = report.weeklyPlan[today] ?? '';
-  const todayIsRest = !todayText || isRestText(todayText);
-
   return (
     <div className={styles.report}>
       <p className={styles.summary}>{report.summary}</p>
@@ -232,31 +226,15 @@ function ReportState({
         </div>
       </div>
 
-      <WeekPlan plan={report.weeklyPlan} sessions={report.sessions_per_week} />
+      <WeekPlan
+        plan={report.weeklyPlan}
+        sessions={report.sessions_per_week}
+        onScheduleDay={onScheduleDay}
+        scheduleDayStates={scheduleDayStates}
+      />
 
-      {/* v9.12.9 — push today's row from the AI plan onto the personal
-          scheduler. The Today tab's TodayDossier reads /api/me/schedule and
-          will surface this session immediately. Hidden when today is a
-          rest day or no callback is provided. */}
-      {onScheduleToday && !todayIsRest && (
-        <div className={styles.scheduleTodayRow}>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={onScheduleToday}
-            disabled={scheduleTodayPending || scheduleTodayDone}
-            withArrow={!scheduleTodayDone}
-          >
-            {scheduleTodayDone
-              ? '✓ Today scheduled'
-              : scheduleTodayPending
-                ? 'Saving…'
-                : '+ Add today to your calendar'}
-          </Button>
-          {scheduleTodayError && (
-            <p className={styles.errorMsg} role="alert">{scheduleTodayError}</p>
-          )}
-        </div>
+      {scheduleDayError && (
+        <p className={styles.errorMsg} role="alert">{scheduleDayError}</p>
       )}
 
       <p className={styles.motivation}>{report.motivation}</p>
@@ -279,7 +257,17 @@ function ReportState({
 
 /* ---------------- Subcomponents ---------------- */
 
-function WeekPlan({ plan, sessions }: { plan: Record<DayName, string>; sessions: number }) {
+function WeekPlan({
+  plan,
+  sessions,
+  onScheduleDay,
+  scheduleDayStates,
+}: {
+  plan: Record<DayName, string>;
+  sessions: number;
+  onScheduleDay?: (day: DayName) => void;
+  scheduleDayStates?: Partial<Record<DayName, ScheduleDayState>>;
+}) {
   const today = todayKey();
   return (
     <div className={styles.weekWrap}>
@@ -291,13 +279,30 @@ function WeekPlan({ plan, sessions }: { plan: Record<DayName, string>; sessions:
           const text = plan[d] ?? '—';
           const rest = isRestText(text);
           const isToday = d === today;
+          // v10.1.0 — per-day "+ Schedule" button replaces the static day
+          // mark (●/·/↗) when onScheduleDay is wired and day isn't a rest
+          // day. Today's bg highlight (.dayToday) preserved either way.
+          const dayState = scheduleDayStates?.[d] ?? 'idle';
+          const showScheduleBtn = !!onScheduleDay && !rest;
           return (
             <li key={d} className={`${styles.day} ${rest ? styles.dayRest : ''} ${isToday ? styles.dayToday : ''}`}>
               <span className={styles.dayName}>{d.slice(0, 3)}</span>
               <p className={styles.dayText}>{text}</p>
-              <span className={styles.dayMark} aria-hidden="true">
-                {isToday ? '●' : rest ? '·' : '↗'}
-              </span>
+              {showScheduleBtn ? (
+                <button
+                  type="button"
+                  className={styles.dayScheduleBtn}
+                  onClick={() => onScheduleDay!(d)}
+                  disabled={dayState !== 'idle'}
+                  aria-label={`Add ${d} session to your schedule`}
+                >
+                  {dayState === 'pending' ? '…' : dayState === 'done' ? '✓' : '+ Schedule'}
+                </button>
+              ) : (
+                <span className={styles.dayMark} aria-hidden="true">
+                  {isToday ? '●' : rest ? '·' : '↗'}
+                </span>
+              )}
             </li>
           );
         })}

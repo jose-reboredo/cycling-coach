@@ -2,7 +2,7 @@
 
 Cycling training app for solo riders and clubs. Reads your Strava history, computes daily form (CTL/ATL/TSB), generates AI-coached weekly plans, and gives clubs a shared schedule with RSVP and AI-drafted weekly recaps.
 
-**Current release:** [v10.0.0](./CHANGELOG.md) · **Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · [Security policy](./SECURITY.md)
+**Current release:** [v10.1.0](./CHANGELOG.md) · **Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · [Security policy](./SECURITY.md)
 
 ---
 
@@ -118,7 +118,8 @@ docs/                     # Architecture notes
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full history. Highlights:
 
-- **v10.0.0** — Individual dashboard restructure. Today tab reframed as a today-only dossier; planning + AI brief → calendar bridge moved to Train tab. Major bump reflects breaking change in Today tab content.
+- **v10.1.0** — Per-day "+ Schedule" buttons on the AI weekly plan; consecutive-day streak counter on Today.
+- **v10.0.0** — Individual dashboard restructure. Today tab reframed as a today-only dossier; planning + AI brief → calendar bridge moved to Train tab.
 - **v9.12.8** — Desktop dashboard regression fix; `+ Add to schedule` button bridges the AI brief to the personal scheduler.
 - **v9.12.7** — Calendar pills adopt bordered + bold + duration-tagged style across Month/Week/Day grids.
 - **v9.12.6** — Landing page restructured around four marketing value pillars; new SchedulePreview visual.
