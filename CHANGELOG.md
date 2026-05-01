@@ -4,6 +4,53 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.1] — 2026-05-01
+
+**Hotfix.** Two bugs from v9.12.0 visual review.
+
+### `#80` — Add Session button silently failed (P0)
+
+**Symptom:** Tap "+ Add session" on `/dashboard/schedule` → nothing happens. No navigation, no modal, no error.
+
+**Root cause:** Tanstack file-based routing treats dot-segmented filenames as nested routes. `dashboard.schedule.new.tsx` was registered as a child of `dashboard.schedule.tsx`. For a child route to mount, the parent needs `<Outlet />`. The current `dashboard.schedule.tsx` is a self-contained page with no Outlet — so navigating to `/dashboard/schedule/new` resolved the parent (calendar visible) but never mounted the child (form never appeared). Browser URL changed; UI didn't.
+
+**Fix:** Renamed file from `dashboard.schedule.new.tsx` → `dashboard.schedule-new.tsx` (dash separator, not dot). Tanstack treats this as a sibling route under `/dashboard`, not a child of `/dashboard/schedule`. URL becomes `/dashboard/schedule-new` (no parent-child nesting). Updated route file's `createFileRoute('/dashboard/schedule-new')` + the navigate call in the "+ Add session" button + the Cancel-button navigate-back path.
+
+The `dashboard.schedule.new-CN2w4hb3.js` chunk now emits cleanly during build, confirming Tanstack registered the route correctly.
+
+### `#78` follow-up — TopTabs alignment incomplete
+
+**Symptom:** Founder still saw empty space on right of club tab bar after v9.12.0 (which added `flex: 1` to `.tab`).
+
+**Root cause:** v9.12.0 added `flex: 1` to `.tab` but the parent `<ul className={styles.list}>` was content-width (no flex-grow). So tabs distributed evenly within a content-width ul, not across the full TopTabs container. Result: tabs were equally-sized but the whole row was still left-aligned with dead space on the right.
+
+**Fix:** `apps/web/src/components/TopTabs/TopTabs.module.css`:
+
+```css
+.list { flex: 1; ... }
+.list > li { flex: 1; min-width: 0; }
+```
+
+Full flex chain now: `.root` (nav, full width) → `.list` (ul, flex:1 fills root) → `<li>` (flex:1 fills list) → `.tab` (flex:1 fills li). Tabs genuinely span the container width.
+
+### Sprint 5 process
+
+- ✅ Verification: build green; new `dashboard.schedule-new-*.js` chunk confirms route registration
+- ✅ Pre-commit grep against `schema.sql` — N/A (no schema change)
+- ✅ POST → GET round-trip — N/A (no new endpoint)
+- ✅ Verification budget — small targeted hotfix
+- ✅ Bug post-mortems — both root causes documented above in post-mortem-shaped form
+
+### Bundle
+
+Net unchanged. Renamed file emits the same chunk under a different stable hash.
+
+### Versions: 9.12.0 → 9.12.1 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.12.0] — 2026-05-01
 
 **Personal Scheduler v2 — planned-sessions data layer + 5 new endpoints + Add Session UX + TopTabs alignment fix.** Closes `#76`, `#77`, `#78`. Full architectural spec at `docs/post-demo-sprint/v9.12.0-cto-analysis.md` (475 lines, 10 sections — definition / impact / scalability / risks / implementation / deploy / tests / open questions).

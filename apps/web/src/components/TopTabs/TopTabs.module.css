@@ -11,6 +11,10 @@
 }
 
 .list {
+  /* v9.12.1 (#78 follow-up): the v9.12.0 fix put flex:1 on .tab but the
+   * parent .list (ul) was content-width. .list now flex-grows to fill
+   * the .root nav container; tabs inside then distribute evenly. */
+  flex: 1;
   display: flex;
   gap: var(--s-1);
   padding: 0;
@@ -18,6 +22,14 @@
   list-style: none;
   overflow-x: auto;
   scrollbar-width: none;
+}
+
+.list > li {
+  /* Each <li> wrapper also flex-grows so its <button>/<a> child can fill
+   * the allotted slot. Without this, li sits at content-width regardless
+   * of the inner element's flex setting. */
+  flex: 1;
+  min-width: 0;
 }
 
 .list::-webkit-scrollbar {

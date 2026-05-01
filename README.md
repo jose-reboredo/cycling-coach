@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.12.0](./CHANGELOG.md#9120--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.12.1](./CHANGELOG.md#9121--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.12.1
+
+**Hotfix.** Two bugs from v9.12.0 visual review. `#80` — "+ Add session" button silently failed because `dashboard.schedule.new.tsx` was registered by Tanstack as a child route of `dashboard.schedule.tsx`, but the parent has no `<Outlet />` so the child never mounts. Renamed file to flat path `dashboard.schedule-new.tsx` → URL `/dashboard/schedule-new` (escapes the parent-child nesting; same UX). `#78` follow-up — TopTabs alignment partially fixed in v9.12.0 (added `flex: 1` to `.tab`) but the parent `.list` (ul) was content-width, so tabs distributed evenly within a content-width container. Added `flex: 1` to `.list` AND `.list > li` so the entire chain flex-grows from `.root` → `.list` → `<li>` → `.tab`. Tabs now genuinely fill the container width.
 
 ## What's new in v9.12.0
 

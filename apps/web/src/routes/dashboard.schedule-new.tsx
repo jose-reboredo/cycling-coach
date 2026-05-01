@@ -8,9 +8,13 @@ import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
 import { Button } from '../components/Button/Button';
 import { useCreatePlannedSession } from '../hooks/useClubs';
-import styles from './dashboard.schedule.new.module.css';
+import styles from './dashboard.schedule-new.module.css';
 
-export const Route = createFileRoute('/dashboard/schedule/new')({
+// v9.12.1 (#80) — flat path /dashboard/schedule-new so it doesn't nest
+// under dashboard.schedule.tsx (which has no <Outlet />). Original path
+// /dashboard/schedule/new failed silently — parent loaded, child Outlet
+// missing, child never mounted.
+export const Route = createFileRoute('/dashboard/schedule-new')({
   component: NewSessionPage,
 });
 

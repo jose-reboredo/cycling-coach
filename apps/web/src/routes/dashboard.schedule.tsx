@@ -179,7 +179,7 @@ function PersonalSchedule() {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => navigate({ to: '/dashboard/schedule/new' })}
+              onClick={() => navigate({ to: '/dashboard/schedule-new' })}
               withArrow
             >
               + Add session
