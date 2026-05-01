@@ -4,27 +4,24 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.5.2] — 2026-05-01
+
+**Hotfix² — CSP fix actually applied to the static-asset `_headers` file.**
+
+v10.5.1 updated `SECURITY_HEADERS` in `src/worker.js` but the SPA is served via Cloudflare Workers Static Assets, which uses `apps/web/public/_headers` for response headers. The Worker handler's CSP only applies to dynamic `/api/*` responses; HTML/JS/CSS assets get headers from the `_headers` file. v10.5.1 fixed the wrong layer.
+
+Fix: same `connect-src` extension in `apps/web/public/_headers`. Both files now match:
+
+- `src/worker.js` (dynamic responses, e.g. JSON from `/api/*`) — already updated in v10.5.1
+- `apps/web/public/_headers` (static SPA assets — the HTML page that hosts the React app) — updated in v10.5.2
+
+Verified post-deploy: `curl -I /` now returns `connect-src 'self' https://nominatim.openstreetmap.org`.
+
 ## [10.5.1] — 2026-05-01
 
-**Hotfix: CSP allows Nominatim for the route picker.**
+**Hotfix attempt 1 — CSP for dynamic Worker responses.**
 
-v10.5.0 shipped the route picker with browser-side geocoding via `https://nominatim.openstreetmap.org`, but the Worker's CSP (`worker.js:115`) had `connect-src 'self'` only. Browser blocked the fetch with:
-
-```
-Refused to connect to https://nominatim.openstreetmap.org/search?...
-because it violates the document's Content Security Policy
-```
-
-The picker showed "load failed" because the geocode `fetch()` rejected before reaching the routes API.
-
-Fix: extend `connect-src` in `SECURITY_HEADERS`:
-
-```diff
-- "connect-src 'self'",
-+ "connect-src 'self' https://nominatim.openstreetmap.org",
-```
-
-No other change. The routes API call (`/api/routes/generate`) is same-origin and was unaffected.
+Updated `SECURITY_HEADERS` in `src/worker.js` to include Nominatim. Insufficient — the SPA's CSP comes from `_headers`. v10.5.2 fixes the right layer.
 
 ---
 
