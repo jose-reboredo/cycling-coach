@@ -265,3 +265,16 @@ CREATE TABLE planned_sessions (
 
 CREATE INDEX idx_planned_sessions_athlete_date ON planned_sessions(athlete_id, session_date);
 CREATE INDEX idx_planned_sessions_ai_report ON planned_sessions(ai_report_id) WHERE ai_report_id IS NOT NULL;
+
+-- v10.6.0 / Migration 0010 — Per-user OAuth tokens for Ride with GPS.
+CREATE TABLE rwgps_tokens (
+  athlete_id INTEGER PRIMARY KEY REFERENCES users(athlete_id) ON DELETE CASCADE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  auth_token TEXT NOT NULL,
+  rwgps_user_id INTEGER,
+  expires_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX idx_rwgps_tokens_user ON rwgps_tokens(rwgps_user_id) WHERE rwgps_user_id IS NOT NULL;

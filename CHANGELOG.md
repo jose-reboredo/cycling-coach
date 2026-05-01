@@ -4,6 +4,123 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.6.0] — 2026-05-01
+
+**Three-tab honest route picker + Ride with GPS OAuth integration.**
+
+The route picker is reframed around three sources, each with an honest handoff. No more "auto-redirect to Strava" promise the platform can't keep.
+
+### Three tabs
+
+| Tab | Source | Output |
+|---|---|---|
+| **Generate new** | ORS (existing v10.4.0) — fresh OSM loops from a start address | Download GPX + multi-app row (Strava / Ride with GPS / Komoot / Garmin Connect) |
+| **My Strava** | Strava `/athlete/routes` (existing v9.3.0 #47) | One-click "Open in Strava ↗" |
+| **My Ride with GPS** | NEW — RWGPS OAuth + `/api/v1/routes.json` proxy | One-click "Open in Ride with GPS ↗" |
+
+### Why this design
+
+GPX is the universal cycling interchange format — Strava, Ride with GPS, Komoot, Garmin Connect, Wahoo, Hammerhead, Bryton all import it. Neither Strava nor RWGPS expose a "create route from API" endpoint, so the manual drag-drop flow is fundamental. v10.6.0 stops apologising for it and reframes GPX as a feature: "Use it in [Strava] [RWGPS] [Komoot] [Garmin]."
+
+For routes the user has *already saved* (Strava or RWGPS library), the picker opens them directly — no GPX needed.
+
+### Ride with GPS OAuth flow
+
+Mirrors the existing Strava OAuth pattern (single-use UUID nonce in KV, 10-min TTL, single-use deletion). Tokens stored per-athlete in the new `rwgps_tokens` table.
+
+```
+GET  /authorize-rwgps        → redirect to ridewithgps.com/oauth/authorize
+GET  /callback-rwgps         → exchange code → tokens → store → redirect to /dashboard/today
+GET  /api/rwgps/status       → { connected, rwgps_user_id, expires_at }
+POST /api/rwgps/disconnect   → DELETE FROM rwgps_tokens
+GET  /api/routes/rwgps-saved → proxy GET /api/v1/routes.json with athlete's tokens
+                               + ±20% distance band filter
+                               + difficulty (m/km elevation bands)
+                               + sort by closeness to target
+```
+
+### Migration 0010 — `rwgps_tokens`
+
+```sql
+CREATE TABLE rwgps_tokens (
+  athlete_id INTEGER PRIMARY KEY REFERENCES users(athlete_id) ON DELETE CASCADE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  auth_token TEXT NOT NULL,           -- RWGPS x-rwgps-auth-token header value
+  rwgps_user_id INTEGER,
+  expires_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX idx_rwgps_tokens_user ON rwgps_tokens(rwgps_user_id) WHERE rwgps_user_id IS NOT NULL;
+```
+
+Why a dedicated table (vs. reusing `user_connections`): `user_connections` is Strava-specific (the `credentials_json` blob has the exact Strava token shape). Modeling RWGPS through that schema would conflate token shapes from two providers. Dedicated table keeps each provider's auth concerns isolated.
+
+### Security review — `RWGPS_CLIENT_ID` / `RWGPS_CLIENT_SECRET`
+
+| Aspect | v10.6.0 implementation |
+|---|---|
+| Storage | `wrangler secret put RWGPS_CLIENT_ID` / `RWGPS_CLIENT_SECRET` (Cloudflare-encrypted) |
+| Access | Read-only via `env.RWGPS_*`; only used in OAuth handlers and proxy fetch |
+| Logging | `safeWarn` redaction; secrets never appear in any log line |
+| Disabled-if-missing | OAuth handler returns HTML error page; proxy returns `503 rwgps_not_configured` |
+| State CSRF | Single-use UUID nonce in `OAUTH_STATE` KV with 10-min TTL, namespaced `rwgps:{uuid}` |
+| Per-user auth | All proxy endpoints behind `resolveAthleteId`; per-athlete rate-limited (`rwgps-read` 30/min, `rwgps-write` 10/min) |
+| 401 handling | RWGPS-side 401 surfaces as `rwgps_reauth_required` to the client; UI prompts reconnect |
+
+### Frontend — DisplayRoute discriminator
+
+```ts
+type DisplayRoute =
+  | { source: 'generated'; ...; gpx: string }
+  | { source: 'strava'; ...; strava_url: string | null }
+  | { source: 'rwgps'; ...; rwgps_url: string };
+```
+
+Drives the per-card chip (`Generated · paved` / `Strava · paved` / `Ride with GPS · paved`) and the per-source handoff section.
+
+### Multi-app handoff for generated routes
+
+After "↓ Download GPX" succeeds, the picker reveals:
+
+```
+Use it in:
+  [Strava ↗]  [Ride with GPS ↗]  [Komoot ↗]  [Garmin Connect ↗]
+```
+
+Each link opens that app's upload page in a new tab. User drags the downloaded GPX onto the page. This is the universal cycling-app workflow.
+
+### Disconnect flow
+
+Profile/Settings will gain a "Disconnect Ride with GPS" row in a future micro-release; for v10.6.0, the API endpoint exists (`POST /api/rwgps/disconnect`) but the UI surface is the OAuth empty state — clicking "Connect Ride with GPS ↗" again from a different RWGPS account replaces tokens via `ON CONFLICT(athlete_id) DO UPDATE`.
+
+### Files changed
+
+```
+migrations/0010_rwgps_tokens.sql                                       # NEW
+schema.sql                                                             # +rwgps_tokens
+src/routes/rwgpsRoutes.js                                              # NEW (5 handlers)
+src/worker.js                                                          # +imports + dispatch
+wrangler.jsonc                                                         # +/authorize-rwgps + /callback-rwgps
+apps/web/src/lib/routesApi.ts                                          # +RwgpsStatus, fetchRwgpsStatus, fetchRwgpsRoutes, disconnectRwgps
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.tsx      # 3-tab refactor
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.module.css  # +tabs, connectBtn, handoffMulti, handoffApps
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Action items before this works in prod
+
+You confirmed:
+- ✅ RWGPS app registered with `client_id` + `client_secret`
+- ✅ OAuth `redirect_uri` `https://cycling-coach.josem-reboredo.workers.dev/callback-rwgps` whitelisted
+- ✅ Cloudflare secrets `RWGPS_CLIENT_ID` and `RWGPS_CLIENT_SECRET` already set
+
+If any of those is wrong, the OAuth flow returns the error page; nothing else regresses.
+
+---
+
 ## [10.5.4] — 2026-05-01
 
 **Two route picker fixes: explicit Strava handoff + "Show Strava routes" CTA.**

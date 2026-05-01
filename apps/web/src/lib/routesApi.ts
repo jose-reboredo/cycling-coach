@@ -99,6 +99,78 @@ export async function fetchSavedStravaRoutes(input: FetchSavedStravaRoutesInput 
   return Array.isArray(json?.routes) ? json.routes as SavedStravaRoute[] : [];
 }
 
+// ---------------------------------------------------------------------------
+// v10.6.0 — Ride with GPS as a third route source (after Strava saved and
+// ORS-generated). User connects once via /authorize-rwgps → /callback-rwgps;
+// the picker reads /api/rwgps/status to know whether to show "Connect" or
+// fetch routes.
+// ---------------------------------------------------------------------------
+
+export interface RwgpsStatus {
+  connected: boolean;
+  rwgps_user_id: number | null;
+  expires_at: number | null;
+}
+
+export interface RwgpsRoute {
+  id: number;
+  name: string;
+  distance_m: number;
+  elevation_gain_m: number;
+  surface: 'paved' | 'gravel' | 'unknown' | string;
+  rwgps_url: string;
+}
+
+export async function fetchRwgpsStatus(): Promise<RwgpsStatus> {
+  const tokens = await ensureValidToken();
+  if (!tokens) throw new Error('not_authenticated');
+  const res = await fetch('/api/rwgps/status', {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`rwgps status ${res.status}`);
+  }
+  return (await res.json()) as RwgpsStatus;
+}
+
+export async function disconnectRwgps(): Promise<void> {
+  const tokens = await ensureValidToken();
+  if (!tokens) throw new Error('not_authenticated');
+  const res = await fetch('/api/rwgps/disconnect', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`rwgps disconnect ${res.status}`);
+  }
+}
+
+export interface FetchRwgpsRoutesInput {
+  distanceKm?: number;
+  difficulty?: string;
+}
+
+export async function fetchRwgpsRoutes(input: FetchRwgpsRoutesInput = {}): Promise<RwgpsRoute[]> {
+  const tokens = await ensureValidToken();
+  if (!tokens) throw new Error('not_authenticated');
+  const params = new URLSearchParams();
+  if (input.distanceKm != null) params.set('distance', String(input.distanceKm));
+  if (input.difficulty) params.set('difficulty', input.difficulty);
+  const qs = params.toString();
+  const url = `/api/routes/rwgps-saved${qs ? `?${qs}` : ''}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `rwgps routes ${res.status}`;
+    try { msg = JSON.parse(text).error || msg; } catch { /* keep default */ }
+    throw new Error(msg);
+  }
+  const json = await res.json();
+  return Array.isArray(json?.routes) ? json.routes as RwgpsRoute[] : [];
+}
+
 /** v10.5.0 — Trigger a browser download of a GPX string as a .gpx file.
  *  Used by the route picker's "Start in Strava" handoff: download the
  *  GPX, open Strava routes upload page, user drag-drops to upload. */

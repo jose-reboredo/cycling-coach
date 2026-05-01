@@ -20,6 +20,68 @@
   flex-wrap: wrap;
 }
 
+/* v10.6.0 — Three-tab source selector. Mirrors TopTabs styling (mono
+ * uppercase, accent border-bottom on active) for visual consistency. */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--c-line);
+  margin: 0 0 var(--s-2) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  flex: 1;
+  min-width: 0;
+  padding: var(--s-3) var(--s-2);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  color: var(--c-text-faint);
+  font: 600 0.6875rem/1.2 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab:hover {
+  color: var(--c-text-muted);
+}
+.tab:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+.tabActive {
+  color: var(--c-accent);
+  border-bottom-color: var(--c-accent);
+}
+
+/* v10.6.0 — Connect Ride with GPS CTA (anchor, not Button — needs to
+ * be a real link so /authorize-rwgps redirects normally). */
+.connectBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 var(--s-4);
+  background: var(--c-accent);
+  color: #0a0a0c;
+  font: 600 0.875rem/1 var(--font-sans);
+  text-decoration: none;
+  border-radius: 4px;
+  transition: filter 0.15s;
+}
+.connectBtn:hover {
+  filter: brightness(1.1);
+}
+.connectBtn:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}
+
 .lede {
   margin: 0;
   font: 400 0.8125rem/1.45 var(--font-sans);
@@ -196,4 +258,35 @@
   background: rgba(255, 77, 0, 0.08);
   padding: 2px 6px;
   border-radius: 3px;
+}
+
+/* v10.6.0 — Multi-app handoff row. After GPX download, surfaces direct
+ * links to the upload pages of every cycling app that takes GPX. Honest
+ * messaging: drag-drop is the universal way for all of them. */
+.handoffMulti {
+  margin: var(--s-3) 0 var(--s-2) 0;
+  font: 600 0.6875rem/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text);
+}
+.handoffApps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.handoffApp {
+  font: 500 0.8125rem/1 var(--font-sans);
+  color: var(--c-accent-light);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-line-strong);
+  padding: 8px 14px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: filter 0.15s, border-color 0.15s;
+}
+.handoffApp:hover {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  filter: brightness(1.1);
 }

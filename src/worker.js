@@ -13,10 +13,17 @@
  
 import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 import { handleRoutesGenerate } from './routes/routeGen.js';
+import {
+  handleAuthorizeRwgps,
+  handleCallbackRwgps,
+  handleRwgpsStatus,
+  handleRwgpsDisconnect,
+  handleRwgpsRoutes,
+} from './routes/rwgpsRoutes.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.5.4';
+const WORKER_VERSION = 'v10.6.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -1500,6 +1507,28 @@ async function handleRequest(request, env, ctx) {
           'Cache-Control': 'private, max-age=300',
         },
       });
+    }
+
+    // ============= RIDE WITH GPS OAUTH + ROUTES — v10.6.0 =============
+    // Mirrors the Strava OAuth flow at /authorize → /callback. RWGPS is a
+    // second route source for the picker (alongside Strava saved + ORS-
+    // generated). Each user connects once; tokens stored in rwgps_tokens
+    // (Migration 0010). All five endpoints disabled-if-not-configured.
+    const rwgpsDeps = { resolveAthleteId, checkRateLimit, safeWarn, corsHeaders };
+    if (url.pathname === '/authorize-rwgps' && request.method === 'GET') {
+      return handleAuthorizeRwgps({ request, env, deps: rwgpsDeps });
+    }
+    if (url.pathname === '/callback-rwgps' && request.method === 'GET') {
+      return handleCallbackRwgps({ request, env, deps: rwgpsDeps });
+    }
+    if (url.pathname === '/api/rwgps/status' && request.method === 'GET') {
+      return handleRwgpsStatus({ request, env, deps: rwgpsDeps });
+    }
+    if (url.pathname === '/api/rwgps/disconnect' && request.method === 'POST') {
+      return handleRwgpsDisconnect({ request, env, deps: rwgpsDeps });
+    }
+    if (url.pathname === '/api/routes/rwgps-saved' && request.method === 'GET') {
+      return handleRwgpsRoutes({ request, env, deps: rwgpsDeps });
     }
 
     // POST /api/routes/generate — Sprint 5+ / v10.4.0.
