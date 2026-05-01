@@ -4,6 +4,98 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.2.0] — 2026-05-01
+
+**AI plan → calendar prefill modal + smarter duration estimation.**
+
+Two real bugs reported after v10.1.0:
+
+1. **Wrong duration** — for distance-only briefs ("85 km easy ride"), the parser fell through to a 60-min default. An 85 km ride is 3+ hours.
+2. **No time control** — every scheduled session landed at 18:00 regardless of intent.
+
+Single risk theme: AI plan → calendar prefill UX. TopTabs placement (was originally v10.2.0) bumps to v10.3.0.
+
+### Smarter duration parsing
+
+`parseAiSession()` now extracts distance as a primary signal and falls back to **distance × zone-derived pace** when explicit duration is missing.
+
+Pace by Coggan zone:
+
+| Zone | Pace (km/h) | Rationale |
+|---|---|---|
+| Z1 Recovery | 20 | Easy spin, lots of soft pedalling |
+| Z2 Endurance | 25 | Default base ride pace |
+| Z3 Tempo | 28 | Faster aerobic |
+| Z4 Threshold | 30 | Sustained max-aerobic |
+| Z5 VO2 | 30 | Interval averages with recoveries |
+| Z6 Anaerobic | 28 | High power, lots of recovery |
+| Z7 Neuromuscular | 25 | Sprints + standing recovery |
+| (unknown) | 25 | Conservative default |
+
+Example: "85 km easy ride" with no explicit duration → inferred Z2 (from "easy") → 85 / 25 × 60 = **204 min (~3.4h)**, clamped to schema max 600. Previously: defaulted to 60 min.
+
+`ParsedAiSession` now exposes:
+
+- `distanceKm: number | null` — the parsed distance, surfaced for display
+- `durationEstimated: boolean` — true when duration came from distance × pace (vs literal text). Drives UI hints.
+
+### `SessionPrefillModal` component
+
+New modal at `apps/web/src/components/SessionPrefillModal/`. Bottom-sheet on mobile, centered dialog on desktop. Prefilled fields:
+
+- Title (editable; capped 200 chars per schema)
+- Date (YYYY-MM-DD; default = next-occurrence weekday)
+- **Time** (HH:MM; default 18:00 — **user can change**)
+- Target zone (1–7 select with labels)
+- Duration in hours (cycling convention: 0.5 step; **`Estimated` Pill shown when duration was distance-derived**, with hint text "Estimated from 85 km at zone-typical pace")
+- Target watts (50–2000)
+- Coach brief (read-only; full AI text)
+
+Save → POST via existing `useCreatePlannedSession`. Cancel → modal closes, day-button returns to idle. Validation errors render inline.
+
+### Train tab wiring
+
+Per-day click handler swap:
+
+```diff
+- handleScheduleDay(day) → POST directly with parsed defaults
++ handleScheduleDay(day) → open SessionPrefillModal with parsed prefill
++ handlePrefillSave(result) → POST with user-confirmed values
+```
+
+Per-day idle/pending/done state on the WeekPlan row buttons preserved. Clicking "+ Schedule" opens the modal; clicking "Add to calendar" inside the modal advances the day-button to "…" then "✓".
+
+### Why MINOR
+
+New feature (prefill modal + duration estimation); no breaking change vs v10.1.0. The `parseAiSession` return type gained two non-breaking fields. Per locked SemVer.
+
+### Files changed
+
+```
+apps/web/src/lib/aiSession.ts                                        # paceForZone() + distance fallback + new return fields
+apps/web/src/components/SessionPrefillModal/SessionPrefillModal.tsx  # NEW
+apps/web/src/components/SessionPrefillModal/SessionPrefillModal.module.css  # NEW
+apps/web/src/routes/dashboard.train.tsx                              # modal-open + save handler; mounted at root
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Updated release plan (TopTabs bumps to v10.3.0)
+
+| Release | Theme | Status |
+|---|---|---|
+| **v10.2.0** ✅ | AI plan → calendar prefill modal + duration estimation | shipped |
+| v10.3.0 | Layout: TopTabs under member name (matches club view) | next |
+| v10.4.0 | Schedule polish: quick-add empty cell + repeat-weekly + week-summary footer | queued |
+| v10.5.0 | Route generation backend (ORS) | blocked on `ORS_API_KEY` |
+| v10.6.0 | Route picker drawer UX | wires backend to UI |
+
+### Bundle
+
+`dashboard.train` chunk: ~+0.2 KB (handler + modal mount). New `SessionPrefillModal` chunk: ~3 KB (component + CSS). Trivial.
+
+---
+
 ## [10.1.0] — 2026-05-01
 
 **Per-day "+ Schedule" buttons + consecutive-day streak counter on Today.**

@@ -3,17 +3,54 @@
 // an AI plan day onto the personal scheduler. The full original text is
 // always preserved by callers as the description so the user can see
 // what the coach actually wrote.
+//
+// v10.2.0 — when explicit duration isn't in the brief but a distance is
+// (e.g. "85 km easy ride"), estimate duration from distance × zone-derived
+// average pace. Cycling realistic paces by zone:
+//   Z1 recovery     ~20 km/h   Z2 endurance ~25 km/h   Z3 tempo     ~28 km/h
+//   Z4 threshold    ~30 km/h   Z5 VO2 max   ~30 km/h   Z6 anaerobic ~28 km/h
+//   Z7 neuromuscular~25 km/h   default      ~25 km/h
+// This catches the "long ride" case where the AI says distance not minutes.
 
 export interface ParsedAiSession {
   title: string;
   durationMin: number | null;
   zone: number | null;
   watts: number | null;
+  /** v10.2.0 — distance extracted from text (km). Surfaced so the prefill
+   *  modal can show "Estimated from 85 km × 25 km/h" tooltip. null when
+   *  no distance found in the brief. */
+  distanceKm: number | null;
+  /** v10.2.0 — true when durationMin was estimated from distance × pace
+   *  (vs explicitly extracted from "1h 15m" / "90 min" text). UI uses this
+   *  to label the field as "estimated" so users know to verify. */
+  durationEstimated: boolean;
+}
+
+/** Average cycling speed (km/h) for distance → duration estimation, by Coggan zone. */
+function paceForZone(zone: number | null): number {
+  switch (zone) {
+    case 1: return 20;
+    case 2: return 25;
+    case 3: return 28;
+    case 4: return 30;
+    case 5: return 30;
+    case 6: return 28;
+    case 7: return 25;
+    default: return 25;
+  }
 }
 
 export function parseAiSession(text: string | undefined): ParsedAiSession {
   if (!text) {
-    return { title: 'AI session', durationMin: null, zone: null, watts: null };
+    return {
+      title: 'AI session',
+      durationMin: null,
+      zone: null,
+      watts: null,
+      distanceKm: null,
+      durationEstimated: false,
+    };
   }
   const t = text.toLowerCase();
 
@@ -26,8 +63,30 @@ export function parseAiSession(text: string | undefined): ParsedAiSession {
         ? text
         : `${text.slice(0, 197)}…`;
 
-  // Duration: "1h 15m" / "1.5h" / "90 min".
+  // Zone: explicit Z[1-7] first, else keyword fallback. Resolved early so
+  // distance → duration estimation can use it for pace selection.
+  let zone: number | null = null;
+  const zMatch = t.match(/\bz([1-7])\b/);
+  if (zMatch && zMatch[1]) zone = parseInt(zMatch[1], 10);
+  else if (/recovery|easy|conversational|spin/.test(t)) zone = 1;
+  else if (/endurance|aerobic\s+base|\bbase\b/.test(t)) zone = 2;
+  else if (/tempo/.test(t)) zone = 3;
+  else if (/threshold|sweet[-\s]?spot|sweetspot/.test(t)) zone = 4;
+  else if (/vo2|interval/.test(t)) zone = 5;
+  else if (/anaerobic/.test(t)) zone = 6;
+  else if (/sprint|neuromuscular/.test(t)) zone = 7;
+
+  // Distance: "85 km" / "120km".
+  let distanceKm: number | null = null;
+  const kmMatch = t.match(/(\d{1,3})\s*km\b/);
+  if (kmMatch && kmMatch[1]) {
+    const km = parseInt(kmMatch[1], 10);
+    if (km > 0 && km < 500) distanceKm = km;
+  }
+
+  // Duration: "1h 15m" / "1.5h" / "90 min" — explicit pattern first.
   let durationMin: number | null = null;
+  let durationEstimated = false;
   const hMatch = t.match(/(\d+(?:\.\d+)?)\s*h(?:\s*(\d{1,2})\s*m)?/);
   if (hMatch && hMatch[1]) {
     const h = parseFloat(hMatch[1]);
@@ -41,17 +100,17 @@ export function parseAiSession(text: string | undefined): ParsedAiSession {
     durationMin = null;
   }
 
-  // Zone: explicit Z[1-7] first, else keyword fallback.
-  let zone: number | null = null;
-  const zMatch = t.match(/\bz([1-7])\b/);
-  if (zMatch && zMatch[1]) zone = parseInt(zMatch[1], 10);
-  else if (/recovery|easy|conversational|spin/.test(t)) zone = 1;
-  else if (/endurance|aerobic\s+base|\bbase\b/.test(t)) zone = 2;
-  else if (/tempo/.test(t)) zone = 3;
-  else if (/threshold|sweet[-\s]?spot|sweetspot/.test(t)) zone = 4;
-  else if (/vo2|interval/.test(t)) zone = 5;
-  else if (/anaerobic/.test(t)) zone = 6;
-  else if (/sprint|neuromuscular/.test(t)) zone = 7;
+  // v10.2.0 — fallback: estimate duration from distance × zone pace when
+  // explicit duration wasn't in the brief. This catches "85 km easy" type
+  // briefs that previously fell through to the 60-min default.
+  if (durationMin == null && distanceKm != null) {
+    const pace = paceForZone(zone);
+    const estimated = Math.round((distanceKm / pace) * 60);
+    if (estimated > 0 && estimated <= 600) {
+      durationMin = estimated;
+      durationEstimated = true;
+    }
+  }
 
   // Target watts: "252 W" / "270W"; clamped to 50–2000.
   let watts: number | null = null;
@@ -61,5 +120,5 @@ export function parseAiSession(text: string | undefined): ParsedAiSession {
     if (n >= 50 && n <= 2000) watts = n;
   }
 
-  return { title, durationMin, zone, watts };
+  return { title, durationMin, zone, watts, distanceKm, durationEstimated };
 }

@@ -4,6 +4,11 @@ import { motion } from 'motion/react';
 import { Container } from '../components/Container/Container';
 import { AiCoachCard } from '../components/AiCoachCard/AiCoachCard';
 import { GoalEventCard } from '../components/GoalEventCard/GoalEventCard';
+import {
+  SessionPrefillModal,
+  type SessionPrefillData,
+  type SessionPrefillResult,
+} from '../components/SessionPrefillModal/SessionPrefillModal';
 import { useApiKey } from '../hooks/useApiKey';
 import { useTrainingPrefs } from '../hooks/useTrainingPrefs';
 import { useAiReport } from '../hooks/useAiReport';
@@ -84,35 +89,63 @@ function TrainTab() {
     }
   };
 
-  // v10.1.0 — per-day push from the AI weekly plan onto the personal
-  // scheduler. Each day has its own idle/pending/done state; clicks fire
-  // independently, so the user can add Mon, Wed, Fri (etc.) in any order.
-  // Today's TodayDossier reads /api/me/schedule and reflects them all.
+  // v10.2.0 — per-day click on the AI weekly plan opens a prefill modal
+  // instead of POSTing immediately. The user reviews title / date / time /
+  // duration / zone / watts before saving. Distance-based duration estimates
+  // are surfaced with an "Estimated" hint so the user knows to verify.
+  // Per-day idle/pending/done state is preserved so the WeekPlan day-row
+  // button still shows "+ Schedule" / "…" / "✓".
   const createPlannedSession = useCreatePlannedSession();
   const [dayStates, setDayStates] = useState<Partial<Record<DayName, 'idle' | 'pending' | 'done'>>>({});
   const [scheduleDayError, setScheduleDayError] = useState<string | null>(null);
+  const [prefillModal, setPrefillModal] = useState<{
+    day: DayName;
+    data: SessionPrefillData;
+  } | null>(null);
 
   const handleScheduleDay = (day: DayName) => {
     const text = aiReport.report?.weeklyPlan?.[day];
     if (!text) return;
-    setScheduleDayError(null);
-    setDayStates((prev) => ({ ...prev, [day]: 'pending' }));
     const parsed = parseAiSession(text);
     const target = dateForWeekday(day);
-    target.setHours(18, 0, 0, 0);
+    const dateStr = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`;
+    setScheduleDayError(null);
+    setPrefillModal({
+      day,
+      data: {
+        title: parsed.title,
+        dateStr,
+        timeStr: '18:00', // user can change in modal
+        zone: parsed.zone,
+        durationHours: parsed.durationMin != null ? parsed.durationMin / 60 : null,
+        watts: parsed.watts,
+        description: text,
+        durationEstimated: parsed.durationEstimated,
+        distanceKm: parsed.distanceKm,
+      },
+    });
+  };
+
+  const handlePrefillSave = (result: SessionPrefillResult) => {
+    if (!prefillModal) return;
+    const day = prefillModal.day;
+    setScheduleDayError(null);
+    setDayStates((prev) => ({ ...prev, [day]: 'pending' }));
     createPlannedSession.mutate(
       {
-        title: parsed.title,
-        session_date: Math.floor(target.getTime() / 1000),
-        description: text,
-        ...(parsed.zone != null ? { zone: parsed.zone } : {}),
-        duration_minutes: parsed.durationMin ?? 60,
-        ...(parsed.watts != null ? { target_watts: parsed.watts } : {}),
+        title: result.title,
+        session_date: result.sessionDate,
+        description: result.description,
+        ...(result.zone != null ? { zone: result.zone } : {}),
+        duration_minutes: result.durationMin,
+        ...(result.watts != null ? { target_watts: result.watts } : {}),
         source: 'ai-coach',
       },
       {
-        onSuccess: () =>
-          setDayStates((prev) => ({ ...prev, [day]: 'done' })),
+        onSuccess: () => {
+          setDayStates((prev) => ({ ...prev, [day]: 'done' }));
+          setPrefillModal(null);
+        },
         onError: (err) => {
           setDayStates((prev) => ({ ...prev, [day]: 'idle' }));
           setScheduleDayError(err instanceof Error ? err.message : 'Could not add to schedule.');
@@ -124,6 +157,7 @@ function TrainTab() {
   const resetDayStates = () => {
     setDayStates({});
     setScheduleDayError(null);
+    setPrefillModal(null);
   };
 
   return (
@@ -195,6 +229,18 @@ function TrainTab() {
           />
         </motion.section>
       </Container>
+
+      {/* v10.2.0 — review-and-confirm modal opened by per-day "+ Schedule".
+          User adjusts time, duration, etc. before save. Modal handles its
+          own form state; on save, dashboard.train.tsx fires the mutation. */}
+      <SessionPrefillModal
+        open={prefillModal !== null}
+        prefill={prefillModal?.data ?? null}
+        onClose={() => setPrefillModal(null)}
+        onSave={handlePrefillSave}
+        isPending={createPlannedSession.isPending}
+        error={scheduleDayError}
+      />
     </div>
   );
 }
