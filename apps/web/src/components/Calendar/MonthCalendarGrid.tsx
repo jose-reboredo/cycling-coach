@@ -92,22 +92,30 @@ export function MonthCalendarGrid({
                 .join(' ')}
             >
               <span className={styles.dayNum}>{cell.day}</span>
-              {visibleEvents.map((e) => (
-                <button
-                  key={e.id}
-                  type="button"
-                  className={`${styles.pill} ${styles[`pill_${e.event_type}`]} ${e.cancelled_at ? styles.cancelled : ''}`}
-                  onClick={() => onEventClick(e)}
-                  title={`${e.title}${e.cancelled_at ? ' · cancelled' : ''} · ${e.confirmed_count} going`}
-                >
-                  <span className={styles.pillTime}>
-                    {String(new Date(e.event_date * 1000).getUTCHours()).padStart(2, '0')}
-                    :
-                    {String(new Date(e.event_date * 1000).getUTCMinutes()).padStart(2, '0')}
-                  </span>
-                  <span className={styles.pillTitle}>{e.title}</span>
-                </button>
-              ))}
+              {visibleEvents.map((e) => {
+                // v9.12.4 — render in viewer's local TZ (was UTC); hide RSVP
+                // count in tooltip on personal sessions.
+                const dt = new Date(e.event_date * 1000);
+                const titleSuffix = e.is_personal
+                  ? ' · solo session'
+                  : ` · ${e.confirmed_count} going`;
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    className={`${styles.pill} ${styles[`pill_${e.event_type}`]} ${e.cancelled_at ? styles.cancelled : ''}`}
+                    onClick={() => onEventClick(e)}
+                    title={`${e.title}${e.cancelled_at ? ' · cancelled' : ''}${titleSuffix}`}
+                  >
+                    <span className={styles.pillTime}>
+                      {String(dt.getHours()).padStart(2, '0')}
+                      :
+                      {String(dt.getMinutes()).padStart(2, '0')}
+                    </span>
+                    <span className={styles.pillTitle}>{e.title}</span>
+                  </button>
+                );
+              })}
               {overflow > 0 && (
                 <span className={styles.overflow}>+{overflow} more</span>
               )}

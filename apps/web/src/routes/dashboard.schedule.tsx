@@ -128,6 +128,8 @@ function PersonalSchedule() {
       cancelled_at: s.cancelled_at,
       // v9.12.3 — session duration → calendar block height.
       duration_minutes: s.duration_minutes,
+      // v9.12.4 — discriminator: hides RSVP chip, shows "Solo session" copy.
+      is_personal: true,
     }));
     return [...club, ...personal].sort((a, b) => a.event_date - b.event_date);
   }, [data]);

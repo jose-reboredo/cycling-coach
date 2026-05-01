@@ -4,6 +4,79 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.4] — 2026-05-01
+
+**Calendar timezone fix + hide "X going" on personal sessions.** Founder feedback after v9.12.3: "I create an event at 9am and on the calendar it shows at 7am" + "personal events shouldn't show RSVP — no one's going". Two surgical fixes; one risk theme: **calendar correctness**.
+
+### Bug — every calendar render site forced UTC
+
+Storage was correct from day one (UTC unix epoch is the right call). The display layer was the problem: every grid component read `getUTCHours()` / `getUTCMinutes()` instead of local accessors, and `EventDetailDrawer` had `timeZone: 'UTC'` baked into its date formatter. Net effect: a CEST viewer (UTC+2) saw every wall-clock time shifted -2h. Only personal sessions made this obvious because the round-trip is instant — type "9am", save, see "7am" two seconds later. Club events had the same offset but masked it (the day was correct, the relative spacing was preserved, and the chip text was small).
+
+### 8 sites fixed (single risk theme)
+
+| File | What changed |
+|---|---|
+| `Calendar/types.ts` | `formatHHMM` + `eventDateToCalendar` + `todayUTC` switched to `getHours/getMinutes/getFullYear/getMonth/getDate` |
+| `Calendar/WeekCalendarGrid.tsx` | Block top-position + time chip use local hours/minutes |
+| `Calendar/DayCalendarGrid.tsx` | Same |
+| `Calendar/MonthCalendarGrid.tsx` | Time chip + tooltip title |
+| `Calendar/EventDetailDrawer.tsx` | Removed `timeZone: 'UTC'` from `toLocaleDateString`; removed `· UTC` suffix from "When" line |
+| `ClubEventModal/ClubEventModal.tsx` | Edit-roundtrip and Saturday-default no longer use `toISOString().slice(0,10)` (which is UTC) — uses local-component formatter instead |
+
+### CTO basics for future multi-timezone — *no schema change*
+
+JS `Date` already knows the browser's IANA timezone. By stopping the `getUTC*` over-correction:
+
+- A Zurich author creating a 09:00 event stores it as UTC `07:00:00Z`
+- A Lisbon (UTC+1) subscriber viewing the same event sees `08:00` automatically
+- A Tokyo (UTC+9) traveler sees `16:00` automatically
+
+No conversion code in our app. The browser does it. **The "basics for future multi-TZ" the founder asked for are now in place** — we were fighting the runtime, not enabling it.
+
+### Deferred ADR — `tz` column for shareable events (v9.14)
+
+When the share-via-link feature ships (founder identified this as a growth lever for Sprint 6 — a Strava-style "share this ride" public card), some events need an *author-intent* timezone in addition to the UTC moment. Example: a group meet-up at "09:00 Europe/Zurich" should display:
+
+- For viewers also in Europe/Zurich → "09:00"
+- For a viewer in Lisbon → "09:00 Europe/Zurich · 08:00 your time" (author-anchored)
+
+That requires a nullable `tz TEXT` column on `club_events` and `planned_sessions` (IANA, e.g. `Europe/Zurich`), captured at write-time via `Intl.DateTimeFormat().resolvedOptions().timeZone`. **Deferred to v9.14** — adding the column without a consumer is dead weight.
+
+### Personal sessions: hide RSVP, show "Solo session"
+
+`CalendarEvent` type gained `is_personal?: boolean` discriminator (negative `id` was the soft-discriminator; this is now the source of truth). Set by `dashboard.schedule.tsx` when mapping `planned_sessions` → CalendarEvent. Affected display sites:
+
+- **DayCalendarGrid** — hide `<span className={styles.dayEventCount}>{e.confirmed_count} going</span>`
+- **MonthCalendarGrid** — tooltip title becomes `${title} · solo session` instead of `· 0 going`
+- **EventDetailDrawer** — replaces the "RSVP / 0 going" row with "Mode / Solo session"
+
+Club events unchanged (they keep the RSVP chip).
+
+### Deferred to v9.12.5 (single risk theme: personal-session UX)
+
+Carryover from v9.12.2's deferred bucket — kept separate to honor the "≤1 risk theme per release" rule:
+
+- SessionIcon (1.6px stroke, 24×24) + zone-color pills for personal sessions
+- Drawer Edit / Cancel / Mark-Done for personal sessions (own only)
+- Unsubscribe button for club events I RSVP'd to but didn't create
+
+### Sprint 5 process
+
+- ✅ Pre-coding scope alignment: founder previewed the consolidated solution, greenlit (a)+(b), explicitly deferred (c) — matches the "2-min user preview" rule
+- ✅ Phase-shift: `tz` column moved to v9.14 alongside the consumer; not bundled here
+- ✅ Pattern-replacement: not applicable (single-bug fix across 8 sites)
+- ✅ Pre-deploy verification: the 8 sites were grep'd before changing; build green; no schema change to verify
+
+### Bundle
+
+Calendar chunk: 14.80 → 14.93 KB (+0.13 KB). EventDetailDrawer +0.05 KB. Trivial.
+
+### Versions: 9.12.3 → 9.12.4 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.12.3] — 2026-05-01
 
 **Duration in hours + calendar time-blocking.** Founder feedback after v9.12.2: "cycling time unit is hours, not minutes (0.5h, 1h, 1.5h)" + "when the event is created in the calendar the event needs to book this time (i.e. event starts at 15:00 and duration is 2h, calendar shows blocker 15:00 → 17:00)."

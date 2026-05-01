@@ -95,7 +95,8 @@ export function WeekCalendarGrid({
               ))}
               {dayEvents.map((e) => {
                 const dt = new Date(e.event_date * 1000);
-                const hours = dt.getUTCHours() + dt.getUTCMinutes() / 60;
+                // v9.12.4 — render in viewer's local TZ (was UTC). DB stays UTC.
+                const hours = dt.getHours() + dt.getMinutes() / 60;
                 if (hours < TIME_GRID_START_HOUR || hours >= TIME_GRID_START_HOUR + TIME_GRID_HOURS) {
                   return null; // outside the 06:00–22:00 band
                 }
@@ -113,9 +114,9 @@ export function WeekCalendarGrid({
                     onClick={() => onEventClick(e)}
                   >
                     <span className={styles.pillTime}>
-                      {String(dt.getUTCHours()).padStart(2, '0')}
+                      {String(dt.getHours()).padStart(2, '0')}
                       :
-                      {String(dt.getUTCMinutes()).padStart(2, '0')}
+                      {String(dt.getMinutes()).padStart(2, '0')}
                     </span>
                     <span className={styles.pillTitle}>{e.title}</span>
                   </button>

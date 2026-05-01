@@ -59,7 +59,8 @@ export function DayCalendarGrid({
           ))}
           {dayEvents.map((e) => {
             const dt = new Date(e.event_date * 1000);
-            const hh = dt.getUTCHours() + dt.getUTCMinutes() / 60;
+            // v9.12.4 — render in viewer's local TZ (was UTC). DB stays UTC.
+            const hh = dt.getHours() + dt.getMinutes() / 60;
             if (hh < TIME_GRID_START_HOUR || hh >= TIME_GRID_START_HOUR + TIME_GRID_HOURS) {
               return null;
             }
@@ -76,17 +77,20 @@ export function DayCalendarGrid({
                 onClick={() => onEventClick(e)}
               >
                 <span className={styles.dayEventTime}>
-                  {String(dt.getUTCHours()).padStart(2, '0')}
+                  {String(dt.getHours()).padStart(2, '0')}
                   :
-                  {String(dt.getUTCMinutes()).padStart(2, '0')}
+                  {String(dt.getMinutes()).padStart(2, '0')}
                 </span>
                 <span className={styles.dayEventTitle}>{e.title}</span>
                 {e.location && (
                   <span className={styles.dayEventLoc}>· {e.location}</span>
                 )}
-                <span className={styles.dayEventCount}>
-                  {e.confirmed_count} going
-                </span>
+                {/* v9.12.4 — hide RSVP chip on personal sessions (no attendees). */}
+                {!e.is_personal && (
+                  <span className={styles.dayEventCount}>
+                    {e.confirmed_count} going
+                  </span>
+                )}
               </button>
             );
           })}

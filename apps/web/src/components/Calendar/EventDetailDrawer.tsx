@@ -52,14 +52,14 @@ export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, cal
   if (!event) return null;
 
   const dt = new Date(event.event_date * 1000);
+  // v9.12.4 — render in viewer's local TZ (was forced UTC). DB stays UTC.
   const dateStr = dt.toLocaleDateString(undefined, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-    timeZone: 'UTC',
   });
-  const timeStr = `${String(dt.getUTCHours()).padStart(2, '0')}:${String(dt.getUTCMinutes()).padStart(2, '0')}`;
+  const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
 
   return (
     <div className={styles.drawerBackdrop} onClick={onClose} role="presentation">
@@ -92,7 +92,7 @@ export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, cal
         <dl className={styles.drawerMeta}>
           <div className={styles.drawerMetaRow}>
             <dt>When</dt>
-            <dd>{dateStr} · {timeStr} UTC</dd>
+            <dd>{dateStr} · {timeStr}</dd>
           </div>
           {event.location && (
             <div className={styles.drawerMetaRow}>
@@ -100,10 +100,18 @@ export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, cal
               <dd>{event.location}</dd>
             </div>
           )}
-          <div className={styles.drawerMetaRow}>
-            <dt>RSVP</dt>
-            <dd>{event.confirmed_count} going</dd>
-          </div>
+          {/* v9.12.4 — personal sessions are solo; hide RSVP, show "Solo session". */}
+          {event.is_personal ? (
+            <div className={styles.drawerMetaRow}>
+              <dt>Mode</dt>
+              <dd>Solo session</dd>
+            </div>
+          ) : (
+            <div className={styles.drawerMetaRow}>
+              <dt>RSVP</dt>
+              <dd>{event.confirmed_count} going</dd>
+            </div>
+          )}
           {(event.creator_firstname || event.creator_lastname) && (
             <div className={styles.drawerMetaRow}>
               <dt>Organiser</dt>

@@ -32,6 +32,13 @@ export interface CalendarEvent {
   duration_minutes?: number | null;
   // Optional badge — for personal scheduler multi-club view.
   club_name?: string;
+  /** v9.12.4 — discriminator for personal (planned_sessions) vs club events.
+   *  Set true when mapping a planned_session into CalendarEvent. Drives:
+   *  - hide "X going" RSVP chip (Day grid + Drawer + Month tooltip)
+   *  - show "Solo session" copy in drawer instead
+   *  Negative `id` is also used as a soft-discriminator (mappers convention)
+   *  but this flag is the source of truth. */
+  is_personal?: boolean;
 }
 
 export interface CalendarDate {
@@ -55,12 +62,17 @@ export const TYPE_LABEL: Record<ClubEventType, string> = {
   race: 'Race',
 };
 
+/** v9.12.4 — Returns "today" in the viewer's local timezone. Name kept for
+ *  call-site stability; the function previously used UTC accessors which
+ *  caused day-shifting bugs in non-UTC zones (e.g. Europe/Zurich after
+ *  22:00 local would render tomorrow as today). All Calendar grids highlight
+ *  the cell that matches the viewer's wall-clock day. */
 export function todayUTC(): CalendarDate {
   const now = new Date();
   return {
-    year: now.getUTCFullYear(),
-    month: now.getUTCMonth() + 1,
-    day: now.getUTCDate(),
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    day: now.getDate(),
   };
 }
 
@@ -99,18 +111,22 @@ export function weekDates(start: CalendarDate): CalendarDate[] {
   return out;
 }
 
+/** v9.12.4 — Returns the calendar day (year/month/day) for a stored UTC
+ *  epoch event_date, **in the viewer's local timezone**. Required so that
+ *  events stored as UTC group under the correct local day cell. */
 export function eventDateToCalendar(event_date: number): CalendarDate {
   const d = new Date(event_date * 1000);
   return {
-    year: d.getUTCFullYear(),
-    month: d.getUTCMonth() + 1,
-    day: d.getUTCDate(),
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    day: d.getDate(),
   };
 }
 
+/** v9.12.4 — HH:MM in the viewer's local timezone (was UTC). */
 export function formatHHMM(event_date: number): string {
   const d = new Date(event_date * 1000);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 /** Group events by day key 'YYYY-M-D'. Filters by activeFilters set

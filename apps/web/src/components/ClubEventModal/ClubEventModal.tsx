@@ -85,10 +85,16 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
       setDurationMin(event.duration_minutes != null ? String(event.duration_minutes / 60) : '');
       setDescIsAi(!!event.description_ai_generated);
       const dt = new Date((event.event_date || 0) * 1000);
-      setDate(Number.isFinite(dt.getTime()) ? dt.toISOString().slice(0, 10) : '');
+      // v9.12.4 — read back in viewer's local TZ so the edit form shows the
+      // same wall-clock time the author entered. toISOString() would force UTC.
+      setDate(
+        Number.isFinite(dt.getTime())
+          ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+          : '',
+      );
       setTime(
         Number.isFinite(dt.getTime())
-          ? `${String(dt.getUTCHours()).padStart(2, '0')}:${String(dt.getUTCMinutes()).padStart(2, '0')}`
+          ? `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
           : '09:00',
       );
     } else {
@@ -108,7 +114,11 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
       const offsetToSat = (6 - day + 7) % 7 || 7;
       const sat = new Date(now);
       sat.setDate(now.getDate() + offsetToSat);
-      setDate(sat.toISOString().slice(0, 10));
+      // v9.12.4 — local-date format; toISOString() shifts to UTC and can roll
+      // the date when local clock is past the offset (e.g. CEST 23:00 → next day).
+      setDate(
+        `${sat.getFullYear()}-${String(sat.getMonth() + 1).padStart(2, '0')}-${String(sat.getDate()).padStart(2, '0')}`,
+      );
       setTime('09:00');
     }
 
