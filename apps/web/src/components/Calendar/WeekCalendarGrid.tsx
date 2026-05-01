@@ -9,6 +9,7 @@ import {
   type ClubEventType,
   TIME_GRID_START_HOUR,
   TIME_GRID_HOURS,
+  formatDuration,
   getEventPillClass,
   isSameDay,
   todayUTC,
@@ -106,6 +107,11 @@ export function WeekCalendarGrid({
                 // a 15:00 + 2h event visually books 15:00–17:00 on the grid.
                 const durationMin = e.duration_minutes ?? FALLBACK_EVENT_DURATION_MINUTES;
                 const heightPct = (durationMin / 60 / TIME_GRID_HOURS) * 100;
+                // v9.12.7 — bold title + mono duration tag (matches
+                // SchedulePreview marketing visual). Time stays as small
+                // mono chip since position-on-Y can be hard to read in
+                // dense weeks.
+                const durStr = formatDuration(e.duration_minutes);
                 return (
                   <button
                     key={e.id}
@@ -120,6 +126,7 @@ export function WeekCalendarGrid({
                       {String(dt.getMinutes()).padStart(2, '0')}
                     </span>
                     <span className={styles.pillTitle}>{e.title}</span>
+                    {durStr && <span className={styles.weekEventDur}>{durStr}</span>}
                   </button>
                 );
               })}

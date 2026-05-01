@@ -6,6 +6,7 @@ import {
   type CalendarEvent,
   type CalendarDate,
   type ClubEventType,
+  formatDuration,
   getEventPillClass,
   groupByDay,
   isSameDay,
@@ -96,7 +97,10 @@ export function MonthCalendarGrid({
               {visibleEvents.map((e) => {
                 // v9.12.4 — render in viewer's local TZ (was UTC); hide RSVP
                 // count in tooltip on personal sessions.
+                // v9.12.7 — bold title + mono duration chip to mirror the
+                // SchedulePreview marketing visual the founder approved.
                 const dt = new Date(e.event_date * 1000);
+                const durStr = formatDuration(e.duration_minutes);
                 const titleSuffix = e.is_personal
                   ? ' · solo session'
                   : ` · ${e.confirmed_count} going`;
@@ -106,7 +110,7 @@ export function MonthCalendarGrid({
                     type="button"
                     className={`${styles.pill} ${getEventPillClass(e, styles)} ${e.cancelled_at ? styles.cancelled : ''}`}
                     onClick={() => onEventClick(e)}
-                    title={`${e.title}${e.cancelled_at ? ' · cancelled' : ''}${titleSuffix}`}
+                    title={`${e.title}${e.cancelled_at ? ' · cancelled' : ''}${durStr ? ` · ${durStr}` : ''}${titleSuffix}`}
                   >
                     <span className={styles.pillTime}>
                       {String(dt.getHours()).padStart(2, '0')}
@@ -114,6 +118,7 @@ export function MonthCalendarGrid({
                       {String(dt.getMinutes()).padStart(2, '0')}
                     </span>
                     <span className={styles.pillTitle}>{e.title}</span>
+                    {durStr && <span className={styles.pillDur}>{durStr}</span>}
                   </button>
                 );
               })}

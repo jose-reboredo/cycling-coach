@@ -94,6 +94,20 @@ export function getEventPillClass(
   return styles[`pill_${e.event_type}`] ?? '';
 }
 
+/** v9.12.7 — duration_minutes → cyclist-canon decimal hours.
+ *  90 → "1.5h", 60 → "1h", 45 → "0.75h", 120 → "2h", 75 → "1.25h".
+ *  Returns null when input is null/undefined/<=0 so callers can
+ *  conditionally render the chip. Used in calendar pills to mirror
+ *  the SchedulePreview marketing visual. */
+export function formatDuration(mins: number | null | undefined): string | null {
+  if (mins == null || !Number.isFinite(mins) || mins <= 0) return null;
+  const h = mins / 60;
+  // Half-hour and quarter-hour increments produce clean strings; fallback
+  // to 2-decimal precision for legacy non-canonical values.
+  if (Number.isInteger(h * 4)) return `${h}h`;
+  return `${h.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}h`;
+}
+
 /** v9.12.4 — Returns "today" in the viewer's local timezone. Name kept for
  *  call-site stability; the function previously used UTC accessors which
  *  caused day-shifting bugs in non-UTC zones (e.g. Europe/Zurich after

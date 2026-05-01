@@ -4,6 +4,117 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.7] — 2026-05-01
+
+**In-app calendar pills adopt the SchedulePreview marketing visual.**
+
+> Founder feedback right after v9.12.6: "make the scheduler individual and club look as the one into the landing/marketing page, it's really good. I like the bubbles in colors with this bold and time."
+
+The marketing-page mini-week (FeatureSpread #03 visual added in v9.12.6) became the canonical look. This release transfers that aesthetic to the actual calendar grids that members use every day.
+
+### Three visual changes
+
+**1. Borders.** Every pill modifier now carries a 1px border at 0.32-alpha matching its background hue:
+
+```css
+.pill_ride            { border: 1px solid rgba(255, 77, 0, 0.32); }
+.pill_social          { border: 1px solid rgba(80, 160, 220, 0.32); }
+.pill_race            { border: 1px solid rgba(220, 140, 50, 0.32); }
+.pill_personal_z1     { border: 1px solid rgba(59, 140, 232, 0.32); }
+.pill_personal_z2     { border: 1px solid rgba(74, 222, 128, 0.32); }
+.pill_personal_z3     { border: 1px solid rgba(250, 204, 21, 0.32); }
+.pill_personal_z4     { border: 1px solid rgba(251, 146, 60, 0.32); }
+.pill_personal_z5     { border: 1px solid rgba(239, 68, 68, 0.32); }
+.pill_personal_z6     { border: 1px solid rgba(168, 85, 247, 0.32); }
+.pill_personal_z7     { border: 1px solid rgba(165, 91, 224, 0.32); }
+.pill_personal_default { border: 1px solid rgba(125, 130, 144, 0.32); }
+```
+
+Base `.pill` / `.weekEvent` / `.dayEvent` carry a transparent 1px border so the modifier can fill it without changing layout (`border-box` keeps width stable).
+
+**2. Bold titles.** `.pillTitle` is now `font-weight: 600` (was 500). Matches the SchedulePreview's `font-weight: 600` on `schedPillTitle`. `.dayEventTitle` was already 600 — no change there.
+
+**3. Duration chips.** New helper `formatDuration(mins)` in `Calendar/types.ts`:
+
+```ts
+export function formatDuration(mins: number | null | undefined): string | null {
+  if (mins == null || !Number.isFinite(mins) || mins <= 0) return null;
+  const h = mins / 60;
+  if (Number.isInteger(h * 4)) return `${h}h`;        // 0.5h, 0.75h, 1h, 1.25h, 1.5h, 2h
+  return `${h.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}h`;  // legacy non-canonical
+}
+```
+
+Returns `null` when no duration is set so callers can conditionally render. Added as a mono small-opacity chip to all 3 grids:
+
+- **Month** → `<span class="pillDur">` end-anchored after the title (`margin-left: auto`)
+- **Week** → `<span class="weekEventDur">` below the title (column flex)
+- **Day** → New `<span class="dayEventTopRow">` flex container holds `[time]` + `[duration]` side-by-side; title sits below (so the user reads "09:00 ──── 1.5h" then "Sweet-spot intervals · 3×12" — same hierarchy as the marketing visual)
+
+### Pill metrics aligned to SchedulePreview
+
+```diff
+- .pill { padding: 2px 4px; border-radius: var(--r-1); }
++ .pill { padding: 3px 6px; border-radius: 4px; }
+- .weekEvent { border-radius: var(--r-1); }
++ .weekEvent { border-radius: 4px; }
+- .dayEvent { border-radius: var(--r-2); }
++ .dayEvent { border-radius: 6px; }
+```
+
+Tightens to brutalist sharp-cornered radii. SchedulePreview's pill is `border-radius: 4px` — the in-app Day pill stays slightly larger (6px) since it's a much bigger surface.
+
+### Tooltip update
+
+Month pills' `title` attribute now includes duration:
+
+```diff
+- title={`${e.title}${cancelled ? ' · cancelled' : ''}${rsvpSuffix}`}
++ title={`${e.title}${cancelled ? ' · cancelled' : ''}${dur ? ` · ${dur}` : ''}${rsvpSuffix}`}
+```
+
+### Files changed
+
+```
+apps/web/src/components/Calendar/types.ts             # +formatDuration() helper
+apps/web/src/components/Calendar/Calendar.module.css  # borders on 11 modifiers; bold pillTitle; +pillDur, +weekEventDur, +dayEventDur, +dayEventTopRow; padding+radius polish
+apps/web/src/components/Calendar/MonthCalendarGrid.tsx  # +pillDur chip + tooltip dur
+apps/web/src/components/Calendar/WeekCalendarGrid.tsx   # +weekEventDur chip
+apps/web/src/components/Calendar/DayCalendarGrid.tsx    # +dayEventTopRow + dayEventDur chip
++ 5 version-bump files (apps/web/package.json, package.json, src/worker.js, version.ts, README)
++ CHANGELOG.md (this entry)
+```
+
+### Surfaces that benefit (free cascade)
+
+Both consumers of `MonthCalendarGrid` / `WeekCalendarGrid` / `DayCalendarGrid` get the new look automatically:
+
+1. `/dashboard/schedule` — personal scheduler (multi-club + planned_sessions aggregator)
+2. `/clubs/:id/schedule` — ScheduleTab in the club dashboard
+
+EventDetailDrawer header pill also gets a border via the same modifier classes — drawer reads cohesive with the calendar pills now.
+
+### Bundle
+
+Calendar chunk: +0.4 KB (CSS additions + 8-line helper + 3 markup tweaks). Trivial.
+
+### Why PATCH
+
+Per the project's locked SemVer rule (CONTRIBUTING.md, post-v9.7.x): MINOR for new features, PATCH for hotfixes / corrections / visual polish. v9.12.7 is pure visual treatment — no new feature, no new endpoint, no schema change. PATCH is right.
+
+### Sprint 5 process
+
+- ✅ Pre-coding scope alignment: founder identified the SchedulePreview as the canonical look; this release lifts it directly into the calendar primitives
+- ✅ Pattern-replacement: not applicable (single coherent visual change, not a fix-then-fix-then-replace)
+- ✅ Pre-deploy verification: 3 grid components grep'd; all `getEventPillClass` consumers checked; no breaking selector changes
+- ✅ Both surfaces (personal scheduler + club ScheduleTab) inherit automatically — no per-surface edits
+
+### Versions: 9.12.6 → 9.12.7 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.12.6] — 2026-05-01
 
 **Landing page UX correction — back to a marketing landing.** Founder feedback right after v9.12.5: the "Built · Shipping next" issue grid I added wasn't a marketing surface, it was an engineering log. Wrong tool for the conversion page.

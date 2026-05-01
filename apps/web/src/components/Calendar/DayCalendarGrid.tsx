@@ -8,6 +8,7 @@ import {
   type ClubEventType,
   TIME_GRID_START_HOUR,
   TIME_GRID_HOURS,
+  formatDuration,
   getEventPillClass,
   isSameDay,
   todayUTC,
@@ -69,6 +70,9 @@ export function DayCalendarGrid({
             // v9.12.3 — block height proportional to actual duration.
             const durationMin = e.duration_minutes ?? FALLBACK_EVENT_DURATION_MINUTES;
             const heightPct = (durationMin / 60 / TIME_GRID_HOURS) * 100;
+            // v9.12.7 — top row gets time + duration side-by-side (mirrors
+            // SchedulePreview marketing visual: bold title, mono duration tag).
+            const durStr = formatDuration(e.duration_minutes);
             return (
               <button
                 key={e.id}
@@ -77,10 +81,13 @@ export function DayCalendarGrid({
                 style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                 onClick={() => onEventClick(e)}
               >
-                <span className={styles.dayEventTime}>
-                  {String(dt.getHours()).padStart(2, '0')}
-                  :
-                  {String(dt.getMinutes()).padStart(2, '0')}
+                <span className={styles.dayEventTopRow}>
+                  <span className={styles.dayEventTime}>
+                    {String(dt.getHours()).padStart(2, '0')}
+                    :
+                    {String(dt.getMinutes()).padStart(2, '0')}
+                  </span>
+                  {durStr && <span className={styles.dayEventDur}>{durStr}</span>}
                 </span>
                 <span className={styles.dayEventTitle}>{e.title}</span>
                 {e.location && (
