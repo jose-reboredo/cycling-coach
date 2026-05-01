@@ -16,6 +16,8 @@ Created 2026-04-30 from the Sprint-3 backlog review (`docs/post-demo-sprint/spri
 - [ ] `X-Forwarded-Host: evil.com` on `/authorize` still redirects to Strava with our prod redirect_uri (origin-allowlist working — `#34`)
 - [ ] Security headers present on a Worker response and a static asset (`curl -I /version` and `curl -I /icon.svg` both show CSP/HSTS/X-Frame-Options/etc. — `#15`)
 - [ ] DELETE/PUT/PATCH on `/api/<random>` return 405 (method allowlist working — `#41`)
+- [ ] **OAuth round-trip on releases that touch Worker headers** (post-mortem `v9.6.1`): load `/authorize` → complete Strava OAuth → land on `/dashboard` with non-empty data within 5s. Block deploy on regression.
+- [ ] **POST → GET round-trip on any new POST endpoint with optimistic UI** (post-mortem `v9.6.4`): POST valid payload → wait 1s → GET the surface that reads back persisted state → assert state matches. For UPSERT-shape endpoints, `SELECT COUNT(*) FROM <table>;` via `wrangler d1 execute` after smoke POST should be ≥ 1.
 
 ### 2. iOS Add-to-Home-Screen validation (formerly part of `#10`, now lives here)
 
