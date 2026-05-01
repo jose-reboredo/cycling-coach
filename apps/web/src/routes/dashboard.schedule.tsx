@@ -110,12 +110,13 @@ function PersonalSchedule() {
       expected_avg_speed_kmh: e.expected_avg_speed_kmh,
       surface: e.surface,
       start_point: e.start_point,
+      // v9.12.3 — duration drives Week/Day calendar block height.
+      duration_minutes: e.duration_minutes,
       club_name: e.club_name ?? undefined,
     }));
     // Personal sessions render as 'ride' (existing color/icon). Visual diff
-    // (zone color + SessionIcon) is the Phase D follow-up — out of v9.12.0
-    // initial scope. Negative ID prevents collision with club_event IDs in
-    // the calendar grid's React keys.
+    // (zone color + SessionIcon) is v9.12.4 follow-up. Negative ID prevents
+    // collision with club_event IDs in the calendar grid's React keys.
     const personal: CalendarEvent[] = (data?.planned_sessions ?? []).map((s) => ({
       id: -s.id,
       title: s.title,
@@ -125,6 +126,8 @@ function PersonalSchedule() {
       location: null,
       description: s.description,
       cancelled_at: s.cancelled_at,
+      // v9.12.3 — session duration → calendar block height.
+      duration_minutes: s.duration_minutes,
     }));
     return [...club, ...personal].sort((a, b) => a.event_date - b.event_date);
   }, [data]);

@@ -364,6 +364,7 @@ function UpcomingEventRow({
           expected_avg_speed_kmh: event.expected_avg_speed_kmh,
           surface: event.surface,
           start_point: event.start_point,
+          duration_minutes: event.duration_minutes,
         });
       }
     : undefined;

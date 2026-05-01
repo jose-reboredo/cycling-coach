@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.12.2](./CHANGELOG.md#9122--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.12.3](./CHANGELOG.md#9123--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.12.3
+
+**Duration in hours (cycling convention) + calendar time-blocking.** Founder feedback: cyclists think in 0.5h / 1h / 1.5h / 2h, not minutes. And event duration should visually book the time on Week and Day calendar grids — a 15:00 + 2h ride should show a block from 15:00 to 17:00, not a fixed 90-min stub. Both fixes ship in v9.12.3. Backend keeps storing `duration_minutes` (no schema change); UI converts at the edges. ClubEventModal + Add Session page now show "Duration (hours)" with `step=0.5`, `min=0`, `max=10`, placeholder `"1.5"`. On submit: `Math.round(hours * 60)` → minutes. On read back: `minutes / 60` for display. Legacy events with non-half-hour durations (e.g. 75 min) display as `1.25` — accepted edge. Calendar grids: `WeekCalendarGrid` and `DayCalendarGrid` now compute block height as `(event.duration_minutes / 60 / TIME_GRID_HOURS) * 100%` instead of the hardcoded 90-min. Personal sessions and club events both render to scale. Legacy events without duration fall back to 90 min so visual layout doesn't break. Plumbing: `CalendarEvent` type gained `duration_minutes?: number | null`; ScheduleTab passes through automatically (ClubEvent is a superset); dashboard.schedule.tsx + ClubDashboard's UpcomingEventRow click-to-drawer mapper both add the field explicitly. **Deferred to v9.12.4** (deferred items from v9.12.2): visual differentiation between club and personal events (SessionIcon + zone colors); personal session drawer Edit/Cancel/Mark-Done; Unsubscribe button for club events.
 
 ## What's new in v9.12.2
 

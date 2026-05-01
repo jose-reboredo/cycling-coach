@@ -26,7 +26,9 @@ interface WeekCalendarGridProps {
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const DEFAULT_EVENT_DURATION_MINUTES = 90;
+// v9.12.3 — event blocks size to actual duration_minutes. Legacy events
+// without duration fall back to 90 min.
+const FALLBACK_EVENT_DURATION_MINUTES = 90;
 
 export function WeekCalendarGrid({
   date,
@@ -98,7 +100,10 @@ export function WeekCalendarGrid({
                   return null; // outside the 06:00–22:00 band
                 }
                 const topPct = ((hours - TIME_GRID_START_HOUR) / TIME_GRID_HOURS) * 100;
-                const heightPct = (DEFAULT_EVENT_DURATION_MINUTES / 60 / TIME_GRID_HOURS) * 100;
+                // v9.12.3 — block height proportional to actual duration so
+                // a 15:00 + 2h event visually books 15:00–17:00 on the grid.
+                const durationMin = e.duration_minutes ?? FALLBACK_EVENT_DURATION_MINUTES;
+                const heightPct = (durationMin / 60 / TIME_GRID_HOURS) * 100;
                 return (
                   <button
                     key={e.id}

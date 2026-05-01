@@ -21,7 +21,8 @@ interface DayCalendarGridProps {
   onEventClick: (event: CalendarEvent) => void;
 }
 
-const DEFAULT_EVENT_DURATION_MINUTES = 90;
+// v9.12.3 — event blocks size to actual duration_minutes; legacy fallback.
+const FALLBACK_EVENT_DURATION_MINUTES = 90;
 
 export function DayCalendarGrid({
   date,
@@ -63,7 +64,9 @@ export function DayCalendarGrid({
               return null;
             }
             const topPct = ((hh - TIME_GRID_START_HOUR) / TIME_GRID_HOURS) * 100;
-            const heightPct = (DEFAULT_EVENT_DURATION_MINUTES / 60 / TIME_GRID_HOURS) * 100;
+            // v9.12.3 — block height proportional to actual duration.
+            const durationMin = e.duration_minutes ?? FALLBACK_EVENT_DURATION_MINUTES;
+            const heightPct = (durationMin / 60 / TIME_GRID_HOURS) * 100;
             return (
               <button
                 key={e.id}

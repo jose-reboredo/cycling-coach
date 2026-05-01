@@ -70,14 +70,18 @@ function NewSessionPage() {
       return;
     }
     const zoneNum = zone ? parseInt(zone, 10) : null;
-    const durationNum = duration ? parseInt(duration, 10) : null;
+    // v9.12.3 — input is in hours (cycling convention); converted to minutes
+    // for DB storage. step=0.5 in input gives 0.5h / 1h / 1.5h granularity.
+    const durationHours = duration ? Number(duration) : null;
+    const durationNum = durationHours != null && Number.isFinite(durationHours)
+      ? Math.round(durationHours * 60) : null;
     const wattsNum = watts ? parseInt(watts, 10) : null;
     if (durationNum == null) {
       setError('Duration is required.');
       return;
     }
     if (durationNum < 0 || durationNum > 600) {
-      setError('Duration must be 0–600 minutes.');
+      setError('Duration must be 0–10 hours.');
       return;
     }
     if (wattsNum != null && (wattsNum < 0 || wattsNum > 2000)) {
@@ -169,18 +173,19 @@ function NewSessionPage() {
 
           <div className={styles.fieldRow}>
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="s-duration">Duration (min)<span className={styles.required}>*</span></label>
+              <label className={styles.fieldLabel} htmlFor="s-duration">Duration (hours)<span className={styles.required}>*</span></label>
               <input
                 id="s-duration"
                 className={styles.input}
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
                 min={0}
-                max={600}
+                max={10}
+                step={0.5}
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 required
-                placeholder="75"
+                placeholder="1.5"
               />
             </div>
             <div className={styles.field}>

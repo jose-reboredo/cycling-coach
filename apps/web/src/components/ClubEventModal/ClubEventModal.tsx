@@ -80,7 +80,9 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
       setSpeedKmh(event.expected_avg_speed_kmh != null ? String(event.expected_avg_speed_kmh) : '');
       setSurface((event.surface as ClubEventSurface) || '');
       setStartPoint(event.start_point || '');
-      setDurationMin(event.duration_minutes != null ? String(event.duration_minutes) : '');
+      // v9.12.3 — DB stores minutes; UI works in hours (cycling convention).
+      // Convert minutes → hours; default to empty if null (legacy events).
+      setDurationMin(event.duration_minutes != null ? String(event.duration_minutes / 60) : '');
       setDescIsAi(!!event.description_ai_generated);
       const dt = new Date((event.event_date || 0) * 1000);
       setDate(Number.isFinite(dt.getTime()) ? dt.toISOString().slice(0, 10) : '');
@@ -147,7 +149,14 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
     }
     const distanceParsed = distanceKm ? Number(distanceKm) : null;
     const speedParsed = speedKmh ? Number(speedKmh) : null;
-    const durationParsed = durationMin ? Number(durationMin) : null;
+    // v9.12.3 — UI is in hours; convert to minutes for the backend (which
+    // stores in `duration_minutes`). step=0.5 in the input gives 0.5h / 1h /
+    // 1.5h granularity; legacy events display their stored value (e.g. 75min
+    // shows as 1.25h).
+    const durationHoursParsed = durationMin ? Number(durationMin) : null;
+    const durationParsed = durationHoursParsed != null && Number.isFinite(durationHoursParsed)
+      ? Math.round(durationHoursParsed * 60)
+      : null;
     if (distanceKm && (!Number.isFinite(distanceParsed) || distanceParsed! < 0 || distanceParsed! >= 1000)) {
       setError('Distance must be 0–999 km.');
       return;
@@ -157,12 +166,13 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
       return;
     }
     // v9.12.2 (#79) — duration is mandatory.
+    // v9.12.3 — input is in hours; converted to minutes for DB.
     if (durationParsed == null) {
       setError('Duration is required.');
       return;
     }
     if (!Number.isFinite(durationParsed) || durationParsed < 0 || durationParsed > 600) {
-      setError('Duration must be 0–600 minutes.');
+      setError('Duration must be 0–10 hours.');
       return;
     }
 
@@ -360,21 +370,23 @@ export function ClubEventModal({ open, clubId, onClose, onCreated, event, onUpda
               </div>
 
               {/* v9.12.2 (#79) — Duration: mandatory for all events. Visible
-               *  even when format=Social (a coffee meetup still has a length). */}
+               *  even when format=Social (a coffee meetup still has a length).
+               *  v9.12.3 — unit is hours (cycling convention: 0.5h / 1h /
+               *  1.5h / 2h). Backend stores minutes; conversion at submit. */}
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="ev-duration">Duration (min)<span className={styles.required}>*</span></label>
+                <label className={styles.fieldLabel} htmlFor="ev-duration">Duration (hours)<span className={styles.required}>*</span></label>
                 <input
                   id="ev-duration"
                   className={styles.input}
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
                   min={0}
-                  max={600}
-                  step={5}
+                  max={10}
+                  step={0.5}
                   value={durationMin}
                   onChange={(e) => setDurationMin(e.target.value)}
                   required
-                  placeholder="90"
+                  placeholder="1.5"
                 />
               </div>
 

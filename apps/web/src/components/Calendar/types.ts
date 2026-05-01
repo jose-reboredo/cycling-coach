@@ -26,6 +26,10 @@ export interface CalendarEvent {
   expected_avg_speed_kmh?: number | null;
   surface?: 'road' | 'gravel' | 'mixed' | null;
   start_point?: string | null;
+  /** v9.12.3 — event duration. Used for calendar time-blocking on Week
+   *  and Day grids: block height = duration_minutes / 60 / TIME_GRID_HOURS.
+   *  Falls back to 90-min default for legacy events without duration. */
+  duration_minutes?: number | null;
   // Optional badge — for personal scheduler multi-club view.
   club_name?: string;
 }

@@ -4,6 +4,75 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.3] — 2026-05-01
+
+**Duration in hours + calendar time-blocking.** Founder feedback after v9.12.2: "cycling time unit is hours, not minutes (0.5h, 1h, 1.5h)" + "when the event is created in the calendar the event needs to book this time (i.e. event starts at 15:00 and duration is 2h, calendar shows blocker 15:00 → 17:00)."
+
+### Hours UI (cycling convention) — DB stays in minutes
+
+Backend convention preserved: `duration_minutes INTEGER` (Migration 0009 from v9.12.2 unchanged). UI converts at the edges:
+
+- **Input on submit**: `Math.round(hours * 60)` → minutes for the API
+- **Read on edit**: `minutes / 60` → hours for the input
+
+Updated forms:
+- ClubEventModal: label "Duration (hours)" + `step=0.5` + `min=0` + `max=10` + placeholder `"1.5"`
+- Add Session page (`/dashboard/schedule-new`): same treatment
+- Validation error: "Duration must be 0–10 hours" (was "0–600 minutes")
+
+Legacy events with non-half-hour durations display their fractional hour value (e.g. 75 min → "1.25"). Acceptable — most riders set 1h / 1.5h / 2h going forward.
+
+### Calendar time-blocking
+
+Week and Day calendar grids previously rendered every event at a fixed 90-min height (`DEFAULT_EVENT_DURATION_MINUTES = 90`). Now they read the actual `duration_minutes` and size the block proportionally to the 16h time band:
+
+```ts
+const durationMin = e.duration_minutes ?? FALLBACK_EVENT_DURATION_MINUTES;
+const heightPct = (durationMin / 60 / TIME_GRID_HOURS) * 100;
+```
+
+Result: a 15:00 event with `duration_minutes: 120` renders as a block from 15:00 to 17:00. A 09:00 with `duration_minutes: 180` shows 09:00 to 12:00. Members can read the calendar at-a-glance and see actual time commitments.
+
+Legacy events without `duration_minutes` fall back to 90 min — preserves layout for old data.
+
+### Plumbing changes
+
+`CalendarEvent` type (`apps/web/src/components/Calendar/types.ts`) gains `duration_minutes?: number | null`.
+
+Three CalendarEvent construction sites updated:
+
+1. **ScheduleTab.tsx** — uses `data?.events` directly; ClubEvent is a superset of CalendarEvent so duration_minutes flows through automatically (TypeScript structural typing)
+2. **dashboard.schedule.tsx** — explicit `.map()` for both `club_events` (uses `e.duration_minutes`) and `planned_sessions` (uses `s.duration_minutes`)
+3. **ClubDashboard.tsx UpcomingEventRow** — `handleRowClick` maps event to CalendarEvent for the drawer; adds `duration_minutes: event.duration_minutes`
+
+### Sprint 5 process
+
+- ✅ Paired verification: build green; manual TS scan; existing 28 e2e tests still pass
+- ✅ Pre-commit grep — N/A (no schema change)
+- ✅ POST → GET round-trip — validated via existing endpoint contract
+- ✅ Verification budget — small, surgical patch; no new endpoints
+- ✅ Bug post-mortems — none required
+
+### Bundle
+
+Dashboard chunk: 75.99 → 76.08 KB (+0.09 KB). Trivial. EventDetailDrawer chunk: 14.75 → 14.80 KB (+0.05 KB).
+
+### Deferred to v9.12.4
+
+The previously-deferred-from-v9.12.2 personal-session UX work still pending:
+
+- **Visual differentiation**: SessionIcon (1.6px stroke, dumbbell, 24×24) + zone-color pills for personal sessions. Currently personal sessions render with 'ride' styling.
+- **Drawer Edit/Cancel/Mark-Done** for personal sessions (own sessions only).
+- **Unsubscribe button** for club events I RSVP'd to but didn't create.
+
+Founder confirmed v9.12.2 items 1-6 OK; this v9.12.3 ships the new feedback (hours + time-blocking); v9.12.4 will close the v9.12.2 deferred bucket.
+
+### Versions: 9.12.2 → 9.12.3 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.12.2] — 2026-05-01
 
 **Partial `#79` polish bundle:** mandatory event duration + asterisks/legend on required fields + BottomNav adapts to item count. Closes 3 of 5 founder-flagged items. Visual differentiation + personal-session drawer mutations deferred to v9.12.3 (substantial scope).
