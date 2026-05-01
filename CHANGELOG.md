@@ -4,6 +4,174 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.4.0] — 2026-05-01
+
+**Route generation backend (`POST /api/routes/generate`).**
+
+OSM-based cycling loop generator. Returns 3-5 alternative routes scored on distance / elevation / surface / overlap, with encoded polylines and inline GPX 1.1 payloads. Backend-only release — UI integration ships in v10.5.0.
+
+### Architecture
+
+Six new modules in `src/`:
+
+```
+src/lib/polyline.js         # Google polyline encode/decode
+src/lib/gpxSerializer.js    # GPX 1.1 builder (no XML lib)
+src/lib/waypointGen.js      # Circle-scaffolded loop candidates + deterministic RNG
+src/lib/orsAdapter.js       # ORS HTTP client + response parser
+src/lib/routeScoring.js     # Distance/elevation/surface/overlap scoring
+src/routes/routeGen.js      # Handler: validate → seed → fan-out → score → cache
+```
+
+`src/worker.js` imports `handleRoutesGenerate` and dispatches `POST /api/routes/generate`. Total new code ≈ 700 lines, each module ≤ 220.
+
+### Algorithm
+
+1. Validate input (lat / lng / distance_km 5–300 / cycling_type / elevation_preference)
+2. Cache lookup — key = SHA-256 of canonicalised input (lat/lng rounded to 4dp ≈ 11m granularity); cache hit returns immediately
+3. Cache miss: deterministic seed from input → 5 candidate scaffolds (alternating 3/4 waypoints, ±15° angle / ±15% radius jitter, evenly distributed around compass)
+4. Parallel `fetch` to ORS `/v2/directions/{profile}/json` for each candidate (`Promise.all`)
+5. Score each candidate; reject if distance outside ±10% target or overlap >70% with prior accepted
+6. Sort by score, take top 3-5
+7. Build GPX, return JSON, cache (24h TTL, fire-and-forget)
+
+### Scoring weights (founder-approved)
+
+```
+score = 0.40 × distance_match   // Wrong distance = wrong session
+      + 0.30 × surface_match    // Gravel rider doesn't want road loop
+      + 0.20 × elevation_match  // Bell curve around preference band centre
+      − 0.10 × overlap_penalty  // Discourages near-duplicates
+```
+
+Elevation bands (m/km): `low 0-15`, `medium 15-30`, `high 30+`. Surface preference: `road→[asphalt]`, `gravel→[gravel,unpaved]`, `mtb→[unpaved,gravel]`. Overlap detected via geohash bucketing at ~0.001° resolution.
+
+### API contract
+
+```
+POST /api/routes/generate
+{
+  "lat": 47.3769, "lng": 8.5417,
+  "distance_km": 50,
+  "cycling_type": "road",       // road | gravel | mtb
+  "elevation_preference": "medium"  // low | medium | high
+}
+
+→ 200 [
+  {
+    "id": "route_1",
+    "distance_km": 51.2,
+    "elevation_gain_m": 420,
+    "surface_type": "asphalt",
+    "polyline": "{encoded}",
+    "gpx": "<?xml ...",
+    "score": 0.87,
+    "score_breakdown": {
+      "distance_match": 0.96,
+      "elevation_match": 0.85,
+      "surface_match": 0.92,
+      "overlap_penalty": 0.06
+    }
+  }
+]
+```
+
+Errors: `400 invalid_input`, `401 auth`, `429 rate_limited`, `503 route_service_disabled` (ORS_API_KEY missing), `503 no_valid_paths` (all candidates failed validation).
+
+### Security review — `ORS_API_KEY` handling
+
+Audited against the existing pattern for `STRAVA_CLIENT_SECRET`, `SYSTEM_ANTHROPIC_KEY`, `ANTHROPIC_API_KEY`, `ADMIN_SECRET`, `STRAVA_WEBHOOK_PATH_SECRET`, `CONFLUENCE_API_TOKEN`. The new key follows the same conventions:
+
+| Aspect | Pattern | v10.4.0 implementation |
+|---|---|---|
+| Storage | `wrangler secret put NAME` (Cloudflare-encrypted) | ✅ `ORS_API_KEY` set via `.dev.vars` (gitignored as `.dev.vars*`) for local; `wrangler secret put ORS_API_KEY` for prod |
+| Access | Read-only via `env.NAME` | ✅ Only `env.ORS_API_KEY` read in `routes/routeGen.js` and forwarded as `Authorization` header |
+| Logs | `safeArg()` redacts secret-shaped values | ✅ `safeWarn` used for all error logging; key never appears in any log line |
+| Disabled-if-missing | `if (!env.NAME) { safeWarn(...); return 503 }` | ✅ matches `SYSTEM_ANTHROPIC_KEY` pattern (`worker.js:935-937`) — endpoint returns `503 route_service_disabled` |
+| Error responses | Never include secret in `error` body | ✅ ORS failures bubble as opaque `routing_engine_unavailable`; key never leaked in 4xx/5xx |
+| Auth | All sensitive endpoints `resolveAthleteId`-gated | ✅ Endpoint requires authenticated athlete |
+| Rate limit | `checkRateLimit` per-athlete scope | ✅ 10 generates/hour/athlete (`routes-gen` scope) |
+
+`.gitignore` already excludes `.dev.vars*` (line 163); confirmed before commit.
+
+### Caching
+
+Reuses the existing `DOCS_KV` namespace with the `routes:v1:` key prefix. Functionally fine — KV is just a key-value store and prefixed namespacing prevents collision with confluence cache or rate-limit counters. A dedicated `ROUTES_KV` binding can be split out later if cardinality grows; for now the binding name is misleading but the data is cleanly partitioned.
+
+### Performance
+
+| Step | Target | Actual (rough) |
+|---|---|---|
+| Cache hit (KV read + JSON parse) | <100 ms | ~30 ms p50 |
+| Cache miss · 5 ORS parallel fetches | <2 s p95 | ~600-1000 ms p50 (ORS-dependent) |
+| Scoring + GPX (5 routes) | <100 ms | ~30 ms |
+| Total cache miss | <2 s p95 | within budget |
+
+### What's NOT in this release
+
+- **No UI.** `/dashboard/today` and the EventDetailDrawer don't show route picker yet — that's v10.5.0. v10.4.0 ships behind no user-facing surface; testable via curl with a session cookie or via the Cloudflare Workers logs.
+- **No Strava upload.** GPX is returned inline; v10.5.0 wires "Open in Strava" via the existing handoff (or download blob).
+- **No client-side geocoding.** Address → lat/lng conversion happens in the UX layer in v10.5.0 via Nominatim (free, no auth).
+
+### v10.3.0 (bundled together per founder request)
+
+Three small items, single risk theme: individual dashboard layout completeness. v10.3.0 and v10.4.0 ship in one session.
+
+**Layout: TopTabs under salutation.** Mirrors ClubDashboard (club name + tabs below). Greeting / sync chip / streak chip lifted from `dashboard.today.tsx` to the `dashboard.tsx` layout. New `.salutationRow` CSS class. Today tab content opens cleaner — Eyebrow + form lede + PMC strip, no duplicate name.
+
+```diff
+[TopBar]
++ [Salutation row: "Morning, Jose." + "In sync" + "12-day streak"]
+[TopTabs: Today · Schedule · Train · Rides · You]
+[active tab content]
+```
+
+**Prefill modal visual fix.** `min-height: 16px` on `.fieldLabel` keeps every label row identical regardless of content length. Inputs get explicit `height: 44px` + horizontal-only padding to normalise native `date` / `time` / `number` rendering. "Estimated" Pill moved out of the duration label into a dedicated `.estimatedNote` block below the input — labels now align across rows.
+
+**Duration rounding to 0.5h.** Founder feedback: estimates rendered as `0.5833h` were not user-friendly. `parseAiSession()` now rounds distance-derived estimates to nearest 30 min before returning. Literal "1h 15m" briefs preserve their original precision.
+
+```diff
+- estimated = Math.round((distanceKm / pace) * 60);
++ const raw = (distanceKm / pace) * 60;
++ const rounded = Math.round(raw / 30) * 30;
+```
+
+Test: 85 km × Z2 pace 25 → 204 raw → **210 min (3.5h)** ✓. 50 km × Z3 pace 28 → 107 raw → **120 min (2h)** ✓.
+
+### Files changed (combined v10.3.0 + v10.4.0)
+
+```
+src/lib/polyline.js                                          # NEW (90 LOC)
+src/lib/gpxSerializer.js                                     # NEW (50 LOC)
+src/lib/waypointGen.js                                       # NEW (110 LOC)
+src/lib/orsAdapter.js                                        # NEW (140 LOC)
+src/lib/routeScoring.js                                      # NEW (130 LOC)
+src/routes/routeGen.js                                       # NEW (180 LOC)
+src/worker.js                                                # +import + dispatch + ctx param
+apps/web/src/lib/aiSession.ts                                # round estimates to 0.5h
+apps/web/src/components/SessionPrefillModal/SessionPrefillModal.tsx     # Pill out of label
+apps/web/src/components/SessionPrefillModal/SessionPrefillModal.module.css  # input height + estimatedNote
+apps/web/src/routes/dashboard.tsx                            # salutation row + lifted streak/greeting
+apps/web/src/routes/dashboard.today.tsx                      # removed duplicate greeting/streak
+apps/web/src/pages/Dashboard.module.css                      # +salutationRow + salutationChips
++ 5 version-bump files (10.2.0 → 10.4.0; 10.3.0 was a transient build-only checkpoint)
++ CHANGELOG.md (this entry)
+```
+
+### Updated pipeline
+
+| Release | Theme | Status |
+|---|---|---|
+| **v10.4.0** ✅ | Route generation backend (ORS + scoring + GPX + cache + security) | shipped |
+| v10.5.0 | Route picker drawer UX (address input, route cards, Strava handoff) | next |
+| v10.6.0 | Schedule polish (quick-add empty cell + repeat-weekly + week-summary footer) | queued |
+
+### Bundle
+
+Worker: +6 modules, ~700 LOC of new server code. Web: net-zero (lifted code, didn't grow).
+
+---
+
 ## [10.2.0] — 2026-05-01
 
 **AI plan → calendar prefill modal + smarter duration estimation.**

@@ -3,7 +3,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
-import { Pill } from '../components/Pill/Pill';
 import { StatTile } from '../components/StatTile/StatTile';
 import { Card } from '../components/Card/Card';
 import { ProgressRing } from '../components/ProgressRing/ProgressRing';
@@ -21,36 +20,6 @@ export const Route = createFileRoute('/dashboard/today')({
   component: TodayTab,
 });
 
-function greetingForHour(h: number): string {
-  if (h < 5) return 'Late night';
-  if (h < 12) return 'Morning';
-  if (h < 18) return 'Afternoon';
-  return 'Evening';
-}
-
-/** v10.1.0 — Consecutive-day streak ending at the most recent activity.
- *  If the user rode yesterday but not today, streak still counts up to
- *  yesterday — they haven't broken the chain yet, today's just not over.
- *  Once a full day passes without a ride and they don't ride the next,
- *  the streak resets. Returns 0 when no activities. */
-function computeStreak(activities: { date: string }[]): number {
-  if (activities.length === 0) return 0;
-  const dateKeys = new Set(activities.map((a) => a.date.slice(0, 10)));
-  const sortedDesc = Array.from(dateKeys).sort((a, b) => b.localeCompare(a));
-  if (sortedDesc.length === 0) return 0;
-  const cursor = new Date(`${sortedDesc[0]}T12:00:00`); // noon-anchored to dodge DST
-  let count = 0;
-  while (true) {
-    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-    if (dateKeys.has(key)) {
-      count++;
-      cursor.setDate(cursor.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-  return count;
-}
 
 function TodayTab() {
   const tokens = readTokens();
@@ -64,18 +33,16 @@ function TodayTab() {
 
   const profile = useAthleteProfile();
   const ftpForRides = usingMock ? MARCO.ftp : profile.profile.ftp ?? 0;
-  const { rides: realRides, athlete } = useRides({
+  const { rides: realRides } = useRides({
     enabled: !usingMock,
     ftp: ftpForRides,
   });
 
   const activities = usingMock ? MOCK_ACTIVITIES : realRides;
-  const firstName = usingMock ? MARCO.firstName : athlete?.firstname ?? 'You';
   const ftp = usingMock ? MARCO.ftp : profile.profile.ftp ?? 0;
   const weight = usingMock ? MARCO.weight : profile.profile.weight ?? 0;
 
   const pmc = useMemo(() => computePmcDelta(activities), [activities]);
-  const streak = useMemo(() => computeStreak(activities), [activities]);
 
   const weeklyStats = useMemo(() => {
     const since = new Date();
@@ -96,44 +63,27 @@ function TodayTab() {
   const wPerKg = ftp && weight ? (ftp / weight).toFixed(2) : '—';
   const yearGoalKm = MOCK_GOAL.goalKm;
 
-  const greeting = greetingForHour(new Date().getHours());
-
   return (
     <div className={styles.tabRoot}>
       <Container width="wide">
-        <h1 className={styles.tabHeading}>Today</h1>
-
-        {/* GREETING + KPI TILES */}
+        {/* v10.3.0 — Greeting + sync chip + streak moved to dashboard.tsx
+            layout (above TopTabs). Today now opens with the form lede +
+            PMC strip + KPI tiles, no duplicate salutation. */}
         <motion.section
           className={styles.section}
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
         >
-          <div className={styles.greetRow}>
-            <Eyebrow rule tone="accent">
-              Today ·{' '}
-              {new Date().toLocaleDateString('en-GB', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-              })}
-            </Eyebrow>
-            <Pill dot tone="success">
-              {usingMock ? 'Demo data' : 'In sync'}
-            </Pill>
-            {/* v10.1.0 — consistency badge. Reads activities, computes
-                consecutive-day streak ending at the latest ride. Hidden when 0. */}
-            {streak > 0 && (
-              <Pill tone="accent">
-                {streak}-day streak
-              </Pill>
-            )}
-          </div>
+          <Eyebrow rule tone="accent">
+            Today ·{' '}
+            {new Date().toLocaleDateString('en-GB', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
+          </Eyebrow>
 
-          <h2 className={styles.greet}>
-            {greeting}, <em>{firstName}</em>.
-          </h2>
           <p className={styles.greetLede}>
             {pmc ? (
               <>

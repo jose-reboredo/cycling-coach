@@ -59,6 +59,34 @@
   color: var(--c-text-faint);
 }
 
+/* v10.3.0 — Layout-level salutation row, sits between TopBar and TopTabs.
+ * Mirrors ClubDashboard's pattern of putting context info above the tabs.
+ * Mobile: stacks vertically; desktop: row with chips on the right. */
+.salutationRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-5) 0 var(--s-3);
+}
+.salutationRow strong {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
+}
+.salutationChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+@media (min-width: 600px) {
+  .salutationRow {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-4);
+  }
+}
+
 .main {
   padding: var(--s-6) 0 var(--s-12);
 }

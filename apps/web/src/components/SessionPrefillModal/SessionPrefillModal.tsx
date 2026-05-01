@@ -254,9 +254,6 @@ export function SessionPrefillModal({
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="prefill-duration">
                 Duration (hours)<span className={styles.required}>*</span>
-                {prefill.durationEstimated && (
-                  <Pill tone="warn">Estimated</Pill>
-                )}
               </label>
               <input
                 id="prefill-duration"
@@ -271,10 +268,15 @@ export function SessionPrefillModal({
                 required
                 placeholder="1.5"
               />
-              {prefill.durationEstimated && prefill.distanceKm != null && (
-                <span className={styles.fieldHint}>
-                  Estimated from {prefill.distanceKm} km at zone-typical pace. Adjust if you ride faster or slower.
-                </span>
+              {prefill.durationEstimated && (
+                <div className={styles.estimatedNote}>
+                  <Pill tone="warn">Estimated</Pill>
+                  {prefill.distanceKm != null && (
+                    <span className={styles.fieldHint}>
+                      From {prefill.distanceKm} km at zone-typical pace. Adjust if you ride faster or slower.
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             <div className={styles.field}>

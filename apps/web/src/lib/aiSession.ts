@@ -103,11 +103,15 @@ export function parseAiSession(text: string | undefined): ParsedAiSession {
   // v10.2.0 — fallback: estimate duration from distance × zone pace when
   // explicit duration wasn't in the brief. This catches "85 km easy" type
   // briefs that previously fell through to the 60-min default.
+  // v10.3.0 — round estimates to nearest 30 min (cycling-canon 0.5h
+  // increments). Founder feedback: 0.583333h is not user-friendly.
+  // Literal "1h 15m" briefs preserve their original precision.
   if (durationMin == null && distanceKm != null) {
     const pace = paceForZone(zone);
-    const estimated = Math.round((distanceKm / pace) * 60);
-    if (estimated > 0 && estimated <= 600) {
-      durationMin = estimated;
+    const raw = (distanceKm / pace) * 60;
+    const rounded = Math.round(raw / 30) * 30;
+    if (rounded > 0 && rounded <= 600) {
+      durationMin = rounded;
       durationEstimated = true;
     }
   }

@@ -12,10 +12,11 @@
 // ============================================================
  
 import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
+import { handleRoutesGenerate } from './routes/routeGen.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.2.0';
+const WORKER_VERSION = 'v10.4.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -127,13 +128,13 @@ function withSecurityHeaders(res) {
 }
 
 export default {
-  async fetch(request, env) {
-    const response = await handleRequest(request, env);
+  async fetch(request, env, ctx) {
+    const response = await handleRequest(request, env, ctx);
     return withSecurityHeaders(response);
   },
 };
 
-async function handleRequest(request, env) {
+async function handleRequest(request, env, ctx) {
     const url = new URL(request.url);
     const origin = userOrigin(request, url);
     const corsHeaders = {
@@ -1494,6 +1495,20 @@ async function handleRequest(request, env) {
           'Content-Type': 'application/json',
           'Cache-Control': 'private, max-age=300',
         },
+      });
+    }
+
+    // POST /api/routes/generate — Sprint 5+ / v10.4.0.
+    // OSM-based loop route generation via OpenRouteService. Returns 3-5
+    // candidate routes scored against (distance / surface / elevation /
+    // overlap). Auth + rate-limited (10/h/athlete) + KV-cached (24h).
+    // Full design in docs/route-generation-service.md.
+    if (url.pathname === '/api/routes/generate' && request.method === 'POST') {
+      return handleRoutesGenerate({
+        request,
+        env,
+        ctx,
+        deps: { resolveAthleteId, checkRateLimit, safeWarn, corsHeaders },
       });
     }
 
