@@ -39,6 +39,20 @@ export interface CalendarEvent {
    *  Negative `id` is also used as a soft-discriminator (mappers convention)
    *  but this flag is the source of truth. */
   is_personal?: boolean;
+  /** v9.12.5 — Coggan zone 1-7 for personal sessions. Drives pill color
+   *  (`.pill_personal_z{n}`) so cyclists can read intensity at a glance.
+   *  null/undefined → grey neutral (untargeted session). Club events
+   *  ignore this field. */
+  zone?: number | null;
+  /** v9.12.5 — completion timestamp (epoch sec). When set, drawer shows
+   *  "✓ Completed on [date]" banner instead of action buttons. PATCH'd
+   *  via usePatchPlannedSession({ completed_at: now }). */
+  completed_at?: number | null;
+  /** v9.12.5 — owning club id for club events (so the personal scheduler
+   *  can wire Cancel / Unsubscribe mutations against the right club). Set
+   *  by the dashboard.schedule.tsx mapper from `MyScheduleEvent.club_id`.
+   *  Undefined for personal sessions. */
+  club_id?: number;
 }
 
 export interface CalendarDate {
@@ -61,6 +75,24 @@ export const TYPE_LABEL: Record<ClubEventType, string> = {
   social: 'Social',
   race: 'Race',
 };
+
+/** v9.12.5 — Resolves the CSS-module pill class for an event. Personal
+ *  sessions get zone-colored class (`pill_personal_z{n}`) when zone is set,
+ *  else neutral grey. Club events keep their event-type class. Centralised
+ *  here so all 3 grids + drawer pick consistent styling. */
+export function getEventPillClass(
+  e: CalendarEvent,
+  styles: Record<string, string>,
+): string {
+  if (e.is_personal) {
+    const z = e.zone;
+    if (z != null && z >= 1 && z <= 7) {
+      return styles[`pill_personal_z${z}`] ?? styles.pill_personal_default ?? '';
+    }
+    return styles.pill_personal_default ?? '';
+  }
+  return styles[`pill_${e.event_type}`] ?? '';
+}
 
 /** v9.12.4 — Returns "today" in the viewer's local timezone. Name kept for
  *  call-site stability; the function previously used UTC accessors which

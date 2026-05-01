@@ -151,6 +151,8 @@ export function useRsvp(clubId: number, eventId: number) {
     mutationFn: (status) => clubsApi.rsvp(clubId, eventId, status),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
+      // v9.12.5 — Unsubscribe path: drop event from caller's personal schedule.
+      qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
     },
   });
 }

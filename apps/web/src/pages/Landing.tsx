@@ -183,15 +183,15 @@ export function Landing() {
             num="01"
             title="Know what shape you're in — every day"
             kicker="The first thing you see in the morning."
-            body="A simple read on form, fitness and fatigue, computed nightly from every ride. No four-tap menu hunt — it's right there when you open the app. (Power data unlocks the precision; even without it you get a baseline.)"
+            body="A simple read on form, fitness and fatigue, computed nightly from every ride you have on Strava. Sits at the top of Today, paired with the personal calendar — your week of planned sessions and club rides on the same surface. (Power data unlocks the precision; even without it you get a baseline.)"
             visual={<PmcStrip ctl={78} atl={82} tsb={-4} ctlDelta={2.4} atlDelta={-1.1} tsbDelta={3.5} />}
           />
 
           <FeatureSpread
             num="02"
-            title="Today's session, ready to ride"
-            kicker="One tap. The workout, the zones, a route that fits."
-            body="The plan adapts to how you're feeling. Hard day after a strong week. Easy day after a slammed one. Routes from your saved Strava list, ranked against today's target. Open in Strava with one tap and go."
+            title="Plan and ride structured sessions"
+            kicker="Workouts in hours, by zone, with target watts."
+            body="Block out a sweet-spot day, an endurance ride or a recovery spin. Personal sessions live on the same calendar as club rides — colour-coded by zone, time-blocked to actual duration. Edit, mark done or cancel from the drawer; your form metrics catch up automatically. (Auto-populated week plans from the AI coach — shipping next sprint.)"
             visual={<WorkoutPreview />}
             reverse
           />
@@ -199,10 +199,65 @@ export function Landing() {
           <FeatureSpread
             num="03"
             title="A club that runs itself"
-            kicker="Overview · Schedule · Members"
-            body="Captain a Saturday crew without WhatsApp gymnastics. Members RSVP, the roster sorts itself, FTP stays private by default. The app drafts the weekly recap for you — free, included. Built for the captain, the commuter and the power-meter rider in the same crew."
+            kicker="Overview · Schedule · Members · Metrics"
+            body="Captain a Saturday crew without WhatsApp gymnastics. Members RSVP from the calendar, the roster sorts itself, FTP stays private by default. The app drafts the weekly Circle Note for you — free, included. Built for the captain, the commuter and the power-meter rider in the same crew."
             visual={<ClubLayerPreview />}
           />
+        </Container>
+      </section>
+
+      {/* BUILT · SHIPPING NEXT — v9.12.5 (founder Marco-persona feedback)
+       *  Cyclist-first transparency: what's live today, what's queued. */}
+      <section className={styles.builtSection} id="built">
+        <Container width="base">
+          <div className={styles.sectionHead}>
+            <Eyebrow rule tone="accent">№ 02b — Built · Shipping next</Eyebrow>
+            <h2 className={styles.sectionH2}>
+              What's <em>here today</em>.<br/>
+              And what's queued.
+            </h2>
+            <p className={styles.sectionLede}>
+              Cyclist-first, ship-weekly. Live cyclist feedback shapes the
+              order — Marco testers, Sofia testers, real rides on real bikes.
+              You can see what's coming on the <a href="/whats-next" className={styles.inlineLink}>roadmap</a>.
+            </p>
+          </div>
+
+          <div className={styles.builtGrid}>
+            <div className={styles.builtCol}>
+              <h3>✓ Built · live now</h3>
+              <ul>
+                <li><span className={styles.builtTag}>Today</span><span><strong>Daily form.</strong> CTL/ATL/TSB read on Today, computed nightly from every Strava ride.</span></li>
+                <li><span className={styles.builtTag}>Today</span><span><strong>AI session brief.</strong> One-tap workout for today — zone-tagged, target watts, duration in hours.</span></li>
+                <li><span className={styles.builtTag}>Rides</span><span><strong>Full ride history.</strong> Splits, segments, photos, polylines — every ride lazy-fetched and cached.</span></li>
+                <li><span className={styles.builtTag}>Train</span><span><strong>Zone model · Z1–Z7.</strong> Strava-aligned palette, structured workout stripe, FTP-driven math.</span></li>
+                <li><span className={styles.builtTag}>Schedule</span><span><strong>Personal scheduler.</strong> Month/Week/Day calendar aggregating club rides + your planned sessions on one surface.</span></li>
+                <li><span className={styles.builtTag}>Schedule</span><span><strong>Plan a session.</strong> Title, date, time, zone, duration in hours, target watts, notes — your training brief.</span></li>
+                <li><span className={styles.builtTag}>Schedule</span><span><strong>Calendar time-blocking.</strong> Events visually book actual duration — 15:00 + 2h shows 15:00–17:00.</span></li>
+                <li><span className={styles.builtTag}>Schedule</span><span><strong>Drawer actions.</strong> Edit, mark done, cancel a personal session. Unsubscribe from a club ride. All in one tap.</span></li>
+                <li><span className={styles.builtTag}>Schedule</span><span><strong>Zone-coloured pills.</strong> Personal sessions colour-coded Z1–Z7 so you read intensity at a glance.</span></li>
+                <li><span className={styles.builtTag}>Clubs</span><span><strong>Create or join.</strong> Captain a crew or join an existing one with an invite code. Free forever.</span></li>
+                <li><span className={styles.builtTag}>Clubs</span><span><strong>Schedule + RSVP.</strong> Members confirm from the calendar; the going list is live, FTP stays private.</span></li>
+                <li><span className={styles.builtTag}>Clubs</span><span><strong>AI Circle Note.</strong> Weekly recap drafted by the coach — captain edits in 30 seconds and ships.</span></li>
+                <li><span className={styles.builtTag}>Clubs</span><span><strong>Members + Metrics tabs.</strong> Roster, roles, captain analytics — hours, distance, ride count, growth.</span></li>
+                <li><span className={styles.builtTag}>App</span><span><strong>PWA install.</strong> Add to home screen on iOS/Android — feels native, runs offline-shell.</span></li>
+                <li><span className={styles.builtTag}>App</span><span><strong>Strava OAuth.</strong> 10-second connect, tokens stay in the worker, no email signup.</span></li>
+              </ul>
+            </div>
+            <div className={styles.builtCol}>
+              <h3 className={styles.builtNext}>→ Queued · Sprint 6 / next</h3>
+              <ul>
+                <li><span className={styles.builtTag}>v9.13</span><span><strong>AI plan persistence.</strong> The coach auto-populates a week of structured sessions onto your calendar — review, tweak, ride.</span></li>
+                <li><span className={styles.builtTag}>v9.14</span><span><strong>Shareable rides.</strong> Public link to a personal session — Strava-style preview card. Send to a friend, they sign up to RSVP.</span></li>
+                <li><span className={styles.builtTag}>v9.10</span><span><strong>Live route picker.</strong> Your saved Strava routes ranked against today's target — open in Strava with one tap.</span></li>
+                <li><span className={styles.builtTag}>S6</span><span><strong>Multi-timezone.</strong> IANA-aware events for global clubs — author in Zürich, ride in Lisbon, everyone sees their wall-clock.</span></li>
+                <li><span className={styles.builtTag}>S6</span><span><strong>Club analytics.</strong> Captain dashboard with member trends — who's training, who's drifting, who's about to peak.</span></li>
+                <li><span className={styles.builtTag}>S6</span><span><strong>Club invite links.</strong> Share a club with one URL — no captcha, no email, just join and ride.</span></li>
+                <li><span className={styles.builtTag}>S7</span><span><strong>Goals + races.</strong> Set a target event, the coach builds the plan backwards from race day.</span></li>
+                <li><span className={styles.builtTag}>S7</span><span><strong>FTP detection.</strong> Auto-update FTP from a 20-minute power test the coach prescribes — no manual edits.</span></li>
+              </ul>
+            </div>
+          </div>
         </Container>
       </section>
 

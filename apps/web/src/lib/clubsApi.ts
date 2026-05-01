@@ -242,11 +242,21 @@ export interface CreatePlannedSessionInput {
   source?: PlannedSessionSource;
 }
 
-export type PatchPlannedSessionInput = Partial<Omit<CreatePlannedSessionInput, 'session_date'>> & {
+/** v9.12.5 — describe each PATCH field explicitly so callers can clear
+ *  nullable columns by sending null. Worker allowlist accepts null on all
+ *  optional fields (description/zone/duration_minutes/target_watts) per
+ *  worker.js:1665-1674. */
+export interface PatchPlannedSessionInput {
+  title?: string;
   session_date?: string | number;
+  description?: string | null;
+  zone?: number | null;
+  duration_minutes?: number | null;
+  target_watts?: number | null;
+  source?: PlannedSessionSource;
   /** Mark complete (epoch seconds) or null to un-complete. */
   completed_at?: number | null;
-};
+}
 
 export interface MyScheduleResponse {
   athlete_id: number;

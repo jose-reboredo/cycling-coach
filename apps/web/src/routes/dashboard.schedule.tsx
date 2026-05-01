@@ -113,6 +113,8 @@ function PersonalSchedule() {
       // v9.12.3 — duration drives Week/Day calendar block height.
       duration_minutes: e.duration_minutes,
       club_name: e.club_name ?? undefined,
+      // v9.12.5 — owning club drives Cancel/Unsubscribe mutations in drawer.
+      club_id: e.club_id,
     }));
     // Personal sessions render as 'ride' (existing color/icon). Visual diff
     // (zone color + SessionIcon) is v9.12.4 follow-up. Negative ID prevents
@@ -130,6 +132,9 @@ function PersonalSchedule() {
       duration_minutes: s.duration_minutes,
       // v9.12.4 — discriminator: hides RSVP chip, shows "Solo session" copy.
       is_personal: true,
+      // v9.12.5 — zone drives pill color; completed_at drives drawer "✓" banner.
+      zone: s.zone,
+      completed_at: s.completed_at,
     }));
     return [...club, ...personal].sort((a, b) => a.event_date - b.event_date);
   }, [data]);
@@ -273,13 +278,29 @@ function PersonalSchedule() {
 
         {isLoading && <p className={styles.loading}>Loading your schedule…</p>}
 
-        {/* Drawer is read-only for the personal scheduler in v9.11.0 — the
-         *  Edit/Cancel UX needs to know which club to PATCH against, and
-         *  cross-club editing requires more thought (creator vs admin role
-         *  is per-club). Defer to v9.11.x or v9.12.x. */}
+        {/* v9.12.5 — drawer is now action-bearing for personal sessions
+         *  (Edit / Mark done / Cancel) and Unsubscribe for club events.
+         *  Per-event club_id flows through CalendarEvent.club_id so each
+         *  open targets the right club. Edit for club events still routes
+         *  through ClubDashboard's modal (not from this surface). */}
         <EventDetailDrawer
           event={activeEvent}
           onClose={() => setActiveEvent(null)}
+          clubId={activeEvent && !activeEvent.is_personal ? activeEvent.club_id ?? null : null}
+          callerAthleteId={data?.athlete_id ?? null}
+          onEdit={(e) => {
+            if (e.is_personal) {
+              const dt = new Date(e.event_date * 1000);
+              const r = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+              navigate({
+                to: '/dashboard/schedule-new',
+                search: { id: Math.abs(e.id), range: r },
+              });
+              setActiveEvent(null);
+            }
+            // Club-event edit not exposed from personal scheduler — caller
+            // must edit from the club's own /clubs/:id/schedule surface.
+          }}
         />
       </Container>
     </main>

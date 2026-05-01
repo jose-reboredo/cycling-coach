@@ -6,6 +6,7 @@ import {
   type CalendarEvent,
   type CalendarDate,
   type ClubEventType,
+  getEventPillClass,
   groupByDay,
   isSameDay,
   todayUTC,
@@ -103,7 +104,7 @@ export function MonthCalendarGrid({
                   <button
                     key={e.id}
                     type="button"
-                    className={`${styles.pill} ${styles[`pill_${e.event_type}`]} ${e.cancelled_at ? styles.cancelled : ''}`}
+                    className={`${styles.pill} ${getEventPillClass(e, styles)} ${e.cancelled_at ? styles.cancelled : ''}`}
                     onClick={() => onEventClick(e)}
                     title={`${e.title}${e.cancelled_at ? ' · cancelled' : ''}${titleSuffix}`}
                   >

@@ -18,6 +18,32 @@
   color: var(--c-warn, #e0a060);
 }
 
+/* ===== PERSONAL-SESSION COLOR FAMILY (Sprint 5 / v9.12.5) =====
+ * Personal sessions render with zone-derived color so cyclists can
+ * read intensity at a thumbnail glance. Tokens defined in
+ * design/tokens.css (Strava-aligned: blue/green/yellow/orange/red/
+ * purple/violet, AA-compliant since v9.1.4). Background uses a
+ * 0.14-alpha tint of the same hue so the pill reads as one color
+ * family without overpowering the cell. Personal sessions without
+ * a zone fall back to a neutral muted style to indicate "untargeted". */
+.pill_personal_default {
+  background: rgba(125, 130, 144, 0.16); /* --c-text-muted alpha */
+  color: var(--c-text);
+}
+.pill_personal_z1 { background: rgba(59, 140, 232, 0.16); color: var(--c-z1); }
+.pill_personal_z2 { background: rgba(74, 222, 128, 0.16); color: var(--c-z2); }
+.pill_personal_z3 { background: rgba(250, 204, 21, 0.16); color: var(--c-z3); }
+.pill_personal_z4 { background: rgba(251, 146, 60, 0.16); color: var(--c-z4); }
+.pill_personal_z5 { background: rgba(239, 68, 68, 0.16); color: var(--c-z5); }
+.pill_personal_z6 { background: rgba(168, 85, 247, 0.16); color: var(--c-z6); }
+.pill_personal_z7 { background: rgba(165, 91, 224, 0.16); color: var(--c-z7); }
+
+/* Drawer header pill mirror — for the same color family */
+.pill_personal_drawer {
+  background: rgba(125, 130, 144, 0.16);
+  color: var(--c-text);
+}
+
 /* ===== MONTH GRID ===== */
 .weekdayRow {
   display: grid;
@@ -446,6 +472,14 @@
   margin: 0;
   font: 400 0.875rem/1.4 var(--font-sans);
   color: var(--c-text-muted);
+  font-style: italic;
+}
+/* v9.12.5 — completion banner for personal sessions. Mirrors .drawerCancelled
+ * tone (muted, italic) but accent-tinted to read as positive state. */
+.drawerCompleted {
+  margin: 0;
+  font: 400 0.875rem/1.4 var(--font-sans);
+  color: var(--c-success, #22c55e);
   font-style: italic;
 }
 .drawerConfirmText {

@@ -9,6 +9,7 @@ import {
   type ClubEventType,
   TIME_GRID_START_HOUR,
   TIME_GRID_HOURS,
+  getEventPillClass,
   isSameDay,
   todayUTC,
   weekDates,
@@ -109,7 +110,7 @@ export function WeekCalendarGrid({
                   <button
                     key={e.id}
                     type="button"
-                    className={`${styles.weekEvent} ${styles[`pill_${e.event_type}`]} ${e.cancelled_at ? styles.cancelled : ''}`}
+                    className={`${styles.weekEvent} ${getEventPillClass(e, styles)} ${e.cancelled_at ? styles.cancelled : ''}`}
                     style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                     onClick={() => onEventClick(e)}
                   >

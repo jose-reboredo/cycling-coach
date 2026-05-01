@@ -4,6 +4,126 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.5] — 2026-05-01
+
+**Personal-session UX bundle + Landing page features sweep.** Single risk theme: personal sessions become first-class on the calendar and in the drawer. Three items, all wired to existing backend endpoints — no schema, no worker change beyond version bump. Bundled with a Landing page refresh driven by Marco-persona cyclist-friend feedback.
+
+### 1. Visual differentiation (atom + zone tokens)
+
+`SessionIcon` joins the icon family — 1.6px stroke, 24×24, three rising bars evoking interval structure. Distinct from RideIcon's bicycle (which means "club ride"). Cyclists read it as "planned workout structure" at thumbnail size.
+
+Zone-coloured pill classes added to `Calendar.module.css`: `.pill_personal_z1` … `.pill_personal_z7`, plus `.pill_personal_default` (neutral grey for untargeted sessions). Each consumes the existing `--c-z1`…`--c-z7` tokens (Strava-aligned: blue/green/yellow/orange/red/purple/violet, AA-compliant since v9.1.4) at 0.16-alpha background tint with full-saturation foreground.
+
+`getEventPillClass(e, styles)` helper centralises the resolution logic — all three grids (Week/Day/Month) call it identically. Personal sessions get zone-coloured pills; club events keep their event-type styling.
+
+EventDetailDrawer header pill switches: `SessionIcon + "Session"` for personal events, type icon + label for club events. Personal "Mode" line augments to show zone label when set: "Solo session · Z2 · Endurance".
+
+### 2. Drawer mutations for personal sessions
+
+Three new actions on personal-session drawer footer:
+
+- **Edit** → navigates to `/dashboard/schedule-new?id=N&range=YYYY-MM`. Page reuses the create template; `validateSearch` parses the params; `useMyScheduleByMonth(range)` fetches (cache-friendly since user came from the calendar view); `useEffect` hydrates form state once the session arrives; PATCH on submit instead of CREATE.
+- **✓ Mark done** → inline-confirm → `usePatchPlannedSession({ completed_at: now })`. Drawer reopens to "✓ Completed on [date]" banner (no buttons).
+- **Cancel** → inline-confirm → `useCancelPlannedSession()`. Drawer reopens to existing cancelled banner.
+
+State machine on the drawer:
+```ts
+type ConfirmKind = null | 'cancel-club' | 'cancel-personal' | 'mark-done' | 'unsubscribe';
+```
+
+`useEffect` resets `confirm` when `event.id` changes — opening a different event doesn't surface a stale confirmation.
+
+### 3. Unsubscribe (club events the caller RSVP'd but didn't create)
+
+`useRsvp(clubId, eventId)` mutation already exists (v9.6.2). Drawer adds inline-confirm Unsubscribe button when `!is_personal && clubId && callerAthleteId && !isCreator && !canManage`. POST `/api/clubs/:id/events/:eventId/rsvp` with `status: 'not_going'`.
+
+Hook extended: `useRsvp` `onSuccess` now also invalidates `['me','schedule']`. Net effect: unsubscribing from a club ride drops it from your personal calendar immediately.
+
+### CalendarEvent type extended
+
+```ts
+zone?: number | null;          // Coggan 1-7; drives pill color
+completed_at?: number | null;  // drives drawer "✓" banner
+club_id?: number;              // routes Cancel/Unsubscribe to the right club
+```
+
+`dashboard.schedule.tsx` mapper sets `zone`, `completed_at` from `s.zone` / `s.completed_at` for personal sessions; sets `club_id` from `e.club_id` for club events. Drawer reads them at open.
+
+### Edit-mode in `dashboard.schedule-new.tsx`
+
+```ts
+interface SchedNewSearch { id?: number; range?: string; }
+
+validateSearch: (search) => ({
+  id: Number.isFinite(Number(search.id)) ? Number(search.id) : undefined,
+  range: /^\d{4}-\d{2}$/.test(search.range) ? search.range : undefined,
+}),
+```
+
+When `id` present: cache lookup → prefill → PATCH. Loading state shown if cache miss (rare — drawer→edit flow keeps cache warm).
+
+### Atomic-design — honored at the right layer
+
+| Layer | This release |
+|---|---|
+| Tokens | Reuse `--c-z1`…`--c-z7` (no new) |
+| Atoms | `SessionIcon` joins `design/icons/index.tsx` |
+| Molecules | Drawer footer state-machine kept inline (single use; YAGNI) |
+| Templates | `/dashboard/schedule-new` reused for create+edit |
+
+A formal structural sweep — extract `EventPill`, `DrawerActionFooter`, `MetaRow` as named molecules — is queued as a dedicated **v9.13.x ADR**. Not bundled here; would muddy the UX risk theme.
+
+### Landing page "What you get" sweep (Marco-persona feedback)
+
+Founder reported cyclist friends (Marco-persona testers) are giving feedback now. The marketing surface needs to reflect actual delivered state + transparent backlog.
+
+**Refreshed copy** for the 3 existing FeatureSpread blocks:
+- #01 — daily form, now mentions personal calendar pairing
+- #02 — repositioned from "AI session + routes" to "plan and ride structured sessions" (the actual Sprint 5 hero feature)
+- #03 — club layer, mentions Schedule + Metrics tabs (now shipped) and Circle Note as the AI weekly recap
+
+**New `№ 02b — Built · Shipping next` section** below the marquee:
+- ✓ Built · live now (15 items): Today daily form, AI session brief, Rides history, Z1–Z7 zones, Personal scheduler, Plan a session, Calendar time-blocking, Drawer actions, Zone-coloured pills, Clubs create/join, Schedule + RSVP, AI Circle Note, Members + Metrics, PWA install, Strava OAuth
+- → Queued · Sprint 6 / next (8 items): v9.13 AI plan persistence, v9.14 shareable rides, v9.10 live route picker, S6 multi-timezone, S6 club analytics, S6 club invite links, S7 goals/races, S7 FTP detection
+
+CSS: new `.builtSection`, `.builtGrid`, `.builtCol`, `.builtTag`, `.inlineLink` classes in `Landing.module.css` (~70 lines, single new section). Re-uses existing `.sectionHead` / `.sectionH2` / `.sectionLede` patterns.
+
+### Sprint 5 process
+
+- ✅ Pre-coding scope alignment: founder previewed 4 decisions, greenlit (1)–(4); zone palette delegated to design (turned out to already exist as tokens)
+- ✅ Phase-shift: structural atomic-design refactor moved to dedicated v9.13.x ADR
+- ✅ Pattern-replacement: not applicable — drawer footer state-machine doesn't yet cross the 3-fix threshold
+- ✅ Pre-deploy verification: `getEventPillClass`, `is_personal` discriminator, `completed_at` PATCH path, `useRsvp` cache invalidation, route `validateSearch` — all grep'd before changing; build green; no schema change to verify
+
+### Bundle
+
+Dashboard chunk: +1.5 KB. Drawer chunk: +2 KB. Landing chunk: +2.5 KB (new built/next section). Trivial.
+
+### Files changed (10 components + 1 hook + 4 version files + 2 docs)
+
+```
+apps/web/src/design/icons/index.tsx           # +SessionIcon
+apps/web/src/components/Calendar/types.ts     # +zone, completed_at, club_id, getEventPillClass()
+apps/web/src/components/Calendar/Calendar.module.css  # +pill_personal_z{1..7}, drawerCompleted
+apps/web/src/components/Calendar/MonthCalendarGrid.tsx  # use getEventPillClass
+apps/web/src/components/Calendar/WeekCalendarGrid.tsx   # use getEventPillClass
+apps/web/src/components/Calendar/DayCalendarGrid.tsx    # use getEventPillClass
+apps/web/src/components/Calendar/EventDetailDrawer.tsx  # full footer rewrite + 4 confirm states
+apps/web/src/hooks/useClubs.ts                # useRsvp invalidates ['me','schedule']
+apps/web/src/routes/dashboard.schedule.tsx    # club_id mapping + drawer wiring + onEdit nav
+apps/web/src/routes/dashboard.schedule-new.tsx  # validateSearch + edit mode + PATCH path
+apps/web/src/pages/Landing.tsx                # 3 FeatureSpread refreshes + new built section
+apps/web/src/pages/Landing.module.css         # +builtSection styles
++ 5 version-bump files (apps/web/package.json, package.json, src/worker.js, version.ts, README)
++ CHANGELOG.md (this entry)
+```
+
+### Versions: 9.12.4 → 9.12.5 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.12.4] — 2026-05-01
 
 **Calendar timezone fix + hide "X going" on personal sessions.** Founder feedback after v9.12.3: "I create an event at 9am and on the calendar it shows at 7am" + "personal events shouldn't show RSVP — no one's going". Two surgical fixes; one risk theme: **calendar correctness**.

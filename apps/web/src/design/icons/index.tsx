@@ -173,3 +173,18 @@ export function RaceIcon(p: IconProps = {}) {
     </svg>
   );
 }
+
+/** **Session** — interval/workout bars (rising structured effort). Sprint 5 /
+ *  v9.12.5. Marco's structured session signal — distinct from RideIcon's
+ *  bicycle (which means "club ride"). Reads as "planned workout structure"
+ *  at thumbnail size: three bars climbing right, evoking power/zone steps. */
+export function SessionIcon(p: IconProps = {}) {
+  return (
+    <svg {...svgProps(p)}>
+      <path d="M3 21 H21" />
+      <rect x={4} y={14} width={4} height={6} />
+      <rect x={10} y={9} width={4} height={11} />
+      <rect x={16} y={5} width={4} height={15} />
+    </svg>
+  );
+}
