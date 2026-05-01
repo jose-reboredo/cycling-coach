@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.8.1](./CHANGELOG.md#981--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.8.2](./CHANGELOG.md#982--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.8.2
+
+**Architectural simplification — Create Club modal replaced with `/clubs/new` page route.** Closes `#71` (P0 — Create Club modal broken on both mobile and desktop, blocking club creation entirely) + `#72` (BottomNav covering footer copyright on mobile). The Create Club flow had hit 3+ bug classes since v9.7.5 — sizing (visualViewport keyboard handling), stacking context (createPortal), now desktop visibility — all rooted in modal complexity. Migration to a dedicated route eliminates the entire bug class: no portal, no visualViewport hook, no z-index battles, no body scroll lock, no focus trap. Same form, simpler implementation, works identically across mobile and desktop. New file `apps/web/src/routes/clubs.new.tsx` (Tanstack file-based route at `/clubs/new`). ContextSwitcher's "Create new club" button + ClubCreateCard's "Create club" button both navigate via `useNavigate({ to: '/clubs/new' })` instead of opening the old modal. On submit, auto-switches AppContext to the new club + navigates to `/dashboard/today`. Old `ClubCreateModal` component still exists in tree (uncalled) — will be removed in a follow-up cleanup release. `#72`: AppFooter `padding-bottom: calc(var(--s-10) + 72px + env(safe-area-inset-bottom, 0))` on mobile (≤ 599px) clears the BottomNav so the © Cadence Club copyright is fully readable. Bundle: dashboard chunk 89.98 → 86.70 KB (−3.28 KB) — modal logic + visualViewport hook + portal wrapper all gone. **NOTE:** local wrangler auth expired this session; deploy needs `npx wrangler login` then `npm run deploy` to ship to prod. v9.8.1's portal fix never reached prod (Workers Builds also failing); v9.8.2 supersedes it (page pattern doesn't need the portal anyway).
 
 ## What's new in v9.8.1
 

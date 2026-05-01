@@ -4,6 +4,84 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.8.2] — 2026-05-01
+
+**Architectural fix — Create Club modal replaced with dedicated page route.** Closes `#71` (P0) + `#72`.
+
+### Why this release exists
+
+The Create Club flow has hit three distinct bug classes since shipping v9.7.0:
+
+| Release | Bug | Fix attempted |
+|---|---|---|
+| v9.7.5 | `#69` Name input above viewport when iOS keyboard opens | `useVisualViewportHeight` hook (sizing) |
+| v9.8.1 | `#70` Modal renders behind page on mobile | `createPortal` to document.body (stacking) |
+| **v9.8.2** | **`#71` Modal still broken on desktop — renders above viewport, hidden by page content** | **Migration to `/clubs/new` page route — eliminates the bug class** |
+
+Each fix added complexity (portal + viewport hook + safe-area handling + body scroll lock + focus trap) without addressing the root cause: **modals on multi-platform are fragile**. Page pattern is simpler, more reliable, and works identically on mobile + desktop.
+
+### `#71` — Create Club page migration
+
+**New file:** `apps/web/src/routes/clubs.new.tsx` + `clubs.new.module.css`. Tanstack file-based route at `/clubs/new`. Uses standard layout flow — no portal, no visualViewport hook, no z-index battles, no body scroll lock, no focus trap. The Tanstack Router plugin auto-generates `routeTree.gen.ts` to expose the new route's typed paths.
+
+**Form contents:** identical to old modal — Name (required, ≤100), Description (optional, ≤500). Same `useCreateClub` mutation. On success: `setClub({ id, name, role })` to switch AppContext, then `navigate({ to: '/dashboard/today' })` to land in the new club's view. Cancel button navigates back to `/dashboard/today`.
+
+**Styling:** new `clubs.new.module.css` reuses the modal's CSS patterns (`.input` / `.textarea` / `.fieldLabel` / `.fieldHint` / `.error` / `.actions` / `.cancelBtn`). Page wrapper has mobile bottom-padding to clear BottomNav (`calc(var(--s-8) + 72px + env(safe-area-inset-bottom, 0))`).
+
+**Wiring updates:**
+
+- `ContextSwitcher.tsx` — removed `ClubCreateModal` import + `createOpen` state. "Create new club" menu item now calls `navigate({ to: '/clubs/new' })`.
+- `ClubCreateCard.tsx` — removed `ClubCreateModal` import + state. "Create club" button now calls `navigate({ to: '/clubs/new' })`.
+
+**Old `ClubCreateModal.tsx` not deleted** — kept in the tree for now (no longer imported anywhere). Removal will be a one-line cleanup in a future release after this approach proves stable.
+
+### `#72` — Footer copyright covered by BottomNav on mobile
+
+`apps/web/src/components/AppFooter/AppFooter.module.css`:
+
+```css
+@media (max-width: 599px) {
+  .foot {
+    padding-bottom: calc(var(--s-10) + 72px + env(safe-area-inset-bottom, 0));
+  }
+}
+```
+
+Same approach as v9.7.4's ClubDashboard padding-bottom fix. Desktop unaffected — BottomNav is hidden ≥ 600px.
+
+### Build process note (regen of routeTree.gen.ts)
+
+When adding a new file-based route, the Tanstack Router plugin's auto-regen runs only inside `vite build`. The project's npm script chains `tsc -b && vite build` — but `tsc` runs first and fails because `routeTree.gen.ts` doesn't yet know about the new route. Workaround used here: invoke `npx vite build` directly (regenerates the tree), then run the full `npm run build` again. Will document this in CONTRIBUTING.md as part of the next release if it bites again.
+
+### Bundle impact
+
+Dashboard chunk: 89.98 → 86.70 KB (−3.28 KB / −3.6%) — modal logic + visualViewport hook + portal wrapper all gone. New `clubs.new` route emits its own auto-split chunk on first navigation.
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green; manual scan; auth gate verified intact
+- ✅ #2 Pre-commit grep against `schema.sql` — N/A (no SQL change)
+- ✅ #4 POST → GET round-trip — N/A (uses existing `useCreateClub` mutation)
+- ✅ #5 Verification budget — single-route scope; well within 12%
+- ✅ #6 Bug post-mortems — `#69`/`#70`/`#71` together qualify as a pattern. Lesson promoted to `0-learnings.md` Rule #16 candidate (already noted in v9.8.1 CHANGELOG): when fixing a modal/overlay z-index or stacking-context bug, audit ALL modals + overlays in the same release cycle. New related learning for Rule #17: **when a UI pattern keeps producing bug-class regressions despite multiple targeted fixes, consider an architectural replacement (modal → page) rather than a third targeted fix.**
+
+### Deploy state — manual intervention needed
+
+Local wrangler auth expired mid-session (OAuth token timed out). `CLOUDFLARE_API_TOKEN` in `.deploy.env` is also returning 400. Workers Builds CI also failing (e2e Playwright job is red — to be diagnosed separately). To ship v9.8.2 to prod:
+
+```bash
+npx wrangler login                      # browser flow
+source .deploy.env && npm run deploy    # build + wrangler deploy + docs:sync
+```
+
+After successful deploy, Confluence release entry will auto-create. Until then, v9.8.0 stays live in prod (v9.8.1 portal fix never landed; v9.8.2 page migration supersedes it anyway).
+
+### Versions: 9.8.1 → 9.8.2 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.8.1] — 2026-05-01
 
 **Hotfix — Create Club modal stacking-context bug (`#70`).** Founder reported on iPhone Safari that the Create Club modal still renders behind page content despite the v9.7.5 keyboard-handling fix for `#69`. Different root cause; different fix.

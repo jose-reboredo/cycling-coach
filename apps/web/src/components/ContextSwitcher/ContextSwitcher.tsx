@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from '@tanstack/react-router';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useAppContext } from '../../lib/AppContext';
 import { useClubs } from '../../hooks/useClubs';
 import { useClubsEnabled } from '../../lib/featureFlags';
-import { ClubCreateModal } from '../ClubCreateModal/ClubCreateModal';
 import styles from './ContextSwitcher.module.css';
 
 /**
@@ -20,8 +20,8 @@ export function ContextSwitcher() {
   const enabled = useClubsEnabled();
   const { scope, setIndividual, setClub } = useAppContext();
   const clubs = useClubs();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useFocusTrap<HTMLDivElement>(open);
 
@@ -140,7 +140,7 @@ export function ContextSwitcher() {
               <button
                 role="menuitem"
                 className={styles.item}
-                onClick={() => { setOpen(false); setCreateOpen(true); }}
+                onClick={() => { setOpen(false); navigate({ to: '/clubs/new' }); }}
               >
                 <span className={styles.itemIcon} aria-hidden="true">+</span>
                 <span className={styles.itemBody}>
@@ -152,15 +152,9 @@ export function ContextSwitcher() {
           )}
         </AnimatePresence>
       </div>
-
-      <ClubCreateModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={(club) => {
-          // Auto-switch context to the newly-created club
-          setClub({ id: club.id, name: club.name, role: club.role });
-        }}
-      />
+      {/* v9.8.2 (#71) — ClubCreateModal replaced by /clubs/new page route.
+       *  Eliminates the modal stacking-context / sizing bugs that hit
+       *  v9.7.5 / v9.8.1. */}
     </>
   );
 }

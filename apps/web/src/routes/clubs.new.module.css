@@ -1,0 +1,138 @@
+/* Sprint 5 / v9.8.2 (#71) — Create Club page (replaces modal). */
+
+.page {
+  padding: var(--s-7) 0 var(--s-8);
+  min-height: calc(100dvh - 60px);
+}
+
+@media (max-width: 599px) {
+  .page {
+    /* Clear the BottomNav at the bottom of the viewport. */
+    padding-bottom: calc(var(--s-8) + 72px + env(safe-area-inset-bottom, 0));
+  }
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-bottom: var(--s-7);
+}
+
+.title {
+  margin: 0;
+  font: 600 28px/1.05 var(--font-sans);
+  letter-spacing: -0.024em;
+  color: var(--c-text);
+}
+
+.title em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
+}
+
+.lede {
+  margin: 0;
+  font: italic 400 14px/1.5 var(--font-sans);
+  color: var(--c-text-muted);
+  letter-spacing: -0.005em;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.input,
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--s-3);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-sm);
+  color: var(--c-text);
+  font: 400 15px/1.4 var(--font-sans);
+}
+
+.input {
+  height: var(--hit-comfy);
+  padding: 0 var(--s-3);
+  font-weight: 500;
+}
+
+.textarea {
+  min-height: 88px;
+  resize: vertical;
+  font-family: var(--font-sans);
+}
+
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+  border-color: var(--c-accent);
+}
+
+.fieldHint {
+  font: 400 12px/1.5 var(--font-sans);
+  color: var(--c-text-faint);
+}
+
+.error {
+  background: var(--c-accent-soft);
+  border-left: 2px solid var(--c-accent);
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  font: 400 13px/1.4 var(--font-sans);
+  color: var(--c-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+
+.cancelBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hit-min);
+  padding: 0 var(--s-4);
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: color var(--d-fast) var(--e-out);
+}
+
+.cancelBtn:hover {
+  color: var(--c-text);
+}
+
+.cancelBtn:focus-visible {
+  outline: var(--ring-focus);
+  outline-offset: var(--ring-focus-offset);
+}

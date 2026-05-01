@@ -18,6 +18,7 @@ import { Route as DashboardYouRouteImport } from './routes/dashboard.you'
 import { Route as DashboardTrainRouteImport } from './routes/dashboard.train'
 import { Route as DashboardTodayRouteImport } from './routes/dashboard.today'
 import { Route as DashboardRidesRouteImport } from './routes/dashboard.rides'
+import { Route as ClubsNewRouteImport } from './routes/clubs.new'
 
 const WhatsNextRoute = WhatsNextRouteImport.update({
   id: '/whats-next',
@@ -64,12 +65,18 @@ const DashboardRidesRoute = DashboardRidesRouteImport.update({
   path: '/rides',
   getParentRoute: () => DashboardRoute,
 } as any)
+const ClubsNewRoute = ClubsNewRouteImport.update({
+  id: '/clubs/new',
+  path: '/clubs/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
   '/dashboard/today': typeof DashboardTodayRoute
   '/dashboard/train': typeof DashboardTrainRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
   '/dashboard/today': typeof DashboardTodayRoute
   '/dashboard/train': typeof DashboardTrainRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
   '/dashboard/today': typeof DashboardTodayRoute
   '/dashboard/train': typeof DashboardTrainRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/privacy'
     | '/whats-next'
+    | '/clubs/new'
     | '/dashboard/rides'
     | '/dashboard/today'
     | '/dashboard/train'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/privacy'
     | '/whats-next'
+    | '/clubs/new'
     | '/dashboard/rides'
     | '/dashboard/today'
     | '/dashboard/train'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/privacy'
     | '/whats-next'
+    | '/clubs/new'
     | '/dashboard/rides'
     | '/dashboard/today'
     | '/dashboard/train'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   WhatsNextRoute: typeof WhatsNextRoute
+  ClubsNewRoute: typeof ClubsNewRoute
   JoinCodeRoute: typeof JoinCodeRoute
 }
 
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRidesRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/clubs/new': {
+      id: '/clubs/new'
+      path: '/clubs/new'
+      fullPath: '/clubs/new'
+      preLoaderRoute: typeof ClubsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -234,6 +254,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   WhatsNextRoute: WhatsNextRoute,
+  ClubsNewRoute: ClubsNewRoute,
   JoinCodeRoute: JoinCodeRoute,
 }
 export const routeTree = rootRouteImport

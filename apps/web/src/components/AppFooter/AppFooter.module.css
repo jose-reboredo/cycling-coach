@@ -2,6 +2,16 @@
   padding: var(--s-12) 0 var(--s-10);
 }
 
+/* v9.8.2 (#72) — clear the fixed BottomNav at the bottom of the viewport.
+ * Without this, the © Cadence Club copyright line is hidden under the
+ * tab bar on mobile. BottomNav is hidden ≥ 600px so no padding needed
+ * on desktop. */
+@media (max-width: 599px) {
+  .foot {
+    padding-bottom: calc(var(--s-10) + 72px + env(safe-area-inset-bottom, 0));
+  }
+}
+
 .footTop {
   display: grid;
   grid-template-columns: 1fr;
