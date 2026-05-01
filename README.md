@@ -2,7 +2,19 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.11.0](./CHANGELOG.md#9110--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.12.0](./CHANGELOG.md#9120--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.12.0
+
+**Personal Scheduler v2 + planned-sessions table.** Closes `#76` (Migration 0008 + 5 new endpoints), `#77` (frontend integration), `#78` (TopTabs alignment fix). Full CTO analysis at `docs/post-demo-sprint/v9.12.0-cto-analysis.md`. Migration `0008` adds new `planned_sessions` table for individual training sessions; 13 columns including session_date/title/zone/duration_minutes/target_watts/source/completed_at/cancelled_at; 2 indexes (composite athlete-date + partial ai_report_id). 5 new endpoints under `/api/me/sessions*` (GET range / POST / PATCH / cancel / uncancel) — auth-gated, rate-limited 30/min on `me-sessions-write` scope, OWASP 404 on cross-user IDs. Extended `GET /api/me/schedule?range=` now returns `{club_events, planned_sessions}` (renamed from `events` for clarity); single response for the entire personal scheduler. Frontend: new types (`PlannedSession`, `CreatePlannedSessionInput`, `PatchPlannedSessionInput`), API client methods, Tanstack mutation hooks (`useCreatePlannedSession`, `usePatchPlannedSession`, `useCancelPlannedSession`). New page route at `/dashboard/schedule/new` with full form (title, date/time, zone selector, duration, target watts, notes) — page pattern per Rule #17 lesson. "+ Add session" button on personal scheduler header. Personal sessions render on calendar alongside club events (currently styled as 'ride' — visual differentiation with SessionIcon + zone colors deferred to v9.12.1). TopTabs `.tab { flex: 1; min-width: 0; text-align: center; }` distributes tabs evenly across container width — fixes the empty-space-on-right bug founder reported. Scalability analysis: design supports ~10k users with current schema + indexes; KV-cache + materialized views are the next-step at 50-100k. Bundle: dashboard chunk unchanged (74.92 KB) — new route emits its own chunk.
+
+**Deferred to v9.12.1+:**
+- Visual differentiation: SessionIcon + zone-color rendering for personal sessions on calendar pills
+- Drawer Edit/Cancel/Mark-Done buttons for personal sessions
+- Unsubscribe button in drawer (for club events I RSVP'd but didn't create)
+
+**Deferred to v9.13.0+:**
+- AI Coach plan persistence (`#79`) — `/coach` endpoint auto-populates `planned_sessions` with `source='ai-coach'`. Foundational table is in place; integration is the next step.
 
 ## What's new in v9.11.0
 

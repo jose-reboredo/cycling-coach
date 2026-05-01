@@ -2,7 +2,7 @@
 // as useStravaData hooks (5 min stale, 30 min gc).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clubsApi, type CancelClubEventResponse, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type DraftEventDescriptionInput, type JoinClubResponse, type MyScheduleResponse, type PatchClubEventInput, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
+import { clubsApi, type CancelClubEventResponse, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreatePlannedSessionInput, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type DraftEventDescriptionInput, type JoinClubResponse, type MyScheduleResponse, type PatchClubEventInput, type PatchPlannedSessionInput, type PlannedSession, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
 
 const FIVE_MIN = 5 * 60 * 1000;
 const THIRTY_MIN = 30 * 60 * 1000;
@@ -70,9 +70,45 @@ export function useClubEventsByMonth(clubId: number | null, range: string) {
   });
 }
 
+/** v9.12.0 (#76) — Personal session CRUD. Used by the Add Session form +
+ *  drawer Edit/Cancel buttons in the personal scheduler. */
+export function useCreatePlannedSession() {
+  const qc = useQueryClient();
+  return useMutation<PlannedSession, Error, CreatePlannedSessionInput>({
+    mutationFn: (input) => clubsApi.createSession(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
+      qc.invalidateQueries({ queryKey: ['me', 'sessions'] });
+    },
+  });
+}
+
+export function usePatchPlannedSession() {
+  const qc = useQueryClient();
+  return useMutation<{ id: number }, Error, { sessionId: number; input: PatchPlannedSessionInput }>({
+    mutationFn: ({ sessionId, input }) => clubsApi.patchSession(sessionId, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
+      qc.invalidateQueries({ queryKey: ['me', 'sessions'] });
+    },
+  });
+}
+
+export function useCancelPlannedSession() {
+  const qc = useQueryClient();
+  return useMutation<{ id: number; cancelled_at: number }, Error, number>({
+    mutationFn: (sessionId) => clubsApi.cancelSession(sessionId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
+      qc.invalidateQueries({ queryKey: ['me', 'sessions'] });
+    },
+  });
+}
+
 /** v9.11.0 (#61) — Personal scheduler. Aggregates events from all clubs the
  *  caller is a member of, filtered to events they're going to OR created.
- *  Cancelled events excluded. 5-min stale, 30-min gc. */
+ *  Cancelled events excluded. 5-min stale, 30-min gc.
+ *  v9.12.0 (#76): response now includes planned_sessions stream. */
 export function useMyScheduleByMonth(range: string) {
   return useQuery<MyScheduleResponse>({
     queryKey: ['me', 'schedule', range],

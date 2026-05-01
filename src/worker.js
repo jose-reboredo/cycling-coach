@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.11.0';
+const WORKER_VERSION = 'v9.12.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -38,6 +38,27 @@ function safeArg(a) {
 function safeLog(...args) { console.log(...args.map(safeArg)); }
 function safeWarn(...args) { console.warn(...args.map(safeArg)); }
 function safeError(...args) { console.error(...args.map(safeArg)); }
+
+// v9.12.0 (#76) — shared row mapper for planned_sessions. Used by
+// GET /api/me/sessions and GET /api/me/schedule.
+function mapSessionRow(row) {
+  return {
+    id: row.id,
+    athlete_id: row.athlete_id,
+    session_date: row.session_date,
+    title: row.title,
+    description: row.description ?? null,
+    zone: row.zone ?? null,
+    duration_minutes: row.duration_minutes ?? null,
+    target_watts: row.target_watts ?? null,
+    source: row.source ?? 'manual',
+    ai_report_id: row.ai_report_id ?? null,
+    completed_at: row.completed_at ?? null,
+    cancelled_at: row.cancelled_at ?? null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
  
 // v9.3.0 (#34) — allowlist of origins the Worker will mint OAuth redirect URLs
 // to and accept browser CORS calls from on the AI proxy endpoints (/coach,
@@ -1307,14 +1328,13 @@ async function handleRequest(request, env) {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // GET /api/me/schedule?range=YYYY-MM — Personal scheduler (Sprint 5 / v9.11.0, #61).
-    // Aggregates upcoming events across ALL clubs the caller is a member of,
-    // filtered to events the caller is going to (RSVP'd 'going') OR created.
-    // 5-min edge cache. Cancelled events excluded per #74.
-    //
-    // v9.11.0 ships clubs-only aggregation (Streams 1+2 from #61 spec). AI
-    // plan items (Stream 3) and goals (Stream 4) deferred to v9.11.1 / future
-    // release pending stable schemas.
+    // GET /api/me/schedule?range=YYYY-MM — Personal scheduler (Sprint 5).
+    // v9.11.0 (#61): clubs-only aggregation.
+    // v9.12.0 (#76 + #77): now returns BOTH streams in a single batch:
+    //   - club_events: events I'm going to OR I created (existing)
+    //   - planned_sessions: my personal training sessions (NEW table from
+    //     migration 0008)
+    // Cancelled events/sessions excluded per #74. 5-min edge cache.
     if (url.pathname === '/api/me/schedule' && request.method === 'GET') {
       const authResult = await resolveAthleteId(request);
       if (authResult.error) {
@@ -1386,16 +1406,265 @@ async function handleRequest(request, env) {
         is_going: !!e.is_going,
       }));
 
+      // v9.12.0 — second stream: personal planned sessions in the same range.
+      const { results: sessionRows } = await db.prepare(
+        'SELECT id, athlete_id, session_date, title, description, zone, ' +
+        '       duration_minutes, target_watts, source, ai_report_id, ' +
+        '       completed_at, cancelled_at, created_at, updated_at ' +
+        'FROM planned_sessions ' +
+        'WHERE athlete_id = ? AND session_date BETWEEN ? AND ? ' +
+        '  AND cancelled_at IS NULL ' +
+        'ORDER BY session_date ASC',
+      ).bind(authResult.athleteId, startEpoch, endEpoch).all();
+      const planned_sessions = (sessionRows || []).map(mapSessionRow);
+
       return new Response(JSON.stringify({
         athlete_id: authResult.athleteId,
         range: { year: yr, month: mo, start: startEpoch, end: endEpoch },
-        events,
+        club_events: events,    // v9.12.0 rename: was `events` in v9.11.0
+        planned_sessions,
       }), {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
           'Cache-Control': 'private, max-age=300',
         },
+      });
+    }
+
+    // GET /api/me/sessions?range=YYYY-MM — list personal planned sessions for
+    // the requested month. Sprint 5 / v9.12.0 (#76).
+    if (url.pathname === '/api/me/sessions' && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const rangeParam = url.searchParams.get('range');
+      const m = rangeParam?.match(/^(\d{4})-(\d{2})$/);
+      if (!m) {
+        return new Response(JSON.stringify({ error: 'range must be YYYY-MM' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const yr = parseInt(m[1], 10), mo = parseInt(m[2], 10);
+      if (yr < 2000 || yr > 2100 || mo < 1 || mo > 12) {
+        return new Response(JSON.stringify({ error: 'range out of bounds' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000);
+      const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1;
+      const db = env.cycling_coach_db;
+      const { results: rows } = await db.prepare(
+        'SELECT id, athlete_id, session_date, title, description, zone, ' +
+        '       duration_minutes, target_watts, source, ai_report_id, ' +
+        '       completed_at, cancelled_at, created_at, updated_at ' +
+        'FROM planned_sessions ' +
+        'WHERE athlete_id = ? AND session_date BETWEEN ? AND ? ' +
+        'ORDER BY session_date ASC',
+      ).bind(authResult.athleteId, startEpoch, endEpoch).all();
+      return new Response(JSON.stringify({
+        athlete_id: authResult.athleteId,
+        range: { year: yr, month: mo, start: startEpoch, end: endEpoch },
+        sessions: (rows || []).map(mapSessionRow),
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'private, max-age=300',
+        },
+      });
+    }
+
+    // POST /api/me/sessions — create a manual session (Sprint 5 / v9.12.0, #76).
+    if (url.pathname === '/api/me/sessions' && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const rl = await checkRateLimit(env, 'me-sessions-write', String(authResult.athleteId), 30, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const title = (body?.title || '').toString().trim().slice(0, 200);
+      const description = body?.description ? body.description.toString().trim().slice(0, 2000) : null;
+      const sessionDateRaw = body?.session_date;
+      const sessionDate = typeof sessionDateRaw === 'number'
+        ? Math.floor(sessionDateRaw)
+        : sessionDateRaw ? Math.floor(new Date(sessionDateRaw).getTime() / 1000) : NaN;
+      const zone = typeof body?.zone === 'number' && body.zone >= 1 && body.zone <= 7 ? body.zone : null;
+      const duration = typeof body?.duration_minutes === 'number' && body.duration_minutes >= 0 && body.duration_minutes <= 600
+        ? Math.floor(body.duration_minutes) : null;
+      const watts = typeof body?.target_watts === 'number' && body.target_watts >= 0 && body.target_watts <= 2000
+        ? Math.floor(body.target_watts) : null;
+      const SOURCE_ALLOWLIST = new Set(['manual', 'ai-coach', 'imported']);
+      const source = SOURCE_ALLOWLIST.has(body?.source) ? body.source : 'manual';
+
+      if (!title) {
+        return new Response(JSON.stringify({ error: 'title required (1-200 chars)' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!Number.isFinite(sessionDate) || sessionDate < 0) {
+        return new Response(JSON.stringify({ error: 'session_date required (ISO string or unix seconds)' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const fiveYears = 5 * 365 * 24 * 3600;
+      if (sessionDate < now - fiveYears || sessionDate > now + fiveYears) {
+        return new Response(JSON.stringify({ error: 'session_date out of range (±5 years)' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const inserted = await env.cycling_coach_db
+        .prepare(
+          'INSERT INTO planned_sessions (athlete_id, session_date, title, description, zone, ' +
+          '  duration_minutes, target_watts, source, created_at, updated_at) ' +
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+        )
+        .bind(authResult.athleteId, sessionDate, title, description, zone, duration, watts, source, now, now)
+        .first();
+      if (!inserted?.id) {
+        safeWarn(`[me/sessions] insert returned no id for athlete ${authResult.athleteId}`);
+        return new Response(JSON.stringify({ error: 'session creation failed' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({
+        id: inserted.id,
+        athlete_id: authResult.athleteId,
+        session_date: sessionDate,
+        title,
+        description,
+        zone,
+        duration_minutes: duration,
+        target_watts: watts,
+        source,
+        ai_report_id: null,
+        completed_at: null,
+        cancelled_at: null,
+        created_at: now,
+        updated_at: now,
+      }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // PATCH /api/me/sessions/:id — partial update; own-only (Sprint 5 / v9.12.0, #76).
+    // POST /api/me/sessions/:id/cancel — soft-delete; idempotent.
+    // POST /api/me/sessions/:id/uncancel — restore.
+    const sessionByIdMatch = url.pathname.match(/^\/api\/me\/sessions\/(\d+)(\/cancel|\/uncancel)?$/);
+    if (sessionByIdMatch && (request.method === 'PATCH' || request.method === 'POST')) {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const sessionId = parseInt(sessionByIdMatch[1], 10);
+      const action = sessionByIdMatch[2];
+      const db = env.cycling_coach_db;
+      const existing = await db
+        .prepare('SELECT id, athlete_id, cancelled_at FROM planned_sessions WHERE id = ? LIMIT 1')
+        .bind(sessionId)
+        .first();
+      // 404 OWASP: don't leak existence — same response whether session
+      // doesn't exist OR belongs to another user.
+      if (!existing || existing.athlete_id !== authResult.athleteId) {
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const rl = await checkRateLimit(env, 'me-sessions-write', String(authResult.athleteId), 30, 60);
+      if (rl) {
+        return new Response(JSON.stringify({ error: 'rate-limited', retry_after_seconds: rl.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) },
+        });
+      }
+      const now = Math.floor(Date.now() / 1000);
+      // Cancel/uncancel = idempotent state toggle.
+      if (action === '/cancel') {
+        if (existing.cancelled_at) {
+          return new Response(JSON.stringify({ id: sessionId, cancelled_at: existing.cancelled_at, already_cancelled: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        await db.prepare('UPDATE planned_sessions SET cancelled_at = ?, updated_at = ? WHERE id = ?')
+          .bind(now, now, sessionId).run();
+        return new Response(JSON.stringify({ id: sessionId, cancelled_at: now }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (action === '/uncancel') {
+        await db.prepare('UPDATE planned_sessions SET cancelled_at = NULL, updated_at = ? WHERE id = ?')
+          .bind(now, sessionId).run();
+        return new Response(JSON.stringify({ id: sessionId, cancelled_at: null }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // PATCH: allowlisted partial update.
+      if (request.method !== 'PATCH') {
+        return new Response(JSON.stringify({ error: 'method not allowed' }), {
+          status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const SOURCE_ALLOWLIST = new Set(['manual', 'ai-coach', 'imported']);
+      const updates = [];
+      const params = [];
+      const applied = {};
+      const apply = (key, sqlCol, parser) => {
+        if (key in body) {
+          const v = parser(body[key]);
+          if (v === undefined) return;
+          updates.push(`${sqlCol} = ?`);
+          params.push(v);
+          applied[sqlCol] = v;
+        }
+      };
+      apply('title', 'title', (v) => { const s = String(v || '').trim(); return s && s.length <= 200 ? s : undefined; });
+      apply('description', 'description', (v) => v == null || v === '' ? null : String(v).trim().slice(0, 2000));
+      apply('session_date', 'session_date', (v) => {
+        const n = typeof v === 'number' ? Math.floor(v) : v ? Math.floor(new Date(v).getTime() / 1000) : NaN;
+        return Number.isFinite(n) && n > 0 ? n : undefined;
+      });
+      apply('zone', 'zone', (v) => v === null ? null : (typeof v === 'number' && v >= 1 && v <= 7 ? Math.floor(v) : undefined));
+      apply('duration_minutes', 'duration_minutes', (v) => v === null ? null : (typeof v === 'number' && v >= 0 && v <= 600 ? Math.floor(v) : undefined));
+      apply('target_watts', 'target_watts', (v) => v === null ? null : (typeof v === 'number' && v >= 0 && v <= 2000 ? Math.floor(v) : undefined));
+      apply('source', 'source', (v) => SOURCE_ALLOWLIST.has(v) ? v : undefined);
+      apply('completed_at', 'completed_at', (v) => v === null ? null : (typeof v === 'number' && v > 0 ? Math.floor(v) : undefined));
+      if (updates.length === 0) {
+        return new Response(JSON.stringify({ error: 'no patchable fields' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      updates.push('updated_at = ?');
+      params.push(now);
+      params.push(sessionId);
+      await db.prepare(`UPDATE planned_sessions SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();
+      return new Response(JSON.stringify({ id: sessionId, ...applied, updated_at: now }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 

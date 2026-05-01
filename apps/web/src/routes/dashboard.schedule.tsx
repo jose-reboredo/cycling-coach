@@ -7,9 +7,10 @@
 // Streams 3+4 (AI plan items + goals) deferred — schemas not yet stable.
 
 import { useEffect, useMemo, useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
+import { Button } from '../components/Button/Button';
 import { MonthCalendarGrid } from '../components/Calendar/MonthCalendarGrid';
 import { WeekCalendarGrid } from '../components/Calendar/WeekCalendarGrid';
 import { DayCalendarGrid } from '../components/Calendar/DayCalendarGrid';
@@ -60,6 +61,7 @@ function defaultViewForViewport(): CalendarView {
 }
 
 function PersonalSchedule() {
+  const navigate = useNavigate();
   const today = todayUTC();
   const [view, setView] = useState<CalendarView>(
     () => readViewFromHash() ?? defaultViewForViewport(),
@@ -88,10 +90,13 @@ function PersonalSchedule() {
   const range = monthToRange(date.year, date.month);
   const { data, isLoading, error } = useMyScheduleByMonth(range);
 
-  // Map MyScheduleEvent → CalendarEvent (subset). Each event preserves
-  // club_name so calendar pills can show which club it's from.
+  // v9.12.0 (#77): merge club_events + planned_sessions into one CalendarEvent
+  // stream. Personal sessions surface as event_type='ride' with a synthetic
+  // negative ID so they don't collide with real club_event IDs (the personal
+  // scheduler distinguishes via event_source field — added in v9.12.x visual
+  // layer follow-up).
   const events: CalendarEvent[] = useMemo(() => {
-    return (data?.events ?? []).map((e) => ({
+    const club: CalendarEvent[] = (data?.club_events ?? []).map((e) => ({
       id: e.id,
       title: e.title,
       event_date: e.event_date,
@@ -107,6 +112,21 @@ function PersonalSchedule() {
       start_point: e.start_point,
       club_name: e.club_name ?? undefined,
     }));
+    // Personal sessions render as 'ride' (existing color/icon). Visual diff
+    // (zone color + SessionIcon) is the Phase D follow-up — out of v9.12.0
+    // initial scope. Negative ID prevents collision with club_event IDs in
+    // the calendar grid's React keys.
+    const personal: CalendarEvent[] = (data?.planned_sessions ?? []).map((s) => ({
+      id: -s.id,
+      title: s.title,
+      event_date: s.session_date,
+      event_type: 'ride' as const,
+      confirmed_count: 0,
+      location: null,
+      description: s.description,
+      cancelled_at: s.cancelled_at,
+    }));
+    return [...club, ...personal].sort((a, b) => a.event_date - b.event_date);
   }, [data]);
 
   const stepDate = (delta: number) => {
@@ -149,12 +169,22 @@ function PersonalSchedule() {
     <main id="main" className={styles.page}>
       <Container width="wide">
         <header className={styles.head}>
-          <Eyebrow rule tone="accent">Personal · all clubs</Eyebrow>
+          <Eyebrow rule tone="accent">Personal · all clubs + sessions</Eyebrow>
           <h1 className={styles.title}>Your <em>schedule</em>.</h1>
           <p className={styles.lede}>
-            Events you've RSVP'd to or created across every club you're in.
-            Cancelled rides excluded.
+            Events you've RSVP'd to or created across every club, plus your
+            personal training sessions. Cancelled rides excluded.
           </p>
+          <div className={styles.headActions}>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate({ to: '/dashboard/schedule/new' })}
+              withArrow
+            >
+              + Add session
+            </Button>
+          </div>
         </header>
 
         <div className={styles.controls}>

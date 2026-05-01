@@ -25,6 +25,11 @@
 }
 
 .tab {
+  /* v9.12.0 (#78) — flex-distribute across container width so tabs fill
+   * the row evenly and don't leave dead space on the right. min-width:0
+   * allows shrink-to-fit on narrow viewports without overflow. */
+  flex: 1;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;

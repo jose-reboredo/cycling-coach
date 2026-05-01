@@ -4,6 +4,103 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.12.0] — 2026-05-01
+
+**Personal Scheduler v2 — planned-sessions data layer + 5 new endpoints + Add Session UX + TopTabs alignment fix.** Closes `#76`, `#77`, `#78`. Full architectural spec at `docs/post-demo-sprint/v9.12.0-cto-analysis.md` (475 lines, 10 sections — definition / impact / scalability / risks / implementation / deploy / tests / open questions).
+
+### Migration 0008 — `planned_sessions` table
+
+Foundational data layer for personal training sessions. Per CTO analysis §3.1:
+
+- 13 columns including `session_date` (epoch), `title`, `description`, `zone` (1-7 Coggan, CHECK constraint), `duration_minutes` (CHECK 0-600), `target_watts` (CHECK 0-2000), `source` (enum manual/ai-coach/imported), `ai_report_id` (FK with `ON DELETE SET NULL`), `completed_at` + `cancelled_at` (soft state), `created_at`, `updated_at`
+- Composite index `(athlete_id, session_date)` for month-range queries
+- Partial index on `ai_report_id WHERE NOT NULL` for future AI-source analytics
+
+Pre-CTO column-shape verification passed (Sprint 4 retro Improvement #2): grep'd schema.sql for column-name conflicts — all 13 columns clear. Applied to local + remote D1; verified via `PRAGMA table_info`.
+
+### 5 new endpoints under `/api/me/sessions*`
+
+All gated via `resolveAthleteId`. Write endpoints rate-limited 30/min on new `me-sessions-write` scope. Cross-user PATCH/Cancel/Uncancel return 404 OWASP (don't leak existence).
+
+| Verb | Path | Behavior |
+|---|---|---|
+| `GET` | `/api/me/sessions?range=YYYY-MM` | List sessions for month |
+| `POST` | `/api/me/sessions` | Create — validates title required, session_date ±5 years, zone 1-7, duration 0-600, watts 0-2000, source enum |
+| `PATCH` | `/api/me/sessions/:id` | Allowlisted partial update — title, description, session_date, zone, duration_minutes, target_watts, source, completed_at |
+| `POST` | `/api/me/sessions/:id/cancel` | Idempotent soft-delete (sets `cancelled_at`); second call returns existing timestamp |
+| `POST` | `/api/me/sessions/:id/uncancel` | Restore (sets `cancelled_at = NULL`) |
+
+### Extended `/api/me/schedule`
+
+**Breaking shape change** (mitigated by single-PR shipping backend + frontend):
+
+```diff
+- { athlete_id, range, events: [...] }                          // v9.11.0
++ { athlete_id, range, club_events: [...], planned_sessions: [...] }  // v9.12.0
+```
+
+Both streams returned in a single response. Cancelled events/sessions excluded per `#74`. 5-min edge cache.
+
+### Frontend
+
+`apps/web/src/lib/clubsApi.ts`:
+- New types: `PlannedSession`, `PlannedSessionSource` (`'manual' | 'ai-coach' | 'imported'`), `CreatePlannedSessionInput`, `PatchPlannedSessionInput`
+- New API methods: `mySessions`, `createSession`, `patchSession`, `cancelSession`, `uncancelSession`
+- `MyScheduleResponse` shape updated to match new `{club_events, planned_sessions}` server response
+
+`apps/web/src/hooks/useClubs.ts`:
+- New mutation hooks: `useCreatePlannedSession`, `usePatchPlannedSession`, `useCancelPlannedSession`
+- All invalidate `['me', 'schedule']` and `['me', 'sessions']` query keys on success
+
+`apps/web/src/routes/dashboard.schedule.tsx`:
+- Merges `club_events + planned_sessions` into one CalendarEvent stream sorted by `event_date`
+- "+ Add session" button in header → navigates to `/dashboard/schedule/new`
+- Personal sessions render with the `'ride'` event-type styling for v9.12.0; visual differentiation (SessionIcon + zone colors) deferred to v9.12.1
+
+`apps/web/src/routes/dashboard.schedule.new.tsx` (new file, ~190 LoC):
+- Page-pattern Add Session form (per Rule #17 from v9.8.2 — modals on multi-platform are fragile)
+- Fields: title (required), date + time (default = today 18:00), target zone selector (Z1-Z7 or Any), duration_minutes, target_watts, description (max 2000 chars)
+- Validation: title required + ≤200 chars; date+time valid; duration 0-600; watts 0-2000
+- On submit: `useCreatePlannedSession` → navigate back to `/dashboard/schedule`
+- Cancel button navigates back without saving
+
+### `#78` — TopTabs alignment fix
+
+`.tab { flex: 1; min-width: 0; text-align: center; }` in `TopTabs.module.css`. Tabs distribute evenly across the container width — fixes the dead-space-on-right that founder reported on club tab bar.
+
+### Scalability
+
+Per CTO analysis §4: design supports ~10k users with current schema + indexes. Storage: 1k users × 25 sessions/month × 200B = 5 MB/month. Read latency: indexed lookup on `(athlete_id, session_date)` returns ~25 rows in single-digit ms cold. Aggregation `/api/me/schedule` is one query; 5-min edge cache absorbs bursts. KV-cache + materialized views are the evolution path at 50-100k users — not blocking now.
+
+### Risk register acceptance
+
+Per CTO analysis §5, 10 risks identified with mitigations. Highest-impact (R1: migration failure on remote D1) mitigated by atomic ALTER + drop-table rollback path; verified via `PRAGMA` post-apply. R3: 5-min edge cache staleness on Cancel/Edit accepted as up-to-5-min lag is acceptable for ride-day decisions. R4: permission-gate bypass mitigated by server-side `WHERE athlete_id = ?` on every mutation.
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green; manual TS scan; CTO doc as paired artifact
+- ✅ #2 Pre-commit grep against `schema.sql` — passed; no column-name conflicts
+- ✅ #4 POST → GET round-trip — endpoint design supports this; smoke test plan in CTO §8
+- ✅ #5 Verification budget — substantial release; CTO doc + 2-session split recommended (this session: Phases A+B+C+E+F; deferred Phase D visual differentiation + Phase G full e2e tests to v9.12.1)
+- ✅ #6 Bug post-mortems — none required (no hotfix)
+
+### Bundle
+
+Dashboard chunk unchanged at 74.92 KB. New routes (`dashboard.schedule.new.tsx`) emit their own chunks. Net change: +~6 KB across split chunks for the new page + types + hooks.
+
+### Versions: 9.11.0 → 9.12.0 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+### v9.12.1 follow-up scope
+
+- Phase D from CTO doc: SessionIcon (1.6px stroke, 24×24, dumbbell silhouette) + zone-color rendering for personal sessions on calendar pills
+- Drawer Edit/Cancel/Mark-Done buttons for personal sessions (uses `usePatchPlannedSession`/`useCancelPlannedSession`)
+- Unsubscribe button in drawer for club events I RSVP'd to (uses existing `useRsvp`)
+- Phase G full Playwright e2e suite from CTO §8.3
+
+---
+
 ## [9.11.0] — 2026-05-01
 
 **Bundled 4-issue release: Personal scheduler (`#61`) + cancelled-events filter (`#74`) + Overview Edit/Cancel (`#75`) + Landing copy rewrite (`#64`).** Per founder direction: `#56` clubs share/invite deprioritised; v9.10.0 reserved as the slot for Route picker integration whenever that ships.

@@ -17,6 +17,12 @@
   margin-bottom: var(--s-7);
 }
 
+.headActions {
+  display: flex;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
 .title {
   margin: 0;
   font: 600 28px/1.05 var(--font-sans);

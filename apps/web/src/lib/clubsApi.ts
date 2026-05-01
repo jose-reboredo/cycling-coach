@@ -205,10 +205,50 @@ export interface MyScheduleEvent extends UpcomingEvent {
   is_going: boolean;
 }
 
+/** v9.12.0 (#76) — Personal training session row from `planned_sessions`. */
+export type PlannedSessionSource = 'manual' | 'ai-coach' | 'imported';
+
+export interface PlannedSession {
+  id: number;
+  athlete_id: number;
+  session_date: number;        // unix epoch seconds
+  title: string;
+  description: string | null;
+  zone: number | null;          // 1-7 Coggan
+  duration_minutes: number | null;
+  target_watts: number | null;
+  source: PlannedSessionSource;
+  ai_report_id: number | null;
+  completed_at: number | null;
+  cancelled_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CreatePlannedSessionInput {
+  title: string;
+  /** ISO 8601 string OR unix epoch seconds. */
+  session_date: string | number;
+  description?: string;
+  zone?: number | null;
+  duration_minutes?: number | null;
+  target_watts?: number | null;
+  source?: PlannedSessionSource;
+}
+
+export type PatchPlannedSessionInput = Partial<Omit<CreatePlannedSessionInput, 'session_date'>> & {
+  session_date?: string | number;
+  /** Mark complete (epoch seconds) or null to un-complete. */
+  completed_at?: number | null;
+};
+
 export interface MyScheduleResponse {
   athlete_id: number;
   range: { year: number; month: number; start: number; end: number };
-  events: MyScheduleEvent[];
+  /** v9.12.0 rename: was `events` in v9.11.0. */
+  club_events: MyScheduleEvent[];
+  /** v9.12.0 (#76) — personal training sessions in the same range. */
+  planned_sessions: PlannedSession[];
 }
 
 export interface ClubOverview {
@@ -251,10 +291,34 @@ export const clubsApi = {
       body: JSON.stringify(input),
     }),
   // v9.11.0 (#61) — Personal scheduler aggregation across user's clubs.
-  // Returns events the user is going to OR created in the requested month.
-  // Cancelled events excluded per #74. 5-min edge cache.
+  // v9.12.0 (#76): now also returns planned_sessions in the same response.
   mySchedule: (range: string) =>
     call<MyScheduleResponse>(`/api/me/schedule?range=${encodeURIComponent(range)}`),
+  // v9.12.0 (#76) — personal session CRUD.
+  mySessions: (range: string) =>
+    call<{ athlete_id: number; range: { year: number; month: number; start: number; end: number }; sessions: PlannedSession[] }>(
+      `/api/me/sessions?range=${encodeURIComponent(range)}`,
+    ),
+  createSession: (input: CreatePlannedSessionInput) =>
+    call<PlannedSession>('/api/me/sessions', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  patchSession: (sessionId: number, input: PatchPlannedSessionInput) =>
+    call<{ id: number } & Partial<PlannedSession>>(`/api/me/sessions/${sessionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  cancelSession: (sessionId: number) =>
+    call<{ id: number; cancelled_at: number; already_cancelled?: boolean }>(
+      `/api/me/sessions/${sessionId}/cancel`,
+      { method: 'POST', body: '{}' },
+    ),
+  uncancelSession: (sessionId: number) =>
+    call<{ id: number; cancelled_at: null }>(
+      `/api/me/sessions/${sessionId}/uncancel`,
+      { method: 'POST', body: '{}' },
+    ),
   // v9.7.3 (#60) — soft-cancel; creator OR admin only.
   cancelEvent: (clubId: number, eventId: number) =>
     call<CancelClubEventResponse>(`/api/clubs/${clubId}/events/${eventId}/cancel`, {

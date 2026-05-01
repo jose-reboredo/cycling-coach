@@ -239,3 +239,28 @@ CREATE TABLE event_rsvps (
 
 CREATE INDEX idx_rsvps_event   ON event_rsvps(event_id, status);
 CREATE INDEX idx_rsvps_athlete ON event_rsvps(athlete_id, event_id);
+
+-- ============= PLANNED SESSIONS (v9.12.0, migration 0008) =============
+-- Individual training sessions for the personal scheduler at /dashboard/schedule.
+-- v9.12.0 ships manual creation; v9.13.0+ #79 adds AI-Coach auto-populate.
+-- Spec: docs/post-demo-sprint/v9.12.0-cto-analysis.md §3.1.
+CREATE TABLE planned_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  session_date INTEGER NOT NULL,                  -- unix epoch seconds (start time)
+  title TEXT NOT NULL,
+  description TEXT,
+  zone INTEGER CHECK (zone IS NULL OR zone BETWEEN 1 AND 7),
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 0 AND 600),
+  target_watts INTEGER CHECK (target_watts IS NULL OR target_watts BETWEEN 0 AND 2000),
+  source TEXT NOT NULL DEFAULT 'manual'
+    CHECK (source IN ('manual', 'ai-coach', 'imported')),
+  ai_report_id INTEGER REFERENCES ai_reports(id) ON DELETE SET NULL,
+  completed_at INTEGER,
+  cancelled_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_planned_sessions_athlete_date ON planned_sessions(athlete_id, session_date);
+CREATE INDEX idx_planned_sessions_ai_report ON planned_sessions(ai_report_id) WHERE ai_report_id IS NOT NULL;
