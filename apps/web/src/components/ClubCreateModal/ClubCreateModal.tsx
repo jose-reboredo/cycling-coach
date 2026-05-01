@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useVisualViewportHeight } from '../../hooks/useVisualViewportHeight';
@@ -65,7 +66,14 @@ export function ClubCreateModal({ open, onClose, onCreated }: ClubCreateModalPro
     }
   }
 
-  return (
+  // v9.8.1 (#70) — render via portal at document.body so the modal escapes
+  // any parent stacking context (TopBar / ContextSwitcher / ClubDashboard
+  // sticky header). Previously z-index: var(--z-modal) was constrained
+  // inside the parent's stacking context, so the modal rendered behind
+  // the Schedule tab content.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -155,6 +163,7 @@ export function ClubCreateModal({ open, onClose, onCreated }: ClubCreateModalPro
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

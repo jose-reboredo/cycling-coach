@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useVisualViewportHeight } from '../../hooks/useVisualViewportHeight';
@@ -173,7 +174,12 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
     }
   }
 
-  return (
+  // v9.8.1 (#70) — portal to document.body to escape parent stacking
+  // context. Same fix as ClubCreateModal; preventive for the case where
+  // ClubEventModal opens from the Schedule tab "+" button.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -410,6 +416,7 @@ export function ClubEventModal({ open, clubId, onClose, onCreated }: ClubEventMo
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

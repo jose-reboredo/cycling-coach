@@ -4,6 +4,58 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.8.1] — 2026-05-01
+
+**Hotfix — Create Club modal stacking-context bug (`#70`).** Founder reported on iPhone Safari that the Create Club modal still renders behind page content despite the v9.7.5 keyboard-handling fix for `#69`. Different root cause; different fix.
+
+### Root cause
+
+The v9.7.5 fix addressed sizing — `useVisualViewportHeight` clamps modal `max-height` when the keyboard opens. That part worked. What it didn't fix: the modal renders **inline** in the React tree inside `ContextSwitcher` → `TopBar`, both of which create stacking contexts (TopBar via `position: sticky` + z-index; ContextSwitcher's parent via similar combinations). Once a stacking context is created, child z-indices are confined inside it — `z-index: var(--z-modal, 500)` only competes against siblings within that stacking context, not against the Schedule tab content rendered as a sibling of the parent.
+
+Result: modal rendered BEHIND the Schedule tab calendar grid. Functionally broken.
+
+### Fix
+
+`createPortal` from `react-dom` for both modals. Portals render the JSX at a different point in the DOM (`document.body`) while preserving React tree relationships (state, context, refs). Crucially, portals escape parent stacking contexts entirely.
+
+```tsx
+import { createPortal } from 'react-dom';
+
+return createPortal(
+  <AnimatePresence>{open && (...)}</AnimatePresence>,
+  document.body,
+);
+```
+
+Applied to:
+
+- `apps/web/src/components/ClubCreateModal/ClubCreateModal.tsx` — primary, where the bug surfaced
+- `apps/web/src/components/ClubEventModal/ClubEventModal.tsx` — preventive (same risk class; same parent tree)
+
+`EventDetailDrawer` not portaled in this release — no reported bug, and its z-index fix in v9.7.4 plus typical render path from inside ScheduleTab → ClubDashboard doesn't appear to hit the same issue. Defer unless a report surfaces.
+
+### Process learning — `0-learnings.md` Rule #16 candidate
+
+> **When fixing a modal/overlay z-index or stacking-context bug, audit ALL modals + overlays in the same component family in the same release cycle.** Single-fix mode misses the same root-cause class affecting other instances. v9.7.4 fixed the drawer z-index but didn't audit ClubCreateModal/ClubEventModal for the same family of issues; v9.8.1 closes the gap. Will be promoted to auto-memory after S5 retro confirms it didn't recur.
+
+### Sprint 5 process adherence
+
+- ✅ #1 Paired verification: build green; manual scan; auth gate intact
+- ✅ #2 Pre-commit grep against schema.sql — N/A (no SQL change)
+- ✅ #4 POST → GET round-trip — N/A (no new endpoints)
+- ✅ #5 Verification budget — small targeted hotfix, well within 12%
+- ✅ #6 Bug post-mortems — `#69` + `#70` together qualify; CHANGELOG entries above + the v9.7.5 entry capture root cause / fix / prevention rule in post-mortem-shaped form. A dedicated post-mortem file at `docs/post-mortems/v9.8.1-modal-stacking.md` will be written if `#70` recurs or if Sprint 5 retro decides the dual-bug pattern (sizing fix without stacking audit) needs durable memory promotion.
+
+### Bundle
+
+Dashboard chunk: 89.86 → 89.98 KB (+0.12 KB) — just the `createPortal` import.
+
+### Versions: 9.8.0 → 9.8.1 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.8.0] — 2026-05-01
 
 **First MINOR-correct feature release.** Closes the AI-description piece of `#60` (event-lifecycle work started in v9.7.3). Also: locks the release-naming convention in `CONTRIBUTING.md` and re-syncs the Confluence Sprint Roadmap with corrected labels going forward.

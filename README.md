@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.8.0](./CHANGELOG.md#980--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.8.1](./CHANGELOG.md#981--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.8.1
+
+**Hotfix.** Closes `#70` — the v9.7.5 fix for `#69` addressed the keyboard-driven sizing issue on Create Club modal but missed a SEPARATE root cause: a CSS stacking-context bug. The modal renders inline inside `ContextSwitcher` → `TopBar`, both of which create stacking contexts via `position: sticky / fixed` + z-index. Once a stacking context is created, child z-indices are confined to it — even `--z-modal: 500` can't beat siblings of the parent. Result: Create Club modal rendered BEHIND the Schedule tab calendar grid. Fix: `createPortal` from `react-dom`. Both `ClubCreateModal` and `ClubEventModal` now portal to `document.body`, escaping any parent stacking context. EventDetailDrawer not portaled (no reported bug; preventive fix deferred unless it surfaces). Added Rule #16 candidate to `0-learnings.md`: when fixing a modal/overlay z-index bug, audit ALL modals + overlays in the same component family in the same release cycle. Bundle: dashboard chunk +0.12 KB.
 
 ## What's new in v9.8.0
 
