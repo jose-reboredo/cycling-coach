@@ -4,6 +4,61 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.0.0] — 2026-05-01
+
+**Individual dashboard restructure — major.**
+
+This is a breaking UX change to the primary individual surfaces (Today and Train), justifying a MAJOR bump. The Today tab no longer drives planning; it now reads as a today-only dossier aggregating personal sessions and club rides from any source. The AI brief → calendar bridge introduced in v9.12.8 is moved to the Train tab where weekly planning lives. The full calendar continues to live on Schedule.
+
+This corrects a flow issue noted after v9.12.8: the "Add to schedule" button sat next to a route-picker on Today, the resulting session was inconsistently visible on the calendar, and Today contained content that didn't belong (multi-section planning UI for what should be a daily summary surface).
+
+### Today tab
+
+- **New `<TodayDossier>` component** in `apps/web/src/components/TodayDossier/`. Reads `/api/me/schedule` for the current month, filters to today, renders zone-coloured bordered pills (matching the SchedulePreview marketing visual) with start time, title, duration, zone label, and source badge (Solo / club name). Click → opens the existing `<EventDetailDrawer>`. Empty state links to Train and Schedule.
+- **Removed** the AI session card with `<RoutesPicker>`, `<Card>` block, "Pick a route to start" / "Add to schedule" button row. The Today tab no longer drives planning. Reduces `dashboard.today.tsx` from 415 → ~205 lines.
+- Greeting + PMC strip + week TSS / hours / FTP / W/kg tiles unchanged. Year-to-date forecast unchanged.
+
+### Train tab
+
+- **AI brief → personal scheduler bridge moved here.** `AiCoachCard` gained `onScheduleToday`, `scheduleTodayPending`, `scheduleTodayDone`, `scheduleTodayError` props. When provided, a single CTA renders between the WeekPlan and motivation paragraph: "+ Add today to your calendar". Hidden on rest days.
+- `parseAiSession(text)` extracted from `dashboard.today.tsx` to `apps/web/src/lib/aiSession.ts` for reuse and unit-testability.
+- Mutation uses existing `useCreatePlannedSession` (no new endpoint, no schema change). `source: 'ai-coach'` already on the allowlist (Migration 0008).
+
+### Desktop top-bar already fixed in v9.12.8
+
+The `computeTabsEnabled()` flip in v9.12.8 already restored TopTabs on desktop. No additional changes here. The user-feedback request to position TopTabs *under* the page-header (matching the club view's "tabs under club name") is deferred to v9.12.10 — it's a layout restructure that affects every dashboard tab, not just Today.
+
+### README rewrite
+
+Trimmed from 521 lines to ~150 lines. Restructured around: project description, tech stack, local development, project structure, recent releases, roadmap, contributing. Per-release deep-dives and persona-specific framing moved out of the README; CHANGELOG remains the authoritative history. Removed all internal-process references that don't help a public-GitHub developer audience.
+
+### Files changed
+
+```
+README.md                                                  # full rewrite (~150 lines)
+apps/web/src/lib/aiSession.ts                              # NEW: parseAiSession() helper
+apps/web/src/components/TodayDossier/TodayDossier.tsx      # NEW
+apps/web/src/components/TodayDossier/TodayDossier.module.css  # NEW
+apps/web/src/components/AiCoachCard/AiCoachCard.tsx        # +onScheduleToday CTA
+apps/web/src/components/AiCoachCard/AiCoachCard.module.css # +scheduleTodayRow
+apps/web/src/routes/dashboard.today.tsx                    # AI section removed; <TodayDossier /> inserted
+apps/web/src/routes/dashboard.train.tsx                    # +useCreatePlannedSession + handler
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Bundle
+
+`dashboard.today` chunk: -3 KB (RoutesPicker + AI card section removed). `dashboard.train` chunk: +0.5 KB (handler + state). New `TodayDossier` chunk: ~3 KB. Net neutral.
+
+### Why MAJOR
+
+Per SemVer: MAJOR for breaking changes. The Today tab's content and intent change in this release — anyone with deep links, integrations, screenshots, or muscle memory targeting the previous Today layout (PMC + AI session card + RoutesPicker + "Start workout in Strava") will land on a different surface. The AI session card that lived on Today since v8.x is gone. The "Add to schedule" button's location changes. Reasonable consumers should treat this as a breaking UX contract change. Hence v10.0.0.
+
+Note: a v9.12.9 release entry was created in Confluence ~2 minutes before the major reclassification. Same content; the deployed user-facing version is **v10.0.0**.
+
+---
+
 ## [9.12.8] — 2026-05-01
 
 **Desktop dashboard regression fix + AI brief → "Add to schedule" button.**

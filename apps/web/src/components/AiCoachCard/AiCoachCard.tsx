@@ -21,6 +21,14 @@ interface AiCoachCardProps {
   onClearApiKey: () => void;
   onGenerate: () => void | Promise<unknown>;
   onClearReport: () => void;
+  /** v9.12.9 — push today's session from the AI plan onto the personal
+   *  scheduler (POSTs `/api/me/sessions`). When provided, a single-button
+   *  CTA renders below the WeekPlan. Disabled while pending or after a
+   *  successful add. */
+  onScheduleToday?: () => void;
+  scheduleTodayPending?: boolean;
+  scheduleTodayDone?: boolean;
+  scheduleTodayError?: string | null;
 }
 
 /**
@@ -72,6 +80,10 @@ export function AiCoachCard(props: AiCoachCardProps) {
           onSetSessions={props.onSetSessions}
           onGenerate={props.onGenerate}
           onClearReport={props.onClearReport}
+          onScheduleToday={props.onScheduleToday}
+          scheduleTodayPending={props.scheduleTodayPending}
+          scheduleTodayDone={props.scheduleTodayDone}
+          scheduleTodayError={props.scheduleTodayError}
         />
       )}
     </section>
@@ -176,6 +188,10 @@ function ReportState({
   onSetSessions,
   onGenerate,
   onClearReport,
+  onScheduleToday,
+  scheduleTodayPending,
+  scheduleTodayDone,
+  scheduleTodayError,
 }: {
   report: AiReport;
   loading: boolean;
@@ -184,7 +200,15 @@ function ReportState({
   onSetSessions: (n: number) => void;
   onGenerate: () => void | Promise<unknown>;
   onClearReport: () => void;
+  onScheduleToday?: () => void;
+  scheduleTodayPending?: boolean;
+  scheduleTodayDone?: boolean;
+  scheduleTodayError?: string | null;
 }) {
+  const today = todayKey();
+  const todayText = report.weeklyPlan[today] ?? '';
+  const todayIsRest = !todayText || isRestText(todayText);
+
   return (
     <div className={styles.report}>
       <p className={styles.summary}>{report.summary}</p>
@@ -209,6 +233,31 @@ function ReportState({
       </div>
 
       <WeekPlan plan={report.weeklyPlan} sessions={report.sessions_per_week} />
+
+      {/* v9.12.9 — push today's row from the AI plan onto the personal
+          scheduler. The Today tab's TodayDossier reads /api/me/schedule and
+          will surface this session immediately. Hidden when today is a
+          rest day or no callback is provided. */}
+      {onScheduleToday && !todayIsRest && (
+        <div className={styles.scheduleTodayRow}>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={onScheduleToday}
+            disabled={scheduleTodayPending || scheduleTodayDone}
+            withArrow={!scheduleTodayDone}
+          >
+            {scheduleTodayDone
+              ? '✓ Today scheduled'
+              : scheduleTodayPending
+                ? 'Saving…'
+                : '+ Add today to your calendar'}
+          </Button>
+          {scheduleTodayError && (
+            <p className={styles.errorMsg} role="alert">{scheduleTodayError}</p>
+          )}
+        </div>
+      )}
 
       <p className={styles.motivation}>{report.motivation}</p>
 

@@ -327,6 +327,17 @@
   letter-spacing: -0.005em;
 }
 
+/* v9.12.9 — single-CTA row to push today's session onto the personal
+ * calendar. Sits between WeekPlan and the motivation paragraph. */
+.scheduleTodayRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-4) 0;
+  border-top: 1px dashed var(--c-line);
+}
+
 .reportFoot {
   display: grid;
   grid-template-columns: 1fr;

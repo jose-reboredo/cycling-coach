@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { Container } from '../components/Container/Container';
@@ -9,9 +9,11 @@ import { useTrainingPrefs } from '../hooks/useTrainingPrefs';
 import { useAiReport } from '../hooks/useAiReport';
 import { useGoalEvent } from '../hooks/useGoalEvent';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
+import { useCreatePlannedSession } from '../hooks/useClubs';
 import { useRides } from '../hooks/useStravaData';
 import { readTokens } from '../lib/auth';
-import { computeStats, recentForCoach } from '../lib/coachUtils';
+import { computeStats, recentForCoach, todayKey } from '../lib/coachUtils';
+import { parseAiSession } from '../lib/aiSession';
 import { MARCO, MOCK_ACTIVITIES } from '../lib/mockMarco';
 import styles from './TabShared.module.css';
 
@@ -64,6 +66,38 @@ function TrainTab() {
     } catch {
       /* surfaced via aiReport.error */
     }
+  };
+
+  // v9.12.9 — push today's row from the AI weekly plan onto the personal
+  // scheduler. The Today tab's TodayDossier reads /api/me/schedule and
+  // surfaces this session immediately. Resets when a new plan is generated.
+  const createPlannedSession = useCreatePlannedSession();
+  const [scheduleTodayDone, setScheduleTodayDone] = useState(false);
+  const [scheduleTodayError, setScheduleTodayError] = useState<string | null>(null);
+  const handleScheduleToday = () => {
+    const todayDayKey = todayKey();
+    const text = aiReport.report?.weeklyPlan?.[todayDayKey];
+    if (!text || createPlannedSession.isPending) return;
+    setScheduleTodayError(null);
+    const parsed = parseAiSession(text);
+    const today = new Date();
+    today.setHours(18, 0, 0, 0); // sensible default — user can edit via drawer.
+    createPlannedSession.mutate(
+      {
+        title: parsed.title,
+        session_date: Math.floor(today.getTime() / 1000),
+        description: text,
+        ...(parsed.zone != null ? { zone: parsed.zone } : {}),
+        duration_minutes: parsed.durationMin ?? 60,
+        ...(parsed.watts != null ? { target_watts: parsed.watts } : {}),
+        source: 'ai-coach',
+      },
+      {
+        onSuccess: () => setScheduleTodayDone(true),
+        onError: (err) =>
+          setScheduleTodayError(err instanceof Error ? err.message : 'Could not add to schedule.'),
+      },
+    );
   };
 
   return (
@@ -121,8 +155,20 @@ function TrainTab() {
             onSetSessions={(n) => updatePrefs({ sessions_per_week: n })}
             onSetApiKey={saveApiKey}
             onClearApiKey={clearApiKey}
-            onGenerate={handleGenerate}
-            onClearReport={aiReport.clear}
+            onGenerate={() => {
+              setScheduleTodayDone(false);
+              setScheduleTodayError(null);
+              return handleGenerate();
+            }}
+            onClearReport={() => {
+              setScheduleTodayDone(false);
+              setScheduleTodayError(null);
+              aiReport.clear();
+            }}
+            onScheduleToday={handleScheduleToday}
+            scheduleTodayPending={createPlannedSession.isPending}
+            scheduleTodayDone={scheduleTodayDone}
+            scheduleTodayError={scheduleTodayError}
           />
         </motion.section>
       </Container>
