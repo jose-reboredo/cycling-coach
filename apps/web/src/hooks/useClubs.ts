@@ -2,7 +2,7 @@
 // as useStravaData hooks (5 min stale, 30 min gc).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clubsApi, type Club, type ClubEvent, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type JoinClubResponse, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
+import { clubsApi, type Club, type ClubEvent, type ClubEventsRangeResponse, type ClubMember, type ClubOverview, type CreateClubEventInput, type CreateClubInput, type CreateClubResponse, type JoinClubResponse, type ProfilePatchInput, type ProfilePatchResponse, type RsvpResponse } from '../lib/clubsApi';
 
 const FIVE_MIN = 5 * 60 * 1000;
 const THIRTY_MIN = 30 * 60 * 1000;
@@ -54,6 +54,19 @@ export function useClubEvents(clubId: number | null, opts: { includePast?: boole
     // Events are time-sensitive; refetch more aggressively than other club data.
     staleTime: 60 * 1000,        // 1 min stale
     gcTime: 10 * 60 * 1000,      // 10 min gc
+  });
+}
+
+// Sprint 5 Phase 3 (v9.7.0) — Schedule tab month view.
+// `range` is 'YYYY-MM' (e.g. '2026-05'). Returns events with event_type +
+// confirmed_count for the entire UTC month, ordered by event_date ASC.
+export function useClubEventsByMonth(clubId: number | null, range: string) {
+  return useQuery<ClubEventsRangeResponse>({
+    queryKey: ['clubs', clubId, 'events', 'range', range],
+    queryFn: () => clubsApi.eventsByMonth(clubId as number, range),
+    enabled: clubId != null && /^\d{4}-\d{2}$/.test(range),
+    staleTime: FIVE_MIN,
+    gcTime: THIRTY_MIN,
   });
 }
 

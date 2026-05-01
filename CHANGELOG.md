@@ -4,6 +4,69 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [9.7.0] — 2026-05-01
+
+**Sprint 5 Phase 3 — clubs Schedule tab.** First feature release under the new founder process directives (sprint retros mandatory, bug post-mortems mandatory, paired Sonnet+verification dispatch, nightly autonomous code-review routine). All Sprint-5 kickoff items #1–#7 from the retro played out as planned: founder walkthrough on UI before code; ADR-S5.1 + ADR-S5.2 locked in 1 round; pre-commit grep against `schema.sql` caught a column-name drift (`start_date_local` → `event_date`) before commit; hygiene-close commit retired `#44`/`#45`/`#3`; v9.6.1 + v9.6.4 retroactive post-mortems established the template.
+
+### Migration 0006 — `club_events.event_type`
+
+`ALTER TABLE club_events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'ride'`. Single column add; backfills existing rows via the NOT NULL DEFAULT. No new index — existing `idx_club_events_club_date(club_id, event_date)` already serves the month-range query the new endpoint runs.
+
+Pre-CTO verification (Sprint 4 Improvement #2): grep'd the new SQL against `schema.sql` before commit. Caught my own design drift — the actual column name is `event_date` (INTEGER unix epoch), not `start_date_local` as the early walkthrough described. Schedule tab walkthrough corrected before any code landed; migration shipped clean. Applied to local + remote D1; verified via `PRAGMA table_info(club_events)` returns `event_type` row.
+
+### Endpoint extension — `GET /api/clubs/:id/events?range=YYYY-MM`
+
+The existing GET handler now supports a `range` query param. When provided:
+
+- Validates `YYYY-MM` shape (regex + year/month bounds 2000–2100, 1–12)
+- Computes UTC month boundaries in unix seconds (`Date.UTC(yr, mo - 1, 1)` start, `Date.UTC(yr, mo, 1) - 1` end)
+- Runs a single D1 query: `club_events` LEFT JOIN `users` (creator name) LEFT JOIN `event_rsvps` (`COUNT(CASE WHEN status='going')` for `confirmed_count`)
+- Returns `{club_id, range: {year, month, start, end}, events: [...]}` with each event including `event_type` + `confirmed_count`
+- Sets `Cache-Control: private, max-age=300` for edge caching (5 min — events change infrequently within a month view)
+- Membership-gated 404 (OWASP) — same gate as the existing branches
+- Read-only; no rate-limit bump
+
+Original GET branches preserved — `?include=past` (50 rows DESC) and default (upcoming 50 ASC) both now return `event_type` in their selects too.
+
+### Schedule tab UI — `apps/web/src/components/ClubDashboard/ScheduleTab.tsx`
+
+New component (~190 lines TSX + ~210 lines CSS). Replaces the v9.6.0 placeholder ("Coming in v9.6.2"). Design choices locked with founder 2026-05-01:
+
+- **6×7 month grid**, Monday-start week (matches European convention; `getUTCDay()` Sun=0 → Monday-0 conversion at line ~52). Always renders 42 cells; out-of-month cells flagged with `inMonth: false` and rendered with `--c-bg-deep` background + 50% opacity day number.
+- **Today highlighted** with 1 px accent border (matches BottomNav active-state convention from v9.6.4 Club tabs typography align).
+- **Prev / next month nav** — buttons sized to `--hit-min` (44 px touch target), `:focus-visible` ring per Sprint 3 Phase 3 conventions.
+- **Filter chips** — multi-select by `event_type`. Empty filter set = show all. Active chip uses `--c-accent` + 8% accent background. `aria-pressed` on each.
+- **Event pills** — up to 2 per cell, `+N more` overflow. Colour-coded:
+  - `ride` — `--c-accent` text on 12% accent background
+  - `social` — `--c-info` text on 15% info background
+  - `race` — `--c-warn` text on 15% warn background
+- **Time formatting** — UTC `HH:MM` from `event_date` epoch; pill shows `HH:MM` mono + truncated title; mobile (≤ 600 px) hides title and shows time only.
+- **Empty state** — "No events in {Month} {Year}" when filter set is empty or no events exist.
+
+No new design tokens introduced. Reuses `--c-accent`, `--c-info`, `--c-warn`, `--c-text-faint`, `--hit-min`, `--ring-focus`, `--ring-focus-offset`, `--s-*` spacing scale, `--r-*` radius scale.
+
+### Frontend hook — `useClubEventsByMonth(clubId, range)`
+
+New Tanstack Query hook. `enabled: clubId != null && /^\d{4}-\d{2}$/.test(range)`. `staleTime: 5 min`, `gcTime: 30 min` — same conventions as `useClubOverview`. `queryKey: ['clubs', clubId, 'events', 'range', range]` so each month's view gets its own cache slot.
+
+### Bundle impact
+
+`dashboard` chunk: 66.23 KB → 70.42 KB (+4.19 KB / +6.3%). Acceptable — the calendar grid logic is in a single component.
+
+### Sprint 5 process adherence (Sprint 4 Improvements applied)
+
+- ✅ #2 Pre-commit grep against `schema.sql` for any SQL change — caught my own column-name drift before commit
+- ✅ #3 Defensive sub-agent scope — no Sonnet sub-agents dispatched this phase; Opus implemented directly
+- ✅ #4 End-to-end smoke for UPSERT + count-refetch — N/A (this endpoint is read-only); endpoint smoked via direct curl + month-range probe
+- ✅ #5 Verification budget at 12% — paired self-verification (build + grep + curl smoke before commit)
+- ✅ #6 Bug post-mortems — none required (no hotfix triggered)
+
+### Versions: 9.6.5 → 9.7.0 in 5 places
+
+`apps/web/package.json`, `package.json`, `src/worker.js` (`WORKER_VERSION`), `apps/web/src/lib/version.ts`, `README.md` Current-release line.
+
+---
+
 ## [9.6.5] — 2026-05-01
 
 **Marketing rewrite.** Landing page realigned to current product direction (clubs-first with AI embedded across three personas) after the 4-sprint trajectory was locked. No backend, schema, or routing changes.

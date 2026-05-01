@@ -2,7 +2,11 @@
 
 Cycling clubs with an AI training brain. PMC for the solo rider; Overview / Schedule / Members / Metrics with AI-drafted Circle Notes for the club. Built for three personas: **Marco** (performance amateur, Zürich, FTP 285), **Sofia** (Saturday-crew captain), **Léa** (casual commuter who wants to belong).
 
-**Current release: [v9.6.5](./CHANGELOG.md#965--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+**Current release: [v9.7.0](./CHANGELOG.md#970--2026-05-01)** · 2026-05-01 · [Security](./SECURITY.md)
+
+## What's new in v9.7.0
+
+Sprint 5 Phase 3 — clubs Schedule tab. The 4-tab IA's Schedule placeholder ("Coming in v9.6.2") is now a full month-grid calendar: 6×7 grid Monday-start, today highlighted, prev/next month navigation, filter chips multi-select by `event_type` (🚴 ride / ☕ social / 🏁 race), event pills per cell colour-coded by type with tap-to-detail and `+N more` overflow. Migration `0006` adds `club_events.event_type TEXT NOT NULL DEFAULT 'ride'` (backfills existing rows). New endpoint extension `GET /api/clubs/:id/events?range=YYYY-MM` returns events with `confirmed_count` from `event_rsvps` LEFT JOIN, ordered by `event_date ASC`, with 5-min edge cache (`Cache-Control: private, max-age=300`). Two ADRs locked: ADR-S5.1 cron failure mode (log-and-skip, no retry — Phase 4 prep) and ADR-S5.2 readiness-dot thresholds (TSB ≥ +5 / -10 to +5 / < -10 — Phase 4 prep). New `useClubEventsByMonth(clubId, range)` Tanstack Query hook with the project's standard staleTime/gcTime. No new components beyond ScheduleTab + module CSS; reuses design tokens (`--c-accent`, `--c-info`, `--c-warn`) and Sprint 3 a11y patterns (`--hit-min`, `--ring-focus`, `:focus-visible`). Dashboard chunk +4 KB. Sprint 5 Phase 4 (cron handler + readiness dots + trend arrows) lands as v9.7.1; clubs share/invite (`#56`) lands as v9.7.2.
 
 ## What's new in v9.6.5
 

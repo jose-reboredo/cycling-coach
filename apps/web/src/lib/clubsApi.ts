@@ -94,6 +94,8 @@ export interface JoinClubResponse {
   role: 'admin' | 'member' | string;
 }
 
+export type ClubEventType = 'ride' | 'social' | 'race';
+
 export interface ClubEvent {
   id: number;
   club_id: number;
@@ -102,9 +104,17 @@ export interface ClubEvent {
   description: string | null;
   location: string | null;
   event_date: number; // unix epoch seconds
+  event_type: ClubEventType; // v9.7.0 (migration 0006) — defaults to 'ride'
   created_at: number;
   creator_firstname?: string | null;
   creator_lastname?: string | null;
+}
+
+// Sprint 5 Phase 3 (v9.7.0) — Schedule tab month-range query.
+export interface ClubEventsRangeResponse {
+  club_id: number;
+  range: { year: number; month: number; start: number; end: number };
+  events: Array<ClubEvent & { confirmed_count: number }>;
 }
 
 export interface CreateClubEventInput {
@@ -153,6 +163,13 @@ export const clubsApi = {
     call<{ club_id: number; events: ClubEvent[] }>(
       `/api/clubs/${clubId}/events${opts.includePast ? '?include=past' : ''}`,
     ).then((r) => r.events),
+  // Sprint 5 Phase 3 (v9.7.0) — Schedule tab month view.
+  // range: 'YYYY-MM' (e.g. '2026-05'). Returns events with event_type +
+  // confirmed_count, ordered by event_date ASC.
+  eventsByMonth: (clubId: number, range: string) =>
+    call<ClubEventsRangeResponse>(
+      `/api/clubs/${clubId}/events?range=${encodeURIComponent(range)}`,
+    ),
   createEvent: (clubId: number, input: CreateClubEventInput) =>
     call<ClubEvent>(`/api/clubs/${clubId}/events`, {
       method: 'POST',

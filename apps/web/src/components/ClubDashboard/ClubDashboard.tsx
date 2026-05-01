@@ -3,6 +3,7 @@ import { Eyebrow } from '../Eyebrow/Eyebrow';
 import { Pill } from '../Pill/Pill';
 import { useClubMembers, useClubOverview, useRsvp } from '../../hooks/useClubs';
 import { ClubEventModal } from '../ClubEventModal/ClubEventModal';
+import { ScheduleTab } from './ScheduleTab';
 import type { ClubMember, UpcomingEvent } from '../../lib/clubsApi';
 import styles from './ClubDashboard.module.css';
 
@@ -140,13 +141,8 @@ export function ClubDashboard({ clubId, clubName, role }: ClubDashboardProps) {
         </>
       )}
 
-      {/* ---- SCHEDULE TAB (Phase 3 — v9.6.2) ---- */}
-      {tab === 'schedule' && (
-        <div className={styles.tabPlaceholder}>
-          <Eyebrow rule tone="accent">Schedule</Eyebrow>
-          <p className={styles.tabPlaceholderBody}>Coming in v9.6.2</p>
-        </div>
-      )}
+      {/* ---- SCHEDULE TAB (Phase 3 — v9.7.0) ---- */}
+      {tab === 'schedule' && <ScheduleTab clubId={clubId} />}
 
       {/* ---- MEMBERS TAB (Phase 2 — v9.6.2) ---- */}
       {tab === 'members' && (

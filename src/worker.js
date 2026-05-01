@@ -15,7 +15,7 @@ import { SPEC_PAGES, LEGACY_PAGES_TO_REMOVE } from './docs.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v9.6.5';
+const WORKER_VERSION = 'v9.7.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -566,15 +566,71 @@ async function handleRequest(request, env) {
         }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // GET — upcoming first (event_date >= now); cap at 50 rows.
+      // GET — three modes:
+      //   ?range=YYYY-MM → Schedule tab month view (Sprint 5 Phase 3, v9.7.0).
+      //                    Returns events in that UTC month with event_type +
+      //                    confirmed_count via LEFT JOIN event_rsvps.
+      //   ?include=past  → all events, newest first, cap 50.
+      //   (default)      → upcoming events (event_date >= now), cap 50.
+      const rangeParam = url.searchParams.get('range');
+      if (rangeParam) {
+        // Validate YYYY-MM. SQL injection-safe: epoch math is integer-only;
+        // bind params handle clubId + epochs.
+        const rangeMatch = rangeParam.match(/^(\d{4})-(\d{2})$/);
+        if (!rangeMatch) {
+          return new Response(JSON.stringify({ error: 'range must be YYYY-MM (e.g. 2026-05)' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const yr = parseInt(rangeMatch[1], 10);
+        const mo = parseInt(rangeMatch[2], 10);
+        if (yr < 2000 || yr > 2100 || mo < 1 || mo > 12) {
+          return new Response(JSON.stringify({ error: 'range out of bounds' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        // UTC month boundaries in unix seconds. Date.UTC(y, m, 1) = first
+        // millisecond of (y, m) where m is 0-indexed; subtract 1 second to
+        // get inclusive end of the target month.
+        const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000);
+        const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1;
+        const { results: rangeRows } = await db.prepare(
+          'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
+          '       e.event_date, e.event_type, e.created_at, ' +
+          '       u.firstname AS creator_firstname, u.lastname AS creator_lastname, ' +
+          '       COUNT(CASE WHEN r.status = \'going\' THEN 1 END) AS confirmed_count ' +
+          'FROM club_events e ' +
+          'LEFT JOIN users u ON u.athlete_id = e.created_by ' +
+          'LEFT JOIN event_rsvps r ON r.event_id = e.id ' +
+          'WHERE e.club_id = ? AND e.event_date BETWEEN ? AND ? ' +
+          'GROUP BY e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
+          '         e.event_date, e.event_type, e.created_at, u.firstname, u.lastname ' +
+          'ORDER BY e.event_date ASC',
+        ).bind(clubId, startEpoch, endEpoch).all();
+        const events = (rangeRows || []).map((e) => ({
+          ...e,
+          confirmed_count: Number(e.confirmed_count ?? 0),
+        }));
+        return new Response(JSON.stringify({
+          club_id: clubId,
+          range: { year: yr, month: mo, start: startEpoch, end: endEpoch },
+          events,
+        }), {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'Cache-Control': 'private, max-age=300',
+          },
+        });
+      }
       const includePast = url.searchParams.get('include') === 'past';
       const now = Math.floor(Date.now() / 1000);
       const sql = includePast
-        ? 'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, e.event_date, e.created_at, ' +
+        ? 'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, e.event_date, e.event_type, e.created_at, ' +
           '       u.firstname AS creator_firstname, u.lastname AS creator_lastname ' +
           'FROM club_events e LEFT JOIN users u ON u.athlete_id = e.created_by ' +
           'WHERE e.club_id = ? ORDER BY e.event_date DESC LIMIT 50'
-        : 'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, e.event_date, e.created_at, ' +
+        : 'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, e.event_date, e.event_type, e.created_at, ' +
           '       u.firstname AS creator_firstname, u.lastname AS creator_lastname ' +
           'FROM club_events e LEFT JOIN users u ON u.athlete_id = e.created_by ' +
           'WHERE e.club_id = ? AND e.event_date >= ? ORDER BY e.event_date ASC LIMIT 50';
