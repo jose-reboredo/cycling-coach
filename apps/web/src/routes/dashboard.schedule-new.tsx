@@ -22,6 +22,11 @@ interface SchedNewSearch {
    *  cached `useMyScheduleByMonth` query. Drawer Edit-click computes this
    *  from the event's date so the lookup is cache-friendly. */
   range?: string;
+  /** v10.10.0 — quick-add prefill from clicking an empty calendar cell.
+   *  ISO date YYYY-MM-DD. */
+  date?: string;
+  /** v10.10.0 — quick-add prefill time HH:MM. Only set from Week/Day cells. */
+  time?: string;
 }
 
 // v9.12.1 (#80) — flat path /dashboard/schedule-new so it doesn't nest
@@ -32,6 +37,8 @@ export const Route = createFileRoute('/dashboard/schedule-new')({
   validateSearch: (search: Record<string, unknown>): SchedNewSearch => ({
     id: search.id != null && Number.isFinite(Number(search.id)) ? Number(search.id) : undefined,
     range: typeof search.range === 'string' && /^\d{4}-\d{2}$/.test(search.range) ? search.range : undefined,
+    date: typeof search.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.date) ? search.date : undefined,
+    time: typeof search.time === 'string' && /^\d{2}:\d{2}$/.test(search.time) ? search.time : undefined,
   }),
   component: NewSessionPage,
 });
@@ -48,7 +55,7 @@ const ZONE_OPTIONS: { value: number; label: string }[] = [
 
 function NewSessionPage() {
   const navigate = useNavigate();
-  const { id: editId, range: editRange } = Route.useSearch();
+  const { id: editId, range: editRange, date: prefillDate, time: prefillTime } = Route.useSearch();
   const isEdit = editId != null;
 
   const createSession = useCreatePlannedSession();
@@ -65,15 +72,23 @@ function NewSessionPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   })();
 
+  // v10.10.0 — quick-add prefill from calendar cell click.
+  const initialDate = prefillDate ?? todayDate;
+  const initialTime = prefillTime ?? '18:00';
+
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(todayDate);
-  const [time, setTime] = useState('18:00');
+  const [date, setDate] = useState(initialDate);
+  const [time, setTime] = useState(initialTime);
   const [zone, setZone] = useState<string>('');
   const [duration, setDuration] = useState('');
   const [watts, setWatts] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
+  // v10.10.0 — repeat-weekly toggle. Off in Edit mode (one row at a time).
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
+  const [repeatWeeks, setRepeatWeeks] = useState('4');
+  const [repeatProgress, setRepeatProgress] = useState<{ current: number; total: number } | null>(null);
 
   // v9.12.5 — Edit mode: populate form once the session arrives from cache/fetch.
   useEffect(() => {
@@ -146,17 +161,31 @@ function NewSessionPage() {
           },
         });
       } else {
-        await createSession.mutateAsync({
-          title: trimmed,
-          session_date: Math.floor(sessionMs / 1000),
-          ...(description.trim() ? { description: description.trim() } : {}),
-          ...(zoneNum != null ? { zone: zoneNum } : {}),
-          ...(durationNum != null ? { duration_minutes: durationNum } : {}),
-          ...(wattsNum != null ? { target_watts: wattsNum } : {}),
-        });
+        // v10.10.0 — Repeat-weekly: client-side sequential loop. Each
+        // iteration shifts session_date forward by 7 days. Progress
+        // surfaced via repeatProgress state so the UI shows
+        // "Saving session 3 of 4…". If browser closes mid-loop, partial
+        // week is acceptable v1 — user can re-run for the missing days.
+        const repetitions = repeatWeekly
+          ? Math.max(1, Math.min(12, Number(repeatWeeks) || 1))
+          : 1;
+        for (let i = 0; i < repetitions; i++) {
+          if (repetitions > 1) setRepeatProgress({ current: i + 1, total: repetitions });
+          const offsetSec = i * 7 * 86400;
+          await createSession.mutateAsync({
+            title: trimmed,
+            session_date: Math.floor(sessionMs / 1000) + offsetSec,
+            ...(description.trim() ? { description: description.trim() } : {}),
+            ...(zoneNum != null ? { zone: zoneNum } : {}),
+            ...(durationNum != null ? { duration_minutes: durationNum } : {}),
+            ...(wattsNum != null ? { target_watts: wattsNum } : {}),
+          });
+        }
+        setRepeatProgress(null);
       }
       navigate({ to: '/dashboard/schedule' });
     } catch (err) {
+      setRepeatProgress(null);
       setError(err instanceof Error ? err.message : 'Could not save session.');
     }
   }
@@ -285,6 +314,39 @@ function NewSessionPage() {
             <span className={styles.fieldHint}>Optional. Up to 2,000 characters.</span>
           </div>
 
+          {/* v10.10.0 — Repeat-weekly toggle. Only visible in create mode
+              (Edit operates on a single session). When checked, the form
+              creates N sessions, one per week starting at the chosen date. */}
+          {!isEdit && (
+            <div className={styles.repeatBlock}>
+              <label className={styles.repeatLabel}>
+                <input
+                  type="checkbox"
+                  checked={repeatWeekly}
+                  onChange={(e) => setRepeatWeekly(e.target.checked)}
+                />
+                <span>Repeat weekly</span>
+              </label>
+              {repeatWeekly && (
+                <div className={styles.repeatControls}>
+                  <label className={styles.fieldLabel} htmlFor="s-repeat-weeks">For</label>
+                  <input
+                    id="s-repeat-weeks"
+                    className={styles.input}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={12}
+                    value={repeatWeeks}
+                    onChange={(e) => setRepeatWeeks(e.target.value)}
+                    style={{ width: '5em' }}
+                  />
+                  <span className={styles.fieldHint}>weeks (1–12)</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <p className={styles.formLegend}>* Required</p>
 
           {error && <div className={styles.error} role="alert">{error}</div>}
@@ -296,7 +358,11 @@ function NewSessionPage() {
               size="md"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving…' : (isEdit ? 'Save changes' : 'Save session')}
+              {repeatProgress
+                ? `Saving session ${repeatProgress.current} of ${repeatProgress.total}…`
+                : isSaving
+                  ? 'Saving…'
+                  : (isEdit ? 'Save changes' : repeatWeekly ? `Save ${repeatWeeks} sessions` : 'Save session')}
             </Button>
             <button
               type="button"

@@ -24,6 +24,10 @@ interface WeekCalendarGridProps {
   events: CalendarEvent[];
   activeFilters: Set<ClubEventType>;
   onEventClick: (event: CalendarEvent) => void;
+  /** v10.10.0 — quick-add. Fires when an empty hour slot is clicked.
+   *  Receives YYYY-MM-DD + HH:MM (the slot's start hour). Caller
+   *  navigates to /dashboard/schedule-new prefilled. */
+  onCellClick?: (dateStr: string, timeStr: string) => void;
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -37,6 +41,7 @@ export function WeekCalendarGrid({
   events,
   activeFilters,
   onEventClick,
+  onCellClick,
 }: WeekCalendarGridProps) {
   const today = todayUTC();
   const start = useMemo(() => weekStart(date), [date]);
@@ -92,9 +97,25 @@ export function WeekCalendarGrid({
               key={`col-${key}`}
               className={`${styles.weekDayCol} ${isToday ? styles.weekDayColToday : ''}`}
             >
-              {hours.slice(0, -1).map((h) => (
-                <div key={h} className={styles.weekHourSlot} aria-hidden="true" />
-              ))}
+              {hours.slice(0, -1).map((h) => {
+                // v10.10.0 — clickable hour slot for quick-add.
+                const handleSlotClick = () => {
+                  if (!onCellClick) return;
+                  const dateStr = `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
+                  const timeStr = `${String(h).padStart(2, '0')}:00`;
+                  onCellClick(dateStr, timeStr);
+                };
+                return (
+                  <div
+                    key={h}
+                    className={`${styles.weekHourSlot} ${onCellClick ? styles.weekHourSlotClickable : ''}`}
+                    onClick={onCellClick ? handleSlotClick : undefined}
+                    role={onCellClick ? 'button' : undefined}
+                    aria-label={onCellClick ? `Add session at ${h}:00` : undefined}
+                    tabIndex={onCellClick ? 0 : -1}
+                  />
+                );
+              })}
               {dayEvents.map((e) => {
                 const dt = new Date(e.event_date * 1000);
                 // v9.12.4 — render in viewer's local TZ (was UTC). DB stays UTC.

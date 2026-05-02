@@ -142,6 +142,56 @@ function PersonalSchedule() {
     return [...club, ...personal].sort((a, b) => a.event_date - b.event_date);
   }, [data]);
 
+  // v10.10.0 — Week / Day summary footer. Computes totals across the
+  // visible date window. TSS is a rough proxy: durationMin × IF², where IF
+  // is zone-derived (Z2 ≈ 0.65, Z3 ≈ 0.78, Z4 ≈ 0.91, Z5 ≈ 1.05). Plenty
+  // accurate for a "weekly volume" sanity check; not a coaching tool.
+  const visibleWindow = useMemo(() => {
+    if (view === 'month') return null; // footer hidden in month view
+    let startSec: number;
+    let endSec: number;
+    if (view === 'week') {
+      const start = weekStart(date);
+      const startDate = new Date(start.year, start.month - 1, start.day, 0, 0, 0);
+      const endDate = new Date(start.year, start.month - 1, start.day + 7, 0, 0, 0);
+      startSec = Math.floor(startDate.getTime() / 1000);
+      endSec = Math.floor(endDate.getTime() / 1000);
+    } else {
+      const startDate = new Date(date.year, date.month - 1, date.day, 0, 0, 0);
+      const endDate = new Date(date.year, date.month - 1, date.day + 1, 0, 0, 0);
+      startSec = Math.floor(startDate.getTime() / 1000);
+      endSec = Math.floor(endDate.getTime() / 1000);
+    }
+    return { startSec, endSec };
+  }, [view, date]);
+
+  const summary = useMemo(() => {
+    if (!visibleWindow) return null;
+    const inWindow = events.filter(
+      (e) => !e.cancelled_at && e.event_date >= visibleWindow.startSec && e.event_date < visibleWindow.endSec,
+    );
+    const ifByZone: Record<number, number> = { 1: 0.5, 2: 0.65, 3: 0.78, 4: 0.91, 5: 1.05, 6: 1.1, 7: 1.15 };
+    let totalMin = 0;
+    let totalTss = 0;
+    let clubRides = 0;
+    let personalRides = 0;
+    for (const e of inWindow) {
+      const dur = e.duration_minutes ?? 0;
+      totalMin += dur;
+      const intensity = e.zone != null ? ifByZone[e.zone] ?? 0.65 : 0.65;
+      totalTss += dur * intensity * intensity;
+      if (e.is_personal) personalRides++;
+      else clubRides++;
+    }
+    return {
+      hours: Math.round((totalMin / 60) * 10) / 10,
+      tss: Math.round(totalTss),
+      clubRides,
+      personalRides,
+      total: inWindow.length,
+    };
+  }, [events, visibleWindow]);
+
   const stepDate = (delta: number) => {
     if (view === 'month') {
       const d = new Date(Date.UTC(date.year, date.month - 1 + delta, 1));
@@ -251,6 +301,14 @@ function PersonalSchedule() {
                 events={events}
                 activeFilters={activeFilters}
                 onEventClick={setActiveEvent}
+                /* v10.10.0 — quick-add: clicking an empty Month cell
+                 * navigates to schedule-new prefilled with that date. */
+                onCellClick={(dateStr) =>
+                  navigate({
+                    to: '/dashboard/schedule-new',
+                    search: { date: dateStr },
+                  })
+                }
               />
             )}
             {view === 'week' && (
@@ -259,6 +317,13 @@ function PersonalSchedule() {
                 events={events}
                 activeFilters={activeFilters}
                 onEventClick={setActiveEvent}
+                /* v10.10.0 — quick-add: empty hour slot → schedule-new prefilled. */
+                onCellClick={(dateStr, timeStr) =>
+                  navigate({
+                    to: '/dashboard/schedule-new',
+                    search: { date: dateStr, time: timeStr },
+                  })
+                }
               />
             )}
             {view === 'day' && (
@@ -267,9 +332,36 @@ function PersonalSchedule() {
                 events={events}
                 activeFilters={activeFilters}
                 onEventClick={setActiveEvent}
+                onCellClick={(dateStr, timeStr) =>
+                  navigate({
+                    to: '/dashboard/schedule-new',
+                    search: { date: dateStr, time: timeStr },
+                  })
+                }
               />
             )}
           </div>
+        )}
+
+        {/* v10.10.0 — Week / Day summary footer. Hidden on Month view
+            (too much data to summarise meaningfully). */}
+        {summary && summary.total > 0 && (
+          <footer className={styles.summary} aria-label={`${view === 'week' ? 'Week' : 'Day'} summary`}>
+            <span className={styles.summaryStat}>
+              <strong>{summary.hours}</strong> h planned
+            </span>
+            <span className={styles.summaryStat}>
+              <strong>~{summary.tss}</strong> TSS
+            </span>
+            <span className={styles.summaryStat}>
+              <strong>{summary.total}</strong> ride{summary.total === 1 ? '' : 's'}
+              {summary.clubRides > 0 && summary.personalRides > 0 && (
+                <span className={styles.summaryDetail}>
+                  {' '}({summary.personalRides} solo · {summary.clubRides} club)
+                </span>
+              )}
+            </span>
+          </footer>
         )}
 
         {!isLoading && !error && events.length === 0 && (

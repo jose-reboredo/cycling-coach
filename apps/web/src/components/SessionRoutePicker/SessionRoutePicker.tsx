@@ -44,6 +44,8 @@ type DisplayRoute =
       surface_type: string;
       score: number;
       gpx: string;
+      /** v10.10.0 — 1-2 plain-English reasons for the match score. */
+      reasons: string[];
     }
   | {
       source: 'strava';
@@ -54,6 +56,7 @@ type DisplayRoute =
       surface_type: string;
       score: number;
       strava_url: string | null;
+      reasons: string[];
     }
   | {
       source: 'rwgps';
@@ -64,6 +67,7 @@ type DisplayRoute =
       surface_type: string;
       score: number;
       rwgps_url: string;
+      reasons: string[];
     };
 
 interface SessionRoutePickerProps {
@@ -82,6 +86,65 @@ function surfaceToCyclingType(surface: string | undefined): CyclingType {
   if (surface === 'gravel') return 'gravel';
   if (surface === 'paved') return 'road';
   return 'road';
+}
+
+/** v10.10.0 — Build 1-2 plain-English match reasons for a route card.
+ *  Surfaces what made (or hurt) the score so the user trusts the ranking
+ *  and can pick a route faster. Reasons rendered as a bullet list under
+ *  each card in the picker. */
+function buildReasons({
+  distanceKm,
+  targetDistanceKm,
+  elevationM,
+  targetElevationM,
+  surfaceType,
+  cyclingType,
+}: {
+  distanceKm: number;
+  targetDistanceKm: number | null;
+  elevationM: number;
+  targetElevationM: number | null;
+  surfaceType: string;
+  cyclingType: CyclingType;
+}): string[] {
+  const reasons: string[] = [];
+
+  // Distance — primary signal. Always lead.
+  if (targetDistanceKm != null && targetDistanceKm > 0) {
+    const pct = Math.round((distanceKm / targetDistanceKm) * 100);
+    if (pct >= 90 && pct <= 110) {
+      reasons.push(`✓ ${distanceKm.toFixed(0)} km matches target (${pct}%)`);
+    } else {
+      reasons.push(`${distanceKm.toFixed(0)} km vs ${targetDistanceKm} km target (${pct}%)`);
+    }
+  }
+
+  // Elevation — surface only when target known.
+  if (targetElevationM != null && targetElevationM > 0 && elevationM > 0) {
+    const pct = Math.round((elevationM / targetElevationM) * 100);
+    if (pct >= 80 && pct <= 125) {
+      reasons.push(`✓ ${elevationM} m vs ${targetElevationM} m target`);
+    } else if (pct < 80) {
+      reasons.push(`${elevationM} m — flatter than target (${pct}%)`);
+    } else {
+      reasons.push(`${elevationM} m — hillier than target (${pct}%)`);
+    }
+  }
+
+  // Surface — only call out when it's a strong match for the cycling type.
+  const wantPaved = cyclingType === 'road';
+  const wantUnpaved = cyclingType === 'gravel' || cyclingType === 'mtb';
+  if (reasons.length < 2) {
+    if (wantPaved && (surfaceType === 'asphalt' || surfaceType === 'paved')) {
+      reasons.push('Mostly paved');
+    } else if (wantUnpaved && (surfaceType === 'gravel' || surfaceType === 'unpaved')) {
+      reasons.push('Mostly off-road');
+    } else if (surfaceType !== 'unknown') {
+      reasons.push(`Surface: ${surfaceType}`);
+    }
+  }
+
+  return reasons.slice(0, 2);
 }
 
 const STRAVA_ROUTES_UPLOAD_URL = 'https://www.strava.com/routes/new';
@@ -210,6 +273,14 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes, targetEle
           surface_type: r.surface_type,
           score: r.score,
           gpx: r.gpx,
+          reasons: buildReasons({
+            distanceKm: r.distance_km,
+            targetDistanceKm: targetDistance,
+            elevationM: r.elevation_gain_m,
+            targetElevationM: targetElevationM ?? null,
+            surfaceType: r.surface_type,
+            cyclingType,
+          }),
         }));
         setRoutes(display);
         setSelectedId(display[0]!.id);
@@ -250,15 +321,25 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes, targetEle
           const km = r.distance_m / 1000;
           const delta = Math.abs(km - targetDistance) / targetDistance;
           const score = Math.max(0, 1 - delta * 5);
+          const distanceRounded = Number(km.toFixed(1));
+          const elevationRounded = Math.round(r.elevation_gain_m);
           return {
             source: 'strava' as const,
             id: `strava_${r.id}`,
             name: r.name,
-            distance_km: Number(km.toFixed(1)),
-            elevation_gain_m: Math.round(r.elevation_gain_m),
+            distance_km: distanceRounded,
+            elevation_gain_m: elevationRounded,
             surface_type: r.surface,
             score: Number(score.toFixed(3)),
             strava_url: r.strava_url,
+            reasons: buildReasons({
+              distanceKm: distanceRounded,
+              targetDistanceKm: targetDistance,
+              elevationM: elevationRounded,
+              targetElevationM: targetElevationM ?? null,
+              surfaceType: r.surface,
+              cyclingType,
+            }),
           };
         })
         .sort((a, b) => b.score - a.score)
@@ -299,15 +380,25 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes, targetEle
           const km = r.distance_m / 1000;
           const delta = Math.abs(km - targetDistance) / targetDistance;
           const score = Math.max(0, 1 - delta * 5);
+          const distanceRounded = Number(km.toFixed(1));
+          const elevationRounded = Math.round(r.elevation_gain_m);
           return {
             source: 'rwgps' as const,
             id: `rwgps_${r.id}`,
             name: r.name,
-            distance_km: Number(km.toFixed(1)),
-            elevation_gain_m: Math.round(r.elevation_gain_m),
+            distance_km: distanceRounded,
+            elevation_gain_m: elevationRounded,
             surface_type: r.surface,
             score: Number(score.toFixed(3)),
             rwgps_url: r.rwgps_url,
+            reasons: buildReasons({
+              distanceKm: distanceRounded,
+              targetDistanceKm: targetDistance,
+              elevationM: elevationRounded,
+              targetElevationM: targetElevationM ?? null,
+              surfaceType: r.surface,
+              cyclingType,
+            }),
           };
         })
         .sort((a, b) => b.score - a.score)
@@ -540,6 +631,15 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes, targetEle
                   <span className={styles.cardStatBucket}>
                     {r.source === 'generated' ? 'Generated' : r.source === 'strava' ? 'Strava' : 'Ride with GPS'} · {r.surface_type}
                   </span>
+                  {/* v10.10.0 — match-reasons. 1-2 plain-English bullets
+                      explaining why this route scored where it did. */}
+                  {r.reasons.length > 0 && (
+                    <ul className={styles.cardReasons}>
+                      {r.reasons.map((reason, idx) => (
+                        <li key={idx}>{reason}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <span className={styles.cardScore}>{Math.round(r.score * 100)}%</span>
               </button>

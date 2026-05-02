@@ -88,6 +88,15 @@
   min-height: 72px;
   position: relative;
 }
+/* v10.10.0 — quick-add affordance on Month grid. Hover hint on the cell
+ * itself; click navigates to schedule-new prefilled with the date. */
+.cellClickable {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.cellClickable:hover {
+  background: var(--c-surface);
+}
 .cellOut {
   background: var(--c-bg-deep);
 }
@@ -245,6 +254,15 @@
 .weekHourSlot {
   height: 40px;
   border-bottom: 1px solid var(--c-border);
+}
+/* v10.10.0 — quick-add affordance on Week + Day grids. Each empty hour
+ * slot opens schedule-new prefilled with the date + slot's start hour. */
+.weekHourSlotClickable {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.weekHourSlotClickable:hover {
+  background: var(--c-accent-soft);
 }
 
 .weekEvent {

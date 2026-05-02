@@ -159,3 +159,40 @@
   outline: var(--ring-focus);
   outline-offset: var(--ring-focus-offset);
 }
+
+/* v10.10.0 — Repeat-weekly toggle block. Lives between Notes and the
+ * "* Required" legend. Compact, non-disruptive — most users will skip
+ * it; serious trainees adding a 4-week sweet-spot block will love it. */
+.repeatBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--c-canvas);
+  border: 1px dashed var(--c-line);
+  border-radius: 4px;
+}
+.repeatLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font: 500 0.875rem/1 var(--font-sans);
+  color: var(--c-text);
+  cursor: pointer;
+  user-select: none;
+}
+.repeatLabel input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--c-accent);
+  cursor: pointer;
+}
+.repeatControls {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding-left: var(--s-7);
+}
+.repeatControls .fieldLabel {
+  margin: 0;
+}

@@ -21,6 +21,8 @@ interface DayCalendarGridProps {
   events: CalendarEvent[];
   activeFilters: Set<ClubEventType>;
   onEventClick: (event: CalendarEvent) => void;
+  /** v10.10.0 — quick-add. Fires when an empty hour slot is clicked. */
+  onCellClick?: (dateStr: string, timeStr: string) => void;
 }
 
 // v9.12.3 — event blocks size to actual duration_minutes; legacy fallback.
@@ -31,6 +33,7 @@ export function DayCalendarGrid({
   events,
   activeFilters,
   onEventClick,
+  onCellClick,
 }: DayCalendarGridProps) {
   const today = todayUTC();
   const eventsByDay = useMemo(() => groupByDay(events, activeFilters), [events, activeFilters]);
@@ -56,9 +59,25 @@ export function DayCalendarGrid({
 
         {/* Single day column */}
         <div className={`${styles.dayCol} ${isToday ? styles.weekDayColToday : ''}`}>
-          {hours.slice(0, -1).map((h) => (
-            <div key={h} className={styles.weekHourSlot} aria-hidden="true" />
-          ))}
+          {hours.slice(0, -1).map((h) => {
+            // v10.10.0 — clickable hour slot for quick-add.
+            const handleSlotClick = () => {
+              if (!onCellClick) return;
+              const dateStr = `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
+              const timeStr = `${String(h).padStart(2, '0')}:00`;
+              onCellClick(dateStr, timeStr);
+            };
+            return (
+              <div
+                key={h}
+                className={`${styles.weekHourSlot} ${onCellClick ? styles.weekHourSlotClickable : ''}`}
+                onClick={onCellClick ? handleSlotClick : undefined}
+                role={onCellClick ? 'button' : undefined}
+                aria-label={onCellClick ? `Add session at ${h}:00` : undefined}
+                tabIndex={onCellClick ? 0 : -1}
+              />
+            );
+          })}
           {dayEvents.map((e) => {
             const dt = new Date(e.event_date * 1000);
             // v9.12.4 — render in viewer's local TZ (was UTC). DB stays UTC.

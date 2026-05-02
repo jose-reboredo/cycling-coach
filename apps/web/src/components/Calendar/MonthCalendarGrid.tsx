@@ -20,6 +20,10 @@ interface MonthCalendarGridProps {
   events: CalendarEvent[];
   activeFilters: Set<ClubEventType>;
   onEventClick: (event: CalendarEvent) => void;
+  /** v10.10.0 — quick-add. Fires when the user clicks empty space in a
+   *  day cell (anywhere not on a pill). Receives YYYY-MM-DD. Time is
+   *  null at month granularity — caller defaults to 18:00. */
+  onCellClick?: (dateStr: string) => void;
 }
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -63,6 +67,7 @@ export function MonthCalendarGrid({
   events,
   activeFilters,
   onEventClick,
+  onCellClick,
 }: MonthCalendarGridProps) {
   const today = todayUTC();
   const grid = useMemo(() => buildGrid(year, month), [year, month]);
@@ -82,6 +87,20 @@ export function MonthCalendarGrid({
           const visibleEvents = dayEvents.slice(0, 2);
           const overflow = dayEvents.length - visibleEvents.length;
           const isToday = isSameDay(cell as CalendarDate, today);
+          // v10.10.0 — quick-add: clicking empty cell area navigates to
+          // /dashboard/schedule-new prefilled with this date. Out-of-month
+          // cells are not clickable. The pill <button>s use stopPropagation
+          // (via their own onClick) so cell-click doesn't fire when the
+          // user means to open a session.
+          const handleCellClick = (e: React.MouseEvent<HTMLDivElement>) => {
+            if (!onCellClick || !cell.inMonth) return;
+            // Only fire when the click landed on the cell itself, not a child
+            // pill button. event.target check via classList.
+            const target = e.target as HTMLElement;
+            if (target.closest('button')) return;
+            const dateStr = `${cell.year}-${String(cell.month).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`;
+            onCellClick(dateStr);
+          };
           return (
             <div
               key={`${idx}-${key}`}
@@ -89,9 +108,13 @@ export function MonthCalendarGrid({
                 styles.cell,
                 cell.inMonth ? '' : styles.cellOut,
                 isToday ? styles.cellToday : '',
+                onCellClick && cell.inMonth ? styles.cellClickable : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
+              onClick={handleCellClick}
+              role={onCellClick && cell.inMonth ? 'button' : undefined}
+              tabIndex={onCellClick && cell.inMonth ? 0 : undefined}
             >
               <span className={styles.dayNum}>{cell.day}</span>
               {visibleEvents.map((e) => {

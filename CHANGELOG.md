@@ -4,6 +4,91 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.10.0] — 2026-05-02
+
+**Schedule polish trio + route-card match reasons (originally planned as v10.10.0 + v10.11.0; bundled per founder request).**
+
+Single risk theme: schedule + route-picker readability. Four small UX wins, no backend changes.
+
+### 1. Quick-add from empty calendar cell
+
+Calendar grids accept an `onCellClick(dateStr, timeStr?)` prop:
+- **Month grid**: clicking empty space inside a day cell (not on a pill) → navigate to `/dashboard/schedule-new?date=YYYY-MM-DD`
+- **Week grid**: clicking an empty hour slot → `?date=YYYY-MM-DD&time=HH:00`
+- **Day grid**: same as Week
+
+`dashboard.schedule-new.tsx` extends `validateSearch` with `date` + `time` params and prefills the form from them. Hover states surface the click affordance: month cells brighten on hover (`var(--c-surface)`), week/day slots pick up an accent tint (`var(--c-accent-soft)`).
+
+`<button>` event delegation: clicking a pill inside a cell does NOT trigger cell click (`target.closest('button')` guard).
+
+### 2. Repeat-weekly toggle on Plan a Session
+
+Below the Notes field on `/dashboard/schedule-new` (create mode only — Edit mode hides this), a checkbox `Repeat weekly` reveals a `For [N] weeks (1–12)` input.
+
+On submit:
+- Client-side sequential loop, one POST per week, each with `session_date + i × 7 × 86400`
+- Submit button label changes: `Save 4 sessions` → `Saving session 2 of 4…` → navigation
+- Per-iteration progress in `repeatProgress` state
+- Partial-failure semantics: if browser closes mid-loop, partial week persists (acceptable v1; user can re-run for missing days)
+
+CSS `.repeatBlock` uses a dashed border + canvas background to read as a sub-form, not a competing primary action.
+
+### 3. Week / Day summary footer on Schedule
+
+Below the calendar grid, a footer renders totals for the visible window (Week or Day; hidden in Month view):
+
+```
+12.5 h planned   ~285 TSS   4 rides (3 solo · 1 club)
+```
+
+TSS estimate uses zone-derived intensity factors (`Z2 ≈ 0.65 IF`, `Z3 ≈ 0.78 IF`, `Z4 ≈ 0.91 IF`, `Z5 ≈ 1.05 IF`) × duration, falling back to `0.65 IF` when zone is unset. Plenty for a "weekly volume" sanity check; not a coaching tool. Hidden when no events in window.
+
+Visible window computed via `weekStart()` for week mode, day-bracket for day mode. Cancelled events excluded.
+
+### 4. Match-reasons on route cards (originally v10.11.0)
+
+Each route card in `SessionRoutePicker` now renders 1-2 plain-English match reasons under the stats:
+
+```
+Casa de Campo Loop                   92%
+45 km · 820 m
+Generated · paved
+  ✓ 45 km matches target (100%)
+  ✓ 820 m vs 800 m target
+```
+
+`buildReasons()` helper computes:
+- **Distance**: `✓ Xkm matches target (Y%)` when 90-110%; else `Xkm vs target (Y%)`
+- **Elevation** (only when target known): `✓ Xm vs Ym target` when within 80-125%; else `flatter than target` / `hillier than target`
+- **Surface** (only when first two slots free): `Mostly paved` / `Mostly off-road` / `Surface: X`
+
+Capped at 2 reasons per card to keep the visual rhythm clean. Selected card brightens reasons text from `--c-text-muted` → `--c-text` for emphasis.
+
+Reasons computed at the picker layer (not the backend) so the same logic applies to all three sources — generated, Strava saved, RWGPS saved.
+
+### Files changed
+
+```
+apps/web/src/components/Calendar/MonthCalendarGrid.tsx       # +onCellClick prop, cellClickable class
+apps/web/src/components/Calendar/WeekCalendarGrid.tsx        # +onCellClick prop on hour slots
+apps/web/src/components/Calendar/DayCalendarGrid.tsx         # same
+apps/web/src/components/Calendar/Calendar.module.css         # +cellClickable + weekHourSlotClickable hover states
+apps/web/src/routes/dashboard.schedule.tsx                   # +visibleWindow, summary, summary footer markup, onCellClick wires
+apps/web/src/routes/dashboard.schedule.module.css            # +summary, summaryStat, summaryDetail
+apps/web/src/routes/dashboard.schedule-new.tsx               # +date/time validateSearch, prefill, repeatWeekly, repeatProgress, sequential POST loop
+apps/web/src/routes/dashboard.schedule-new.module.css        # +repeatBlock, repeatLabel, repeatControls
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.tsx       # +reasons in DisplayRoute, buildReasons helper, render under cardStats
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.module.css  # +cardReasons styles
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Why MINOR
+
+Four new features (quick-add, repeat-weekly, summary footer, match reasons). No breaking changes. Per locked SemVer.
+
+---
+
 ## [10.9.0] — 2026-05-02
 
 **Strava OAuth → D1 + Phase D auto-regenerate AI plan + `user_edited_at` lock.**
