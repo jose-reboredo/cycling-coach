@@ -859,8 +859,13 @@ async function handleRequest(request, env, ctx) {
         });
       }
 
-      params.push(eventId);
-      await db.prepare(`UPDATE club_events SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();
+      // Sprint 11 sec audit (#sec-1) — defense-in-depth: scope by club_id
+      // too. The handler already verifies the caller is creator-or-admin
+      // of THIS club (lines above), but pinning the UPDATE to (id, club_id)
+      // means a future regression that drops the membership check still
+      // can't cross-club edit by sending the wrong /api/clubs/:id/ prefix.
+      params.push(eventId, clubId);
+      await db.prepare(`UPDATE club_events SET ${updates.join(', ')} WHERE id = ? AND club_id = ?`).bind(...params).run();
 
       return new Response(JSON.stringify({ id: eventId, club_id: clubId, ...out }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -920,7 +925,8 @@ async function handleRequest(request, env, ctx) {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      await db.prepare('UPDATE club_events SET cancelled_at = ? WHERE id = ?').bind(now, eventId).run();
+      // Sprint 11 sec audit (#sec-1) — defense-in-depth: scope by club_id.
+      await db.prepare('UPDATE club_events SET cancelled_at = ? WHERE id = ? AND club_id = ?').bind(now, eventId, clubId).run();
       return new Response(JSON.stringify({ id: eventId, club_id: clubId, cancelled_at: now }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -1780,15 +1786,22 @@ async function handleRequest(request, env, ctx) {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        await db.prepare('UPDATE planned_sessions SET cancelled_at = ?, updated_at = ? WHERE id = ?')
-          .bind(now, now, sessionId).run();
+        // Sprint 11 sec audit (#sec-1) — defense-in-depth: scope every
+        // mutation by athlete_id, NOT just id. The pre-check above (lines
+        // 1757-1767) already returns 404 when athlete_id mismatches, but
+        // belt-and-braces — any future refactor that drops the pre-check
+        // (or introduces a TOCTOU window) would otherwise let one user
+        // mutate another user's row. Same pattern applied to PATCH and
+        // /uncancel below.
+        await db.prepare('UPDATE planned_sessions SET cancelled_at = ?, updated_at = ? WHERE id = ? AND athlete_id = ?')
+          .bind(now, now, sessionId, authResult.athleteId).run();
         return new Response(JSON.stringify({ id: sessionId, cancelled_at: now }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       if (action === '/uncancel') {
-        await db.prepare('UPDATE planned_sessions SET cancelled_at = NULL, updated_at = ? WHERE id = ?')
-          .bind(now, sessionId).run();
+        await db.prepare('UPDATE planned_sessions SET cancelled_at = NULL, updated_at = ? WHERE id = ? AND athlete_id = ?')
+          .bind(now, sessionId, authResult.athleteId).run();
         return new Response(JSON.stringify({ id: sessionId, cancelled_at: null }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -1904,8 +1917,10 @@ async function handleRequest(request, env, ctx) {
         }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      params.push(sessionId);
-      await db.prepare(`UPDATE planned_sessions SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();
+      // Sprint 11 sec audit (#sec-1) — defense-in-depth: scope by
+      // athlete_id, not just id. See note on /cancel branch above.
+      params.push(sessionId, authResult.athleteId);
+      await db.prepare(`UPDATE planned_sessions SET ${updates.join(', ')} WHERE id = ? AND athlete_id = ?`).bind(...params).run();
       return new Response(JSON.stringify({ id: sessionId, ...applied, updated_at: now }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
