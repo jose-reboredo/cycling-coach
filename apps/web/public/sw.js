@@ -6,8 +6,13 @@
 //     /version): always passthrough to network. Never cached.
 //
 // Bump CACHE on every meaningful release so old payloads get evicted.
-
-const CACHE = 'cycling-coach-v8.4.1';
+//
+// v10.11.1 — bumped after 12+ releases of staleness. The SW had been
+// stuck at v8.4.1 since Sprint 4; on activate we evict every cache name
+// that doesn't match. Effect on rollout: existing PWA-installed users
+// get a one-time eviction of every cached asset on next launch, then
+// rebuild the cache against the current bundle. No flash, no logout.
+const CACHE = 'cycling-coach-v10.11.1';
 const CORE = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
 
 const NEVER_CACHE = (path) =>

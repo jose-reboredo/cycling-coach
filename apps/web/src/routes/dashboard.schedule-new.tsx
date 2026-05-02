@@ -29,6 +29,10 @@ interface SchedNewSearch {
   date?: string;
   /** v10.10.0 — quick-add prefill time HH:MM. Only set from Week/Day cells. */
   time?: string;
+  /** v10.11.1 — referrer for save-completion navigation. Founder bug:
+   *  editing from Today's drawer landed on /dashboard/schedule (Month).
+   *  Allowed values: 'today' | 'schedule'. Default 'schedule'. */
+  from?: 'today' | 'schedule';
 }
 
 // v9.12.1 (#80) — flat path /dashboard/schedule-new so it doesn't nest
@@ -41,6 +45,7 @@ export const Route = createFileRoute('/dashboard/schedule-new')({
     range: typeof search.range === 'string' && /^\d{4}-\d{2}$/.test(search.range) ? search.range : undefined,
     date: typeof search.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.date) ? search.date : undefined,
     time: typeof search.time === 'string' && /^\d{2}:\d{2}$/.test(search.time) ? search.time : undefined,
+    from: search.from === 'today' || search.from === 'schedule' ? search.from : undefined,
   }),
   component: NewSessionPage,
 });
@@ -58,8 +63,12 @@ const ZONE_OPTIONS: { value: number; label: string }[] = [
 function NewSessionPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { id: editId, range: editRange, date: prefillDate, time: prefillTime } = Route.useSearch();
+  const { id: editId, range: editRange, date: prefillDate, time: prefillTime, from: fromTab } = Route.useSearch();
   const isEdit = editId != null;
+  // v10.11.1 — referrer-aware navigation after save / cancel.
+  const navigateBack = () => {
+    navigate({ to: fromTab === 'today' ? '/dashboard/today' : '/dashboard/schedule' });
+  };
 
   const createSession = useCreatePlannedSession();
   const patchSession = usePatchPlannedSession();
@@ -240,7 +249,7 @@ function NewSessionPage() {
           }
         }
       }
-      navigate({ to: '/dashboard/schedule' });
+      navigateBack();
     } catch (err) {
       setRepeatProgress(null);
       setError(err instanceof Error ? err.message : 'Could not save session.');
@@ -427,7 +436,7 @@ function NewSessionPage() {
             <button
               type="button"
               className={styles.cancelBtn}
-              onClick={() => navigate({ to: '/dashboard/schedule' })}
+              onClick={() => navigateBack()}
               disabled={isSaving}
             >
               Cancel

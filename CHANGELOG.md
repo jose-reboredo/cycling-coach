@@ -4,6 +4,68 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.11.1] — 2026-05-03
+
+**Calendar architectural review fixes (CTO + architect pass) — A + B + D from analysis.**
+
+Founder asked for an architectural review after a string of single-bug hotfixes (v10.10.1 → v10.10.3) didn't fully resolve calendar UX issues. This release implements three of four identified structural fixes; (C) is a real feature deferred to v10.11.2.
+
+### A — Service worker cache version bumped from v8.4.1 → v10.11.1
+
+The biggest stale-cache contributor across this whole sequence. `apps/web/public/sw.js`'s `CACHE` constant was stuck at `cycling-coach-v8.4.1`, last updated in Sprint 4. We're on v10.11.0. The SW's `activate` handler evicts every cache name that doesn't match the current `CACHE`, but since we hadn't bumped, no eviction happened.
+
+Combined with cache-first-for-static-assets, this meant PWA-installed users on older devices could be running 12+ release versions of asset code. While Vite's content-hashed asset URLs nominally bypass on hash change, the SPA shell `/index.html` (cached as key `'/'`) was being kept alive by network-first-with-fallback indefinitely.
+
+Bumping the constant forces a one-time eviction on next launch for every existing PWA user. No flash, no logout — they just get fresh assets.
+
+### B — Form save respects `from` search param
+
+Founder bug: "i edited today's event from Today tab, save redirects to monthly view instead of staying in Today tab".
+
+Root cause: `dashboard.schedule-new.tsx` had `navigate({ to: '/dashboard/schedule' })` hardcoded for both save and cancel paths. Didn't track where the user came from.
+
+Fix:
+- New optional search param `from?: 'today' | 'schedule'`
+- `validateSearch` whitelists the values
+- New `navigateBack()` helper picks the destination
+- `TodayDossier`'s drawer-onEdit now passes `from: 'today'`
+- `dashboard.schedule.tsx`'s drawer-onEdit passes `from: 'schedule'` (explicit, forward-compat)
+- Both save-success and cancel-button paths use `navigateBack()`
+
+### D — Force refetch on date / view navigation
+
+Founder bug: "Thursday Merkle Ride Afterwork doesn't show, change week and it disappears/reappears".
+
+Root cause: query key is `['me', 'schedule', range]` where `range = 'YYYY-MM'`. When stepping forward/back within the same month (week or day view), `range` doesn't change → same cache hit → no refetch. Brief stale moments around mutations or cross-tab edits leak through.
+
+Fix: `stepDate()` now calls `queryClient.invalidateQueries({ queryKey: ['me', 'schedule'] })` after every nav. Cheap (no-op when nothing has changed in cache), but guarantees a fresh fetch on every user-driven date step.
+
+### What I deferred to v10.11.2
+
+**C — Drawer "1 of N weekly repeats" hint with "Edit all upcoming"**
+
+The repeat-weekly creates N independent `planned_sessions` rows. Editing one only affects that one. Founder's "edit not registering" symptom was sometimes this — they edited Apr 28 but were looking at May 5 expecting the change to propagate.
+
+Real feature work (not a fix), needs:
+- Sibling detection logic (matching title + 7-day spacing)
+- "Edit all upcoming" cascade button in drawer
+- Or: schema-level recurrence model with parent FK
+
+Deferring so v10.11.1 stays a clean reliability release.
+
+### Files changed
+
+```
+apps/web/public/sw.js                                     # CACHE name bump
+apps/web/src/routes/dashboard.schedule-new.tsx            # +from param + navigateBack helper
+apps/web/src/components/TodayDossier/TodayDossier.tsx     # passes from='today'
+apps/web/src/routes/dashboard.schedule.tsx                # passes from='schedule'; +stepDate invalidation
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+---
+
 ## [10.11.0] — 2026-05-03
 
 **Calendar reliability — five interrelated bugs fixed in one pass.**

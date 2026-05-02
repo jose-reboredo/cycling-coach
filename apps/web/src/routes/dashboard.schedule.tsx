@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
 import { Button } from '../components/Button/Button';
@@ -78,6 +79,7 @@ function defaultViewForViewport(): CalendarView {
 
 function PersonalSchedule() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const today = todayUTC();
   const [view, setView] = useState<CalendarView>(
     // Priority: URL hash > localStorage > viewport default. Hash wins so
@@ -229,6 +231,12 @@ function PersonalSchedule() {
       const d = new Date(Date.UTC(date.year, date.month - 1, date.day + delta));
       setDate({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() });
     }
+    // v10.11.1 — force refetch on every nav step. Without this, week
+    // / day stepping within the same month re-uses the cached query and
+    // a recently-edited or recently-cancelled session can briefly show
+    // stale data ("Thursday Merkle Ride disappears/reappears" symptom).
+    // Cheap (one cached read at most when the new range matches).
+    queryClient.invalidateQueries({ queryKey: ['me', 'schedule'] });
   };
 
   const dateLabel = useMemo(() => {
@@ -414,7 +422,9 @@ function PersonalSchedule() {
               const r = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
               navigate({
                 to: '/dashboard/schedule-new',
-                search: { id: Math.abs(e.id), range: r },
+                // v10.11.1 — `from: 'schedule'` so save returns to the
+                // schedule view (instead of falling through to default).
+                search: { id: Math.abs(e.id), range: r, from: 'schedule' },
               });
               setActiveEvent(null);
             }

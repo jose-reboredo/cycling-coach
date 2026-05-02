@@ -183,7 +183,9 @@ export function TodayDossier({ callerAthleteId }: TodayDossierProps = {}) {
             const r = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
             navigate({
               to: '/dashboard/schedule-new',
-              search: { id: Math.abs(e.id), range: r },
+              // v10.11.1 — `from: 'today'` so the save handler returns
+              // here instead of jumping to /dashboard/schedule (Month).
+              search: { id: Math.abs(e.id), range: r, from: 'today' },
             });
             setActiveEvent(null);
           }
