@@ -44,39 +44,41 @@ beforeEach(() => {
   });
 });
 
-describe('computeTabsEnabled — viewport-aware default (v9.3.1)', () => {
+describe('computeTabsEnabled — defaults to true everywhere (v9.12.8+)', () => {
+  // v9.12.8 — flipped default to `true` on every viewport. Founder-lock
+  // 2026-05-01 design rule: "desktop = top tabs always". Tests updated.
   it('returns true on mobile (<1024px) when localStorage has no override', () => {
     stubMatchMedia(true);
     expect(computeTabsEnabled()).toBe(true);
   });
 
-  it('returns false on desktop (≥1024px) when localStorage has no override', () => {
+  it('returns true on desktop (≥1024px) when localStorage has no override', () => {
     stubMatchMedia(false);
-    expect(computeTabsEnabled()).toBe(false);
+    expect(computeTabsEnabled()).toBe(true);
   });
 
-  it("returns true when cc_tabsEnabled='true' even on desktop (override wins)", () => {
+  it("returns true when cc_tabsEnabled='true' (matches default)", () => {
     stubMatchMedia(false);
     fakeStorage.setItem('cc_tabsEnabled', 'true');
     expect(computeTabsEnabled()).toBe(true);
   });
 
-  it("returns false when cc_tabsEnabled='false' even on mobile (kill-switch)", () => {
+  it("returns false when cc_tabsEnabled='false' (kill-switch only)", () => {
     stubMatchMedia(true);
     fakeStorage.setItem('cc_tabsEnabled', 'false');
     expect(computeTabsEnabled()).toBe(false);
   });
 
-  it("falls through to viewport for any non-'true'/'false' value", () => {
+  it("returns true for any non-'false' value (single kill-switch)", () => {
     stubMatchMedia(true);
-    for (const val of ['', '1', 'yes', 'TRUE', '0']) {
+    for (const val of ['', '1', 'yes', 'TRUE', '0', 'true']) {
       fakeStorage.setItem('cc_tabsEnabled', val);
       expect(computeTabsEnabled(), `mobile + value "${val}"`).toBe(true);
     }
     stubMatchMedia(false);
-    for (const val of ['', '1', 'yes', 'TRUE', '0']) {
+    for (const val of ['', '1', 'yes', 'TRUE', '0', 'true']) {
       fakeStorage.setItem('cc_tabsEnabled', val);
-      expect(computeTabsEnabled(), `desktop + value "${val}"`).toBe(false);
+      expect(computeTabsEnabled(), `desktop + value "${val}"`).toBe(true);
     }
   });
 });

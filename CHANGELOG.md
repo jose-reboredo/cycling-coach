@@ -4,6 +4,110 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.11.2] — 2026-05-03
+
+**ROOT CAUSE FOUND. Browser served stale data for 5 minutes — TanStack invalidate triggered fetches but the browser short-circuited to disk cache before reaching the network.**
+
+After v10.11.1, founder reported every prior fix still had stale-cache symptoms. Between v10.10.1 → v10.11.1 we shipped six hotfixes attempting to make calendar mutations stick. Every fix was correct on the frontend — TanStack invalidations, refetchOnMount, mutation await, SW cache versioning, view persistence. The whole frontend pipeline was wired correctly, but **none of it mattered** because the browser never called the server.
+
+### The bug
+
+Three user-specific GET endpoints in `src/worker.js` set this on every successful response:
+
+```js
+'Cache-Control': 'private, max-age=300',
+```
+
+For 5 minutes after the response, the browser:
+1. Receives a fetch() request from TanStack
+2. Sees an entry in its HTTP cache for the same URL
+3. Serves the cached response **before reaching the network**
+4. TanStack receives stale data, updates its in-memory cache, re-renders with stale data
+
+The endpoints:
+
+| Endpoint | Used by |
+|---|---|
+| `/api/clubs/:id/events?range=YYYY-MM` (line 712) | Club Schedule tab |
+| `/api/me/schedule?range=YYYY-MM` (line 1482) | Personal scheduler + Today's TodayDossier |
+| `/api/me/sessions?range=YYYY-MM` (line 1537) | Personal sessions list |
+
+This is also why the v10.10.3 padded month range "fixed" some cases — when the user navigated to a different month, the URL changed (`range` param), so it was a fresh cache entry, fetched fresh from server. But mutating a session in the same month and trying to re-read = same URL = browser cache hit = stale data.
+
+### The fix
+
+Single line on each of those three endpoints:
+
+```diff
+- 'Cache-Control': 'private, max-age=300',
++ 'Cache-Control': 'private, no-store',
+```
+
+`no-store` means the browser MUST NOT cache the response. Every fetch goes to the network. TanStack's own in-memory cache is unaffected and still works correctly.
+
+### What this means for prior hotfixes
+
+- v10.10.1 (repeat-weekly Promise.allSettled): WAS correct. Sessions were created. Browser cache hid them.
+- v10.10.3 (`useCancelClubEvent` invalidates `['me','schedule']`): WAS correct. Invalidation triggered fetch. Browser cache hid the fresh data.
+- v10.11.0 (`useRef`-keyed re-hydrate, `refetchOnMount: 'always'`, `await Promise.all([invalidateQueries...])`): WAS correct. Form re-hydrated when data changed. Refetch fired on mount. Mutations awaited. But the data the browser returned was 5-minute-old.
+- v10.11.1 (SW cache version bump, `from` param, stepDate invalidation): WAS correct. SW serving fresh assets. Navigation respects referrer. stepDate invalidates query. Browser cache still 5-min-stale on success responses.
+
+**All those fixes will now actually work.** They were always correct; they just couldn't take effect.
+
+### Regression test (Vitest, run automatically before deploy)
+
+`apps/web/src/lib/__tests__/worker-cache-contract.test.ts` (new):
+
+- Reads `src/worker.js` source
+- For each user-specific endpoint anchor (clubs/events, me/schedule, me/sessions), asserts that the surrounding response-construction code does NOT contain `Cache-Control` with `max-age=N`
+- Asserts `/roadmap` IS allowed to public-cache (sanity check — that's a different threat model)
+
+If a future change re-introduces `max-age` on a user-specific endpoint, `npm run test:unit` fails before the change can deploy.
+
+### Verified fix locally
+
+```
+$ npm run test:unit -- --run worker-cache-contract
+✓ /api/clubs/:id/events?range response must not have max-age
+✓ /api/me/schedule response must not have max-age
+✓ /api/me/sessions?range response must not have max-age
+✓ /roadmap response IS allowed to cache (public, max-age=300)
+
+Tests  4 passed (4)
+```
+
+### Manual smoke before delivery
+
+After deploy, run in DevTools console (or curl with a session token):
+
+```js
+fetch('/api/me/schedule?range=2026-05').then(r => console.log(r.headers.get('cache-control')));
+// Expected: "private, no-store"  (NOT "private, max-age=300")
+```
+
+Once that's verified, the 5-minute browser-cache window for previously-served responses **still applies** until expiry. To force-clear:
+- Hard reload (Cmd+Shift+R / Ctrl+Shift+R)
+- Or DevTools → Network tab → "Disable cache"
+- Or just wait 5 minutes
+
+After that, every subsequent API response will have the new `no-store` header and the browser will never cache.
+
+### SW cache name bumped to v10.11.2
+
+Alongside the Cache-Control fix, the SW `CACHE` name advances from `cycling-coach-v10.11.1` → `cycling-coach-v10.11.2` so the SW activate handler evicts every prior cache on next launch. PWA users get clean state.
+
+### Files changed
+
+```
+src/worker.js                                                   # 3 Cache-Control directives changed to no-store
+apps/web/public/sw.js                                           # CACHE name bump
+apps/web/src/lib/__tests__/worker-cache-contract.test.ts        # NEW — regression guard
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+---
+
 ## [10.11.1] — 2026-05-03
 
 **Calendar architectural review fixes (CTO + architect pass) — A + B + D from analysis.**

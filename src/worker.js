@@ -29,7 +29,7 @@ import {
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.11.1';
+const WORKER_VERSION = 'v10.11.2';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -709,7 +709,13 @@ async function handleRequest(request, env, ctx) {
           headers: {
             ...corsHeaders,
             'Content-Type': 'application/json',
-            'Cache-Control': 'private, max-age=300',
+            // v10.11.2 — no-store. The previous max-age=300 caused the
+            // browser to serve stale data for 5 minutes. TanStack invalidate
+            // triggered fetches but the browser short-circuited to disk
+            // cache before reaching the network. This was the root cause
+            // of every "edit doesn't register / cancel doesn't disappear"
+            // symptom across v10.10.x and v10.11.0. User data MUST be fresh.
+            'Cache-Control': 'private, no-store',
           },
         });
       }
@@ -1479,7 +1485,8 @@ async function handleRequest(request, env, ctx) {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
-          'Cache-Control': 'private, max-age=300',
+          // v10.11.2 — see /api/clubs/:id/events comment. No browser cache.
+          'Cache-Control': 'private, no-store',
         },
       });
     }
@@ -1534,7 +1541,8 @@ async function handleRequest(request, env, ctx) {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
-          'Cache-Control': 'private, max-age=300',
+          // v10.11.2 — see /api/clubs/:id/events comment. No browser cache.
+          'Cache-Control': 'private, no-store',
         },
       });
     }
