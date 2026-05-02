@@ -2,7 +2,7 @@
 
 Cycling training app for solo riders and clubs. Reads your Strava history, computes daily form (CTL/ATL/TSB), generates AI-coached weekly plans, and gives clubs a shared schedule with RSVP and AI-drafted weekly recaps.
 
-**Current release:** [v10.6.0](./CHANGELOG.md) · **Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · [Security policy](./SECURITY.md)
+**Current release:** [v10.12.0](./CHANGELOG.md) · **Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · [Security policy](./SECURITY.md)
 
 ---
 
@@ -118,6 +118,9 @@ docs/                     # Architecture notes
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full history. Highlights:
 
+- **v10.12.0** — Bundle: (1) repeat-aware drawer + cascade edit ("Apply to all upcoming repeats" toggle, Migration 0013 adds `recurring_group_id` to `planned_sessions`); (2) calendar event-block alignment + side-by-side overlap rendering (GH #80) — px-based positioning replaces the % math that drifted off the gridlines; (3) RWGPS disconnect surface in Settings.
+- **v10.11.x** — Calendar reliability cluster: HTTP `Cache-Control: private, no-store` on every `/api/*` response (entry-layer filter in worker.js), root-cause fix for the "edit doesn't register / cancel doesn't disappear" symptom class. 8 cache-contract tests added to lock the contract.
+- **v10.7.0–v10.10.0** — Route picker disconnect, AI plan v2 with goal-driven weekly plans (Migration 0011 adds `ai_plan_sessions`), webhook auto-regen + per-session `user_edited_at` lock, Strava browser/server hybrid OAuth (Migration 0012), quick-add via empty-hour-slot click on Week + Day grids.
 - **v10.6.0** — Route picker reframed as three honest source tabs: Generate new (ORS), My Strava (saved), My Ride with GPS (saved via OAuth). RWGPS OAuth flow added (`/authorize-rwgps`, `/callback-rwgps`); Migration 0010 adds `rwgps_tokens` table. Generated routes export as GPX with multi-app handoff (Strava / RWGPS / Komoot / Garmin Connect). Saved routes open directly in their source app.
 - **v10.5.0** — Route picker UX in the EventDetailDrawer for personal sessions: address input (Nominatim geocoding), 3 ranked route cards with distance / elevation / surface / score, GPX-download Strava handoff. Salutation styling matches club-name template. Modal duration always renders rounded to 0.5h.
 - **v10.4.0** — Route generation backend (`POST /api/routes/generate`). OSM-based loop generation via OpenRouteService, scored on distance / elevation / surface / overlap. KV-cached, auth-gated, rate-limited.

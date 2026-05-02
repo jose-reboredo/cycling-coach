@@ -186,6 +186,16 @@ export function EventDetailDrawer({ event, onClose, clubId, callerAthleteId, cal
               <dd>{event.club_name}</dd>
             </div>
           )}
+          {/* v10.12.0 — repeat-group banner. When the session is part of a
+              weekly-repeat batch, surface that fact so the user understands
+              edits are per-instance unless they opt into "Apply to all
+              upcoming" in the edit form. */}
+          {event.is_personal && event.recurring_group_id && (
+            <div className={styles.drawerMetaRow}>
+              <dt>Repeat</dt>
+              <dd>Part of weekly repeat</dd>
+            </div>
+          )}
         </dl>
 
         {event.description && (

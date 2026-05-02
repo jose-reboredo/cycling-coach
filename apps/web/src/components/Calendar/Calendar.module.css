@@ -247,6 +247,13 @@
 .weekDayCol {
   position: relative;
   border-right: 1px solid var(--c-border);
+  /* v10.12.0 (GH #80) — explicit column height matches HOUR_PX × 16 so
+   * absolutely-positioned events compute their top/height in px against
+   * the same total the time-gutter labels assume. Previously the slots'
+   * border-bottom inflated content height by 16 px and the % math drifted
+   * the events off the gridlines. */
+  height: 640px;
+  box-sizing: border-box;
 }
 .weekDayCol:last-child {
   border-right: 0;
@@ -256,6 +263,9 @@
 }
 .weekHourSlot {
   height: 40px;
+  /* v10.12.0 — border-box keeps total slot height at exactly 40 px so
+   * 16 stacked slots equal the 640-px column height. */
+  box-sizing: border-box;
   border-bottom: 1px solid var(--c-border);
 }
 /* v10.10.0 — quick-add affordance on Week + Day grids. Each empty hour

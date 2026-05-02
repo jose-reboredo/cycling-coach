@@ -57,6 +57,10 @@ export interface CalendarEvent {
    *  route picker's default cycling type. Distinct from the existing
    *  club-event `surface` enum (road | gravel | mixed) above. */
   session_surface?: string | null;
+  /** v10.12.0 — repeat-group id. When non-null, this session is part
+   *  of a weekly-repeat batch; the drawer displays "Part of N-week
+   *  repeat" and offers "Edit all upcoming" cascade. */
+  recurring_group_id?: string | null;
   /** v9.12.5 — owning club id for club events (so the personal scheduler
    *  can wire Cancel / Unsubscribe mutations against the right club). Set
    *  by the dashboard.schedule.tsx mapper from `MyScheduleEvent.club_id`.

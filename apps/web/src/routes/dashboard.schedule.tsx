@@ -165,6 +165,8 @@ function PersonalSchedule() {
       // v10.8.0 — AI plan targets carry into the route picker.
       elevation_gained: s.elevation_gained,
       session_surface: s.surface,
+      // v10.12.0 — repeat-group propagation; drawer reads to render banner.
+      recurring_group_id: s.recurring_group_id,
     }));
     return [...club, ...personal].sort((a, b) => a.event_date - b.event_date);
   }, [data]);

@@ -78,6 +78,21 @@ function NewSessionPage() {
     return scheduleQuery.data.planned_sessions.find((s) => s.id === editId) ?? null;
   }, [isEdit, editId, scheduleQuery.data]);
 
+  // v10.12.0 — count siblings of the editing session sharing its
+  // recurring_group_id, on or after this session's date. The drawer/form
+  // banner shows "Part of N-week repeat" + offers cascade edit.
+  // Note: this is "upcoming siblings" (forward-only), which matches the
+  // worker's cascade logic. Past sessions in the same group don't count.
+  const upcomingSiblingsCount = useMemo(() => {
+    if (!editingSession?.recurring_group_id || !scheduleQuery.data) return 0;
+    const myDate = editingSession.session_date;
+    const myGroup = editingSession.recurring_group_id;
+    return scheduleQuery.data.planned_sessions.filter(
+      (s) => s.recurring_group_id === myGroup && s.session_date > myDate
+        && s.cancelled_at == null && s.completed_at == null && s.user_edited_at == null,
+    ).length;
+  }, [editingSession, scheduleQuery.data]);
+
   // Default = today at 18:00.
   const todayDate = (() => {
     const d = new Date();
@@ -100,6 +115,12 @@ function NewSessionPage() {
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [repeatWeeks, setRepeatWeeks] = useState('4');
   const [repeatProgress, setRepeatProgress] = useState<{ current: number; total: number } | null>(null);
+  // v10.12.0 — when editing a session that's part of a repeat group, the
+  // user can opt into cascading the edit to all upcoming siblings via
+  // ?cascade=group on the PATCH. Defaults off — a single edit is the
+  // safer default. Banner above the form shows the sibling count so the
+  // user knows the choice exists.
+  const [cascadeAllUpcoming, setCascadeAllUpcoming] = useState(false);
 
   // v9.12.5 — Edit mode: populate form when the session arrives.
   // v10.11.0 — re-hydrate when the underlying session data changes
@@ -175,17 +196,54 @@ function NewSessionPage() {
     try {
       if (isEdit && editId != null) {
         // v9.12.5 — PATCH path. Send all fields (PATCH supports nullable clear).
-        await patchSession.mutateAsync({
-          sessionId: editId,
-          input: {
-            title: trimmed,
-            session_date: Math.floor(sessionMs / 1000),
-            description: description.trim() || null,
-            zone: zoneNum,
-            duration_minutes: durationNum,
-            target_watts: wattsNum,
-          },
-        });
+        // v10.12.0 — when "Edit all upcoming" is on AND the session is part
+        // of a repeat group, append ?cascade=group so the worker propagates
+        // to siblings (forward-only; respects user_edited_at locks).
+        const cascade = cascadeAllUpcoming && editingSession?.recurring_group_id;
+        if (cascade) {
+          // Direct fetch — useMutation hook doesn't support per-call query
+          // params. Mirrors the patchSession path but with ?cascade=group.
+          // Awaits invalidation manually since we bypass the hook.
+          const tokens = await import('../lib/auth').then((m) => m.ensureValidToken());
+          if (!tokens) throw new Error('not_authenticated');
+          const res = await fetch(`/api/me/sessions/${editId}?cascade=group`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${tokens.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title: trimmed,
+              session_date: Math.floor(sessionMs / 1000),
+              description: description.trim() || null,
+              zone: zoneNum,
+              duration_minutes: durationNum,
+              target_watts: wattsNum,
+            }),
+          });
+          if (!res.ok) {
+            const text = await res.text();
+            let msg = `cascade patch failed (${res.status})`;
+            try { msg = JSON.parse(text).error || msg; } catch { /* keep default */ }
+            throw new Error(msg);
+          }
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['me', 'schedule'] }),
+            queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] }),
+          ]);
+        } else {
+          await patchSession.mutateAsync({
+            sessionId: editId,
+            input: {
+              title: trimmed,
+              session_date: Math.floor(sessionMs / 1000),
+              description: description.trim() || null,
+              zone: zoneNum,
+              duration_minutes: durationNum,
+              target_watts: wattsNum,
+            },
+          });
+        }
       } else {
         // v10.10.0 — Repeat-weekly multi-session creation.
         // v10.10.2 — third attempt at making this reliable. Uses Promise
@@ -209,6 +267,16 @@ function NewSessionPage() {
           });
         } else {
           setRepeatProgress({ current: 0, total: repetitions });
+          // v10.12.0 — generate a recurring_group_id once and stamp it on
+          // every iteration so the rows are addressable as a sibling set.
+          // Hex 16 chars (8 bytes) — enough entropy, fits the worker's
+          // ^[a-f0-9]{8,32}$ validator. crypto.getRandomValues is browser-
+          // native; no library needed.
+          const groupBytes = new Uint8Array(8);
+          crypto.getRandomValues(groupBytes);
+          const groupId = Array.from(groupBytes)
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
           // Build the request payloads up-front so each fetch sees a
           // distinct, fully-resolved object. Avoids any sharing of
           // mutable state across the in-flight requests.
@@ -219,6 +287,7 @@ function NewSessionPage() {
             ...(zoneNum != null ? { zone: zoneNum } : {}),
             ...(durationNum != null ? { duration_minutes: durationNum } : {}),
             ...(wattsNum != null ? { target_watts: wattsNum } : {}),
+            recurring_group_id: groupId,
           }));
           // Fire all in parallel. Worker handles them in any order; the
           // sessions table has no UNIQUE constraint that would conflict.
@@ -382,6 +451,26 @@ function NewSessionPage() {
             />
             <span className={styles.fieldHint}>Optional. Up to 2,000 characters.</span>
           </div>
+
+          {/* v10.12.0 — Edit-cascade for repeat groups. Visible when editing
+              a session that's part of a repeat group AND there are upcoming
+              siblings to cascade to. Default off (single edit is safer). */}
+          {isEdit && editingSession?.recurring_group_id && upcomingSiblingsCount > 0 && (
+            <div className={styles.repeatBlock}>
+              <label className={styles.repeatLabel}>
+                <input
+                  type="checkbox"
+                  checked={cascadeAllUpcoming}
+                  onChange={(e) => setCascadeAllUpcoming(e.target.checked)}
+                />
+                <span>Apply changes to all {upcomingSiblingsCount} upcoming repeat{upcomingSiblingsCount === 1 ? '' : 's'}</span>
+              </label>
+              <p className={styles.fieldHint}>
+                Cascade respects per-session edits — siblings the user has manually edited stay untouched.
+                Date moves are not cascaded; siblings keep their original dates.
+              </p>
+            </div>
+          )}
 
           {/* v10.10.0 — Repeat-weekly toggle. Only visible in create mode
               (Edit operates on a single session). When checked, the form

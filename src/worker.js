@@ -29,8 +29,8 @@ import {
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.11.3';
-const BUILD_DATE = '2026-05-01';
+const WORKER_VERSION = 'v10.12.0';
+const BUILD_DATE = '2026-05-02';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
 // and Anthropic key prefixes from anything that would otherwise hit
@@ -74,6 +74,8 @@ function mapSessionRow(row) {
     elevation_gained: row.elevation_gained ?? null,
     surface: row.surface ?? null,
     user_edited_at: row.user_edited_at ?? null,
+    // v10.12.0 — repeat-group identifier. NULL = standalone session.
+    recurring_group_id: row.recurring_group_id ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -1489,7 +1491,7 @@ async function handleRequest(request, env, ctx) {
         '       duration_minutes, target_watts, source, ai_report_id, ' +
         '       completed_at, cancelled_at, ai_plan_session_id, ' +
         '       elevation_gained, surface, user_edited_at, ' +
-        '       created_at, updated_at ' +
+        '       recurring_group_id, created_at, updated_at ' +
         'FROM planned_sessions ' +
         'WHERE athlete_id = ? AND session_date BETWEEN ? AND ? ' +
         '  AND cancelled_at IS NULL ' +
@@ -1549,7 +1551,7 @@ async function handleRequest(request, env, ctx) {
         '       duration_minutes, target_watts, source, ai_report_id, ' +
         '       completed_at, cancelled_at, ai_plan_session_id, ' +
         '       elevation_gained, surface, user_edited_at, ' +
-        '       created_at, updated_at ' +
+        '       recurring_group_id, created_at, updated_at ' +
         'FROM planned_sessions ' +
         'WHERE athlete_id = ? AND session_date BETWEEN ? AND ? ' +
         'ORDER BY session_date ASC',
@@ -1679,6 +1681,14 @@ async function handleRequest(request, env, ctx) {
         ? Math.floor(body.target_watts) : null;
       const SOURCE_ALLOWLIST = new Set(['manual', 'ai-coach', 'imported']);
       const source = SOURCE_ALLOWLIST.has(body?.source) ? body.source : 'manual';
+      // v10.12.0 — optional recurring_group_id ties this session to siblings
+      // for the repeat-weekly feature. Hex string, 8-32 chars; null when
+      // standalone. Frontend generates a random group id when creating a
+      // multi-week repeat batch and passes it on every iteration.
+      const recurringGroupId = typeof body?.recurring_group_id === 'string'
+        && /^[a-f0-9]{8,32}$/i.test(body.recurring_group_id)
+        ? body.recurring_group_id
+        : null;
 
       if (!title) {
         return new Response(JSON.stringify({ error: 'title required (1-200 chars)' }), {
@@ -1700,10 +1710,10 @@ async function handleRequest(request, env, ctx) {
       const inserted = await env.cycling_coach_db
         .prepare(
           'INSERT INTO planned_sessions (athlete_id, session_date, title, description, zone, ' +
-          '  duration_minutes, target_watts, source, created_at, updated_at) ' +
-          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+          '  duration_minutes, target_watts, source, recurring_group_id, created_at, updated_at) ' +
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
         )
-        .bind(authResult.athleteId, sessionDate, title, description, zone, duration, watts, source, now, now)
+        .bind(authResult.athleteId, sessionDate, title, description, zone, duration, watts, source, recurringGroupId, now, now)
         .first();
       if (!inserted?.id) {
         safeWarn(`[me/sessions] insert returned no id for athlete ${authResult.athleteId}`);
@@ -1838,6 +1848,62 @@ async function handleRequest(request, env, ctx) {
       }
       updates.push('updated_at = ?');
       params.push(now);
+
+      // v10.12.0 — repeat-group cascade. ?cascade=group propagates the
+      // PATCH to every sibling session sharing this row's recurring_group_id
+      // (forward-only: only sessions on this date or later, so past rides
+      // aren't retroactively edited). Used by drawer's "Edit all upcoming"
+      // button. NULL recurring_group_id = behaves as single-session edit.
+      const cascade = url.searchParams.get('cascade') === 'group';
+      if (cascade) {
+        // Look up this session's group + date.
+        const me = await db.prepare(
+          'SELECT recurring_group_id, session_date FROM planned_sessions WHERE id = ? AND athlete_id = ? LIMIT 1',
+        ).bind(sessionId, authResult.athleteId).first();
+        if (!me?.recurring_group_id) {
+          // Cascade requested but session has no group — fall back to single-row update.
+          params.push(sessionId);
+          await db.prepare(
+            `UPDATE planned_sessions SET ${updates.join(', ')} WHERE id = ? AND athlete_id = ?`,
+          ).bind(...params, authResult.athleteId).run();
+          return new Response(JSON.stringify({
+            id: sessionId, ...applied, updated_at: now, cascaded: 0,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+        // Cascade: every sibling on or after this session's date, owned by
+        // the same athlete, where the user hasn't manually edited (so the
+        // cascade respects user_edited_at locks from v10.9.0). The session
+        // _itself_ always updates (we want the user's edit applied).
+        // Two queries: one for self (always), one for siblings (gated).
+        // For siblings, we shift session_date by the same delta as the
+        // user's edit if session_date was changed, OR keep their dates
+        // intact if not. Simpler v1: skip session_date in cascade to avoid
+        // moving sibling dates around unintentionally.
+        const cascadeUpdates = updates.filter((u) => !u.startsWith('session_date'));
+        const cascadeParams = params.filter((_, i) => !updates[i]?.startsWith('session_date'));
+        // Self update (with session_date if user changed it)
+        await db.prepare(
+          `UPDATE planned_sessions SET ${updates.join(', ')} WHERE id = ? AND athlete_id = ?`,
+        ).bind(...params, sessionId, authResult.athleteId).run();
+        // Sibling cascade — exclude self (already updated), respect user_edited_at lock
+        const cascadeRes = await db.prepare(
+          `UPDATE planned_sessions SET ${cascadeUpdates.join(', ')}
+           WHERE recurring_group_id = ?
+             AND athlete_id = ?
+             AND id != ?
+             AND session_date >= ?
+             AND user_edited_at IS NULL
+             AND completed_at IS NULL
+             AND cancelled_at IS NULL`,
+        ).bind(...cascadeParams, me.recurring_group_id, authResult.athleteId, sessionId, me.session_date).run();
+        return new Response(JSON.stringify({
+          id: sessionId,
+          ...applied,
+          updated_at: now,
+          cascaded: cascadeRes?.meta?.changes ?? 0,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       params.push(sessionId);
       await db.prepare(`UPDATE planned_sessions SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();
       return new Response(JSON.stringify({ id: sessionId, ...applied, updated_at: now }), {

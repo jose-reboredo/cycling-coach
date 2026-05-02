@@ -264,12 +264,17 @@ CREATE TABLE planned_sessions (
   elevation_gained INTEGER,
   surface TEXT,
   user_edited_at INTEGER,
+  -- v10.12.0 / Migration 0013 — opaque hex id shared across siblings of a
+  -- weekly-repeat batch so the edit drawer can offer a "cascade to all
+  -- upcoming repeats" toggle. NULL on standalone (non-repeating) sessions.
+  recurring_group_id TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
 
 CREATE INDEX idx_planned_sessions_athlete_date ON planned_sessions(athlete_id, session_date);
 CREATE INDEX idx_planned_sessions_ai_report ON planned_sessions(ai_report_id) WHERE ai_report_id IS NOT NULL;
+CREATE INDEX idx_planned_sessions_recurring_group ON planned_sessions(recurring_group_id) WHERE recurring_group_id IS NOT NULL;
 
 -- v10.6.0 / Migration 0010 — Per-user OAuth tokens for Ride with GPS.
 CREATE TABLE rwgps_tokens (

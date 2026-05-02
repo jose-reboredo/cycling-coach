@@ -15,6 +15,11 @@ import {
   groupByDay,
 } from './types';
 import styles from './Calendar.module.css';
+import {
+  HOUR_PX,
+  FALLBACK_EVENT_DURATION_MINUTES,
+  computeOverlapColumns,
+} from './layout';
 
 interface DayCalendarGridProps {
   date: CalendarDate;
@@ -24,9 +29,6 @@ interface DayCalendarGridProps {
   /** v10.10.0 — quick-add. Fires when an empty hour slot is clicked. */
   onCellClick?: (dateStr: string, timeStr: string) => void;
 }
-
-// v9.12.3 — event blocks size to actual duration_minutes; legacy fallback.
-const FALLBACK_EVENT_DURATION_MINUTES = 90;
 
 export function DayCalendarGrid({
   date,
@@ -78,26 +80,35 @@ export function DayCalendarGrid({
               />
             );
           })}
-          {dayEvents.map((e) => {
+          {(() => {
+            // v10.12.0 (GH #80) — px-based positioning + overlap-aware columns.
+            const layoutMap = computeOverlapColumns(dayEvents);
+            return dayEvents.map((e) => {
             const dt = new Date(e.event_date * 1000);
             // v9.12.4 — render in viewer's local TZ (was UTC). DB stays UTC.
             const hh = dt.getHours() + dt.getMinutes() / 60;
             if (hh < TIME_GRID_START_HOUR || hh >= TIME_GRID_START_HOUR + TIME_GRID_HOURS) {
               return null;
             }
-            const topPct = ((hh - TIME_GRID_START_HOUR) / TIME_GRID_HOURS) * 100;
-            // v9.12.3 — block height proportional to actual duration.
+            const topPx = (hh - TIME_GRID_START_HOUR) * HOUR_PX;
             const durationMin = e.duration_minutes ?? FALLBACK_EVENT_DURATION_MINUTES;
-            const heightPct = (durationMin / 60 / TIME_GRID_HOURS) * 100;
-            // v9.12.7 — top row gets time + duration side-by-side (mirrors
-            // SchedulePreview marketing visual: bold title, mono duration tag).
+            const heightPx = (durationMin / 60) * HOUR_PX;
+            const lay = layoutMap.get(e.id) ?? { col: 0, total: 1 };
+            const widthPct = 100 / lay.total;
+            const leftPct = lay.col * widthPct;
             const durStr = formatDuration(e.duration_minutes);
             return (
               <button
                 key={e.id}
                 type="button"
                 className={`${styles.dayEvent} ${getEventPillClass(e, styles)} ${e.cancelled_at ? styles.cancelled : ''}`}
-                style={{ top: `${topPct}%`, height: `${heightPct}%` }}
+                style={{
+                  top: `${topPx}px`,
+                  height: `${heightPx}px`,
+                  left: `calc(${leftPct}% + 2px)`,
+                  width: `calc(${widthPct}% - 4px)`,
+                  right: 'auto',
+                }}
                 onClick={() => onEventClick(e)}
               >
                 <span className={styles.dayEventTopRow}>
@@ -120,7 +131,8 @@ export function DayCalendarGrid({
                 )}
               </button>
             );
-          })}
+            });
+          })()}
         </div>
       </div>
       {dayEvents.length === 0 && (

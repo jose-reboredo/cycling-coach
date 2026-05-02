@@ -18,6 +18,11 @@ import {
   groupByDay,
 } from './types';
 import styles from './Calendar.module.css';
+import {
+  HOUR_PX,
+  FALLBACK_EVENT_DURATION_MINUTES,
+  computeOverlapColumns,
+} from './layout';
 
 interface WeekCalendarGridProps {
   date: CalendarDate; // any date within the week to display
@@ -31,10 +36,6 @@ interface WeekCalendarGridProps {
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-// v9.12.3 — event blocks size to actual duration_minutes. Legacy events
-// without duration fall back to 90 min.
-const FALLBACK_EVENT_DURATION_MINUTES = 90;
 
 export function WeekCalendarGrid({
   date,
@@ -116,31 +117,41 @@ export function WeekCalendarGrid({
                   />
                 );
               })}
-              {dayEvents.map((e) => {
-                const dt = new Date(e.event_date * 1000);
-                // v9.12.4 — render in viewer's local TZ (was UTC). DB stays UTC.
-                const hours = dt.getHours() + dt.getMinutes() / 60;
-                if (hours < TIME_GRID_START_HOUR || hours >= TIME_GRID_START_HOUR + TIME_GRID_HOURS) {
-                  return null; // outside the 06:00–22:00 band
-                }
-                const topPct = ((hours - TIME_GRID_START_HOUR) / TIME_GRID_HOURS) * 100;
-                // v9.12.3 — block height proportional to actual duration so
-                // a 15:00 + 2h event visually books 15:00–17:00 on the grid.
-                const durationMin = e.duration_minutes ?? FALLBACK_EVENT_DURATION_MINUTES;
-                const heightPct = (durationMin / 60 / TIME_GRID_HOURS) * 100;
-                // v9.12.7 — bold title + mono duration tag (matches
-                // SchedulePreview marketing visual). Time stays as small
-                // mono chip since position-on-Y can be hard to read in
-                // dense weeks.
-                const durStr = formatDuration(e.duration_minutes);
-                return (
-                  <button
-                    key={e.id}
-                    type="button"
-                    className={`${styles.weekEvent} ${getEventPillClass(e, styles)} ${e.cancelled_at ? styles.cancelled : ''}`}
-                    style={{ top: `${topPct}%`, height: `${heightPct}%` }}
-                    onClick={() => onEventClick(e)}
-                  >
+              {(() => {
+                // v10.12.0 (GH #80) — px-based positioning + overlap-aware
+                // columns. Compute layout once per render so all events in
+                // a transitive-overlap group know their colCount.
+                const layoutMap = computeOverlapColumns(dayEvents);
+                return dayEvents.map((e) => {
+                  const dt = new Date(e.event_date * 1000);
+                  // v9.12.4 — render in viewer's local TZ (was UTC). DB stays UTC.
+                  const hh = dt.getHours() + dt.getMinutes() / 60;
+                  if (hh < TIME_GRID_START_HOUR || hh >= TIME_GRID_START_HOUR + TIME_GRID_HOURS) {
+                    return null; // outside the 06:00–22:00 band
+                  }
+                  const topPx = (hh - TIME_GRID_START_HOUR) * HOUR_PX;
+                  // v9.12.3 — block height proportional to actual duration so
+                  // a 15:00 + 2h event visually books 15:00–17:00 on the grid.
+                  const durationMin = e.duration_minutes ?? FALLBACK_EVENT_DURATION_MINUTES;
+                  const heightPx = (durationMin / 60) * HOUR_PX;
+                  const lay = layoutMap.get(e.id) ?? { col: 0, total: 1 };
+                  const widthPct = 100 / lay.total;
+                  const leftPct = lay.col * widthPct;
+                  const durStr = formatDuration(e.duration_minutes);
+                  return (
+                    <button
+                      key={e.id}
+                      type="button"
+                      className={`${styles.weekEvent} ${getEventPillClass(e, styles)} ${e.cancelled_at ? styles.cancelled : ''}`}
+                      style={{
+                        top: `${topPx}px`,
+                        height: `${heightPx}px`,
+                        left: `calc(${leftPct}% + 2px)`,
+                        width: `calc(${widthPct}% - 4px)`,
+                        right: 'auto',
+                      }}
+                      onClick={() => onEventClick(e)}
+                    >
                     <span className={styles.pillTime}>
                       {String(dt.getHours()).padStart(2, '0')}
                       :
@@ -150,7 +161,8 @@ export function WeekCalendarGrid({
                     {durStr && <span className={styles.weekEventDur}>{durStr}</span>}
                   </button>
                 );
-              })}
+                });
+              })()}
             </div>
           );
         })}

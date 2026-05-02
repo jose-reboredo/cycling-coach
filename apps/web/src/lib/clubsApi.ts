@@ -232,6 +232,10 @@ export interface PlannedSession {
   elevation_gained?: number | null;
   surface?: string | null;
   user_edited_at?: number | null;
+  // v10.12.0 — repeat-group identifier. Sessions sharing this id are
+  // siblings of a weekly repeat (created via the repeat-weekly form
+  // or by AI plan generation). NULL = standalone.
+  recurring_group_id?: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -245,6 +249,9 @@ export interface CreatePlannedSessionInput {
   duration_minutes?: number | null;
   target_watts?: number | null;
   source?: PlannedSessionSource;
+  /** v10.12.0 — repeat-group id; sessions in the same multi-week batch
+   *  share this opaque hex id. Server validates `^[a-f0-9]{8,32}$`. */
+  recurring_group_id?: string | null;
 }
 
 /** v9.12.5 — describe each PATCH field explicitly so callers can clear

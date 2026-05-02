@@ -98,6 +98,8 @@ export function TodayDossier({ callerAthleteId }: TodayDossierProps = {}) {
         // v10.8.0 — AI plan targets carry into the drawer's route picker.
         elevation_gained: s.elevation_gained,
         session_surface: s.surface,
+        // v10.12.0 — repeat-group banner propagation.
+        recurring_group_id: s.recurring_group_id,
       });
     });
     return events.sort((a, b) => a.event_date - b.event_date);

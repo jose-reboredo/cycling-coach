@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { Container } from '../components/Container/Container';
@@ -11,6 +11,7 @@ import { useRides } from '../hooks/useStravaData';
 import { readTokens } from '../lib/auth';
 import { connectUrl } from '../lib/connectUrl';
 import { MARCO } from '../lib/mockMarco';
+import { fetchRwgpsStatus, disconnectRwgps } from '../lib/routesApi';
 import styles from './TabShared.module.css';
 
 export const Route = createFileRoute('/dashboard/you')({
@@ -46,6 +47,45 @@ function YouTab() {
   const [showKey, setShowKey] = useState(false);
 
   const stravaConnected = !!tokens && !usingMock;
+
+  // v10.12.0 — RWGPS connection status moves out of the route picker
+  // into Settings so users can disconnect without going through the
+  // schedule flow. null = loading, true/false = resolved.
+  const [rwgpsConnected, setRwgpsConnected] = useState<boolean | null>(null);
+  const [rwgpsBusy, setRwgpsBusy] = useState(false);
+  const [rwgpsError, setRwgpsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tokens || usingMock) {
+      setRwgpsConnected(false);
+      return;
+    }
+    let cancelled = false;
+    fetchRwgpsStatus()
+      .then((s) => {
+        if (!cancelled) setRwgpsConnected(s.connected);
+      })
+      .catch(() => {
+        if (!cancelled) setRwgpsConnected(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tokens, usingMock]);
+
+  async function handleRwgpsDisconnect() {
+    if (rwgpsBusy) return;
+    setRwgpsBusy(true);
+    setRwgpsError(null);
+    try {
+      await disconnectRwgps();
+      setRwgpsConnected(false);
+    } catch (err) {
+      setRwgpsError(err instanceof Error ? err.message : 'Disconnect failed');
+    } finally {
+      setRwgpsBusy(false);
+    }
+  }
 
   return (
     <div className={styles.tabRoot}>
@@ -179,6 +219,53 @@ function YouTab() {
                 <p>Not connected. Link your Strava account to pull real ride data.</p>
                 <Button variant="primary" size="md" href={connectUrl()} withArrow>
                   Connect Strava
+                </Button>
+              </div>
+            )}
+          </Card>
+        </motion.section>
+
+        {/* RWGPS CONNECTION (v10.12.0) */}
+        <motion.section
+          className={styles.section}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.25 }}
+        >
+          <Card tone="elev" pad="md">
+            <Eyebrow rule tone="accent">Ride with GPS</Eyebrow>
+            {usingMock ? (
+              <p className={styles.emptyInline}>
+                Sign in to connect your Ride with GPS account.
+              </p>
+            ) : rwgpsConnected === null ? (
+              <p className={styles.emptyInline}>Checking connection…</p>
+            ) : rwgpsConnected ? (
+              <div className={styles.stravaDisconnected}>
+                <p className={styles.stravaConnected}>
+                  Connected — your saved RWGPS routes are available in the
+                  session route picker.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="md"
+                  onClick={handleRwgpsDisconnect}
+                  disabled={rwgpsBusy}
+                >
+                  {rwgpsBusy ? 'Disconnecting…' : 'Disconnect Ride with GPS'}
+                </Button>
+                {rwgpsError && (
+                  <p className={styles.emptyInline}>{rwgpsError}</p>
+                )}
+              </div>
+            ) : (
+              <div className={styles.stravaDisconnected}>
+                <p>
+                  Not connected. Link RWGPS to pick from your saved routes when
+                  scheduling sessions.
+                </p>
+                <Button variant="primary" size="md" href="/authorize-rwgps" withArrow>
+                  Connect Ride with GPS
                 </Button>
               </div>
             )}

@@ -4,6 +4,79 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.12.0] — 2026-05-02
+
+**Bundle release — three independent improvements that the founder asked to ship together rather than across three patch cuts: (1) repeat-aware editing for weekly-recurring sessions, (2) calendar event-block alignment + overlap rendering (GH #80), (3) RWGPS disconnect surface in Settings.**
+
+### 1 · Repeat-aware drawer + cascade edit (Item 2)
+
+Until now, scheduling a 4-week-repeat created 4 sibling rows that the user could only edit one-at-a-time. After v10.11.x the drawer had no way to even tell the user the session was part of a repeat batch.
+
+- **Schema** — Migration 0013 adds `recurring_group_id TEXT` to `planned_sessions` plus a partial index `idx_planned_sessions_recurring_group ON planned_sessions(recurring_group_id) WHERE recurring_group_id IS NOT NULL`. Stamped on creation when the form's "Repeat weekly for N weeks" toggle is set; opaque hex generated client-side via `crypto.getRandomValues`.
+- **POST `/api/me/sessions`** — accepts the new field, validates against `^[a-f0-9]{8,32}$/i`, persists.
+- **PATCH `/api/me/sessions/:id?cascade=group`** — opt-in cascade. Updates the addressed row, then propagates the same patch (sans `session_date`) to siblings sharing the group id whose `user_edited_at IS NULL` (respects the per-session edit lock from v10.8.0).
+- **Drawer** — when the loaded session has a non-null group id, a "Repeat · Part of weekly repeat" meta row appears above the action buttons.
+- **Edit form** — when the session is part of a group AND the user has ≥1 upcoming sibling that hasn't been hand-edited, an "Apply changes to all N upcoming repeats" checkbox appears. Submitting with it on switches the PATCH to `?cascade=group`.
+
+### 2 · Calendar grid alignment + overlap rendering (GH #80)
+
+Issue: events on Week and Day views drifted off the gridlines (a 15:00 event rendered ~10 px below the 15:00 line in the densest layouts), and concurrent events stacked on top of each other instead of going side-by-side.
+
+Root cause was structural. Each `.weekHourSlot` was `height: 40px` but had `border-bottom: 1px solid` outside the box-model — so 16 stacked slots actually rendered at 656 px while the events used `top: X%` math that assumed 640 px. The drift compounded: 0 px at 06:00, 16 px by 22:00.
+
+Two fixes:
+
+- **`.weekHourSlot`** now `box-sizing: border-box`. **`.weekDayCol`** has explicit `height: 640px`. Slot stack and column height match exactly, so the gridlines a user sees match the math the events use.
+- Both `WeekCalendarGrid` and `DayCalendarGrid` switched from `top: X%` / `height: Y%` to **px-based positioning** via the new shared `HOUR_PX = 40` constant in `apps/web/src/components/Calendar/layout.ts`. No more % rounding.
+- Same module exports `computeOverlapColumns(events)` — greedy left-to-right column assignment for events that overlap in clock-time. Events get `{ col, total }`, and the grids render with `width: calc(${100/total}% - 4px)` and `left: calc(${col * 100/total}% + 2px)`. Two overlapping rides: side by side (50% each). Three overlapping: thirds. Non-overlapping events stay full-width.
+- 7 new contract tests in `Calendar/__tests__/layout.test.ts` covering single, non-overlap, 2-way, 3-way, greedy reuse, fallback duration, empty input. Calendar layout was previously untested — these guard against the next regression.
+
+### 3 · RWGPS disconnect surface (Item 1)
+
+Until now the only place to disconnect Ride with GPS was inside the SessionRoutePicker drawer — buried behind "create or edit a session". `dashboard.you.tsx` (Settings) now has a dedicated RWGPS card that mirrors the existing Strava card:
+
+- Loading state while `/api/rwgps/status` is in flight.
+- "Connected" state with a "Disconnect Ride with GPS" ghost button calling the existing `disconnectRwgps()` helper from `routesApi.ts`.
+- "Not connected" state with a `Connect Ride with GPS` primary button → `/authorize-rwgps`.
+
+No backend changes — the disconnect endpoint and helper already shipped in v10.7.0.
+
+### Verified before deploy
+
+- `npm run test:unit` → **42/42 pass** (35 prior + 7 new layout tests)
+- `npx tsc --noEmit` → 0 errors
+- `npx vite build` → green
+
+### Deferred (not in this release)
+
+- **Item 4 — "Today" inline route shortcut**: deferred pending design alignment from the founder. The interaction model (single-tap from Today tab to open route picker, vs. opening the drawer first) wasn't decided, and shipping a guess inside a 3-feature bundle violated the "one risk theme per release" rule. Will revisit as a focused v10.13.x once a design call is made.
+- **Item 5 — AI-plan v2 with first-class repeat groups**: deferred. The naïve cut would stamp a `recurring_group_id` on every AI-generated planned session, but that conflicts with the existing per-session `ai_plan_session_id` cascade (Phase D webhook auto-regen). Two cascade paths through the same row is a footgun. Belongs in its own release where the architectural decision can be made deliberately.
+
+### Files changed
+
+```
+migrations/0013_planned_sessions_recurring_group.sql       # NEW
+schema.sql                                                  # cumulative — recurring_group_id + index
+src/worker.js                                               # PATCH cascade, POST validation, mapper, version bump
+apps/web/src/components/Calendar/layout.ts                  # NEW shared layout helpers
+apps/web/src/components/Calendar/__tests__/layout.test.ts   # NEW 7 contract tests
+apps/web/src/components/Calendar/WeekCalendarGrid.tsx       # px positioning + overlap
+apps/web/src/components/Calendar/DayCalendarGrid.tsx        # px positioning + overlap
+apps/web/src/components/Calendar/Calendar.module.css        # box-sizing border-box, fixed col height
+apps/web/src/components/Calendar/types.ts                   # CalendarEvent.recurring_group_id
+apps/web/src/components/Calendar/EventDetailDrawer.tsx      # repeat banner row
+apps/web/src/lib/clubsApi.ts                                # PlannedSession.recurring_group_id
+apps/web/src/routes/dashboard.schedule.tsx                  # mapper threads group id
+apps/web/src/routes/dashboard.schedule-new.tsx              # cascade checkbox + group-id generator
+apps/web/src/routes/dashboard.you.tsx                       # RWGPS Settings card
+apps/web/src/components/TodayDossier/TodayDossier.tsx       # mapper threads group id
+apps/web/public/sw.js                                       # CACHE bump
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+---
+
 ## [10.11.3] — 2026-05-03
 
 **Defense-in-depth: entry-filter `Cache-Control: private, no-store` for every `/api/*` response. Backfilled retro action item — "audit other endpoints".**
