@@ -313,3 +313,16 @@ CREATE INDEX idx_ai_plan_sessions_athlete_week ON ai_plan_sessions(athlete_id, w
 
 -- v10.8.0 — preferred_surface on users (canonical AI plan input).
 -- Per founder design: ALTER TABLE users ADD COLUMN preferred_surface TEXT;
+
+-- v10.9.0 / Migration 0012 — Server-side Strava OAuth tokens.
+-- Mirrors rwgps_tokens shape; lets webhooks call Anthropic on behalf of
+-- the athlete without a Bearer token in the request.
+CREATE TABLE strava_tokens (
+  athlete_id INTEGER PRIMARY KEY REFERENCES users(athlete_id) ON DELETE CASCADE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  scope TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);

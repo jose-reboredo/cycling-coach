@@ -11,6 +11,7 @@ import { Pill } from '../Pill/Pill';
 import {
   generatePlan,
   fetchCurrentPlan,
+  fetchStravaAuthStatus,
   schedulePlanSession,
   type AiPlanSession,
   type AlternativeGoal,
@@ -42,6 +43,17 @@ export function AiPlanCard() {
   const [scheduledIds, setScheduledIds] = useState<Set<number>>(new Set());
   const [prefillModal, setPrefillModal] = useState<{ aiId: number; data: SessionPrefillData } | null>(null);
   const [scheduling, setScheduling] = useState(false);
+  const [autoUpdates, setAutoUpdates] = useState<boolean | null>(null);
+
+  // v10.9.0 — query server-side Strava auth status. `true` → webhooks
+  // will auto-regenerate the plan when new activities arrive.
+  useEffect(() => {
+    let cancelled = false;
+    fetchStravaAuthStatus()
+      .then((s) => { if (!cancelled) setAutoUpdates(s.server_side); })
+      .catch(() => { if (!cancelled) setAutoUpdates(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,14 +166,20 @@ export function AiPlanCard() {
     <section className={styles.card}>
       <header className={styles.head}>
         <Eyebrow rule tone="accent">Goal-driven plan</Eyebrow>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => handleGenerate(false)}
-          disabled={generating}
-        >
-          {generating ? 'Generating…' : sessions && sessions.length > 0 ? 'Regenerate' : 'Generate plan'}
-        </Button>
+        <div className={styles.headRight}>
+          {/* v10.9.0 — Auto-updates badge. Visible when the athlete has
+              migrated to server-side Strava tokens; means new rides will
+              trigger a webhook → fire-and-forget plan regeneration. */}
+          {autoUpdates && <Pill tone="success">Auto-updates ON</Pill>}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleGenerate(false)}
+            disabled={generating}
+          >
+            {generating ? 'Generating…' : sessions && sessions.length > 0 ? 'Regenerate' : 'Generate plan'}
+          </Button>
+        </div>
       </header>
 
       {loading && <p className={styles.empty}>Loading your plan…</p>}

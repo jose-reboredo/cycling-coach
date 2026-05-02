@@ -19,6 +19,136 @@ const ZONE_LABELS = new Set(['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Recovery
 const SURFACE_LABELS = new Set(['Paved', 'Mixed', 'Gravel', 'Any']);
 
 // ---------------------------------------------------------------------------
+// v10.9.0 — Webhook-triggered cascade regenerate. Called fire-and-forget
+// from the Strava webhook handler when a new activity arrives. Reads the
+// athlete's tokens from strava_tokens (Migration 0012), regenerates the
+// AI plan, then cascade-updates planned_sessions where user_edited_at is
+// NULL (i.e. the user hasn't customised the row).
+// ---------------------------------------------------------------------------
+export async function regenerateForAthlete({ env, athleteId, deps }) {
+  const { safeWarn } = deps;
+  if (!env.SYSTEM_ANTHROPIC_KEY && !env.ANTHROPIC_API_KEY) {
+    safeWarn('[plan-regen-webhook] no system key — skipping');
+    return { regenerated: false, reason: 'no_system_key' };
+  }
+  // Verify the athlete actually exists in strava_tokens — otherwise the
+  // webhook is for a user we don't track or who hasn't migrated.
+  const stravaToken = await env.cycling_coach_db
+    .prepare('SELECT athlete_id FROM strava_tokens WHERE athlete_id = ? LIMIT 1')
+    .bind(athleteId).first();
+  if (!stravaToken) {
+    return { regenerated: false, reason: 'no_server_token' };
+  }
+
+  const inputs = await gatherInputs(env.cycling_coach_db, athleteId);
+  // Skip the client-side feasibility gate on webhook triggers — the user
+  // already overrode if they're using an infeasible goal, and we don't
+  // want a webhook to silently kill their plan.
+  const prompt = buildPrompt(inputs, 4);
+  const systemKey = env.SYSTEM_ANTHROPIC_KEY || env.ANTHROPIC_API_KEY;
+
+  let parsed;
+  try {
+    const aiResp = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': systemKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 2400,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!aiResp.ok) return { regenerated: false, reason: `anthropic_${aiResp.status}` };
+    const data = await aiResp.json();
+    const text = data.content?.find((c) => c.type === 'text')?.text || '';
+    parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+  } catch (e) {
+    safeWarn(`[plan-regen-webhook] ai error: ${e.message}`);
+    return { regenerated: false, reason: 'ai_error' };
+  }
+
+  if (parsed?.feasible === false) {
+    return { regenerated: false, reason: 'goal_infeasible' };
+  }
+
+  const validSessions = (Array.isArray(parsed?.sessions) ? parsed.sessions : []).filter(validateSession);
+  if (validSessions.length === 0) {
+    return { regenerated: false, reason: 'no_valid_sessions' };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const updatedAiIds = [];
+  for (const s of validSessions) {
+    try {
+      const result = await env.cycling_coach_db.prepare(`
+        INSERT INTO ai_plan_sessions (athlete_id, week_start_date, suggested_date, title, target_zone, duration, elevation_gained, surface, reasoning, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(athlete_id, suggested_date, title) DO UPDATE SET
+          week_start_date = excluded.week_start_date,
+          target_zone = excluded.target_zone,
+          duration = excluded.duration,
+          elevation_gained = excluded.elevation_gained,
+          surface = excluded.surface,
+          reasoning = excluded.reasoning,
+          updated_at = excluded.updated_at
+        RETURNING id
+      `).bind(
+        athleteId, s.week_start_date, s.suggested_date, s.title, s.target_zone,
+        s.duration, s.elevation_gained, s.surface, s.reasoning, now, now,
+      ).first();
+      if (result?.id) updatedAiIds.push(result.id);
+    } catch (e) {
+      safeWarn(`[plan-regen-webhook] insert error ${s.suggested_date}: ${e.message}`);
+    }
+  }
+
+  // Cascade: update planned_sessions linked to these AI rows where the
+  // user hasn't customised them. Each session updates from its source AI
+  // row's current title/zone/duration/elevation/surface.
+  // user_edited_at IS NULL → safe to overwrite
+  // completed_at IS NULL    → don't touch finished sessions
+  // cancelled_at IS NULL    → don't resurrect cancelled
+  let cascadedCount = 0;
+  for (const aiId of updatedAiIds) {
+    try {
+      const result = await env.cycling_coach_db.prepare(`
+        UPDATE planned_sessions
+        SET title = (SELECT title FROM ai_plan_sessions WHERE id = ?),
+            zone = (
+              SELECT CASE
+                WHEN target_zone GLOB 'Z[1-7]' THEN CAST(SUBSTR(target_zone, 2, 1) AS INTEGER)
+                ELSE NULL
+              END
+              FROM ai_plan_sessions WHERE id = ?
+            ),
+            duration_minutes = (SELECT duration FROM ai_plan_sessions WHERE id = ?),
+            elevation_gained = (SELECT elevation_gained FROM ai_plan_sessions WHERE id = ?),
+            surface = (SELECT surface FROM ai_plan_sessions WHERE id = ?),
+            description = (SELECT reasoning FROM ai_plan_sessions WHERE id = ?),
+            updated_at = ?
+        WHERE ai_plan_session_id = ?
+          AND user_edited_at IS NULL
+          AND completed_at IS NULL
+          AND cancelled_at IS NULL
+      `).bind(aiId, aiId, aiId, aiId, aiId, aiId, now, aiId).run();
+      cascadedCount += result?.meta?.changes ?? 0;
+    } catch (e) {
+      safeWarn(`[plan-regen-webhook] cascade error ai_id=${aiId}: ${e.message}`);
+    }
+  }
+
+  return {
+    regenerated: true,
+    ai_sessions_upserted: updatedAiIds.length,
+    cascaded_planned_sessions: cascadedCount,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/plan/generate
 // ---------------------------------------------------------------------------
 export async function handlePlanGenerate({ request, env, deps }) {

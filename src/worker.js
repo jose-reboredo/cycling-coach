@@ -24,11 +24,12 @@ import {
   handlePlanGenerate,
   handlePlanCurrent,
   handlePlanSchedule,
+  regenerateForAthlete,
 } from './routes/aiPlan.js';
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.8.0';
+const WORKER_VERSION = 'v10.9.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -1545,6 +1546,29 @@ async function handleRequest(request, env, ctx) {
       return handleRwgpsRoutes({ request, env, deps: rwgpsDeps });
     }
 
+    // GET /api/auth/strava-status — v10.9.0.
+    // Reports whether the authenticated athlete has a server-side Strava
+    // token row (i.e. completed the post-v10.9.0 hybrid migration). UI
+    // surfaces this on Train tab so the user knows when auto-regen is
+    // active vs. manual-only.
+    if (url.pathname === '/api/auth/strava-status' && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify(authResult.body), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const row = await env.cycling_coach_db
+        .prepare('SELECT expires_at FROM strava_tokens WHERE athlete_id = ? LIMIT 1')
+        .bind(authResult.athleteId)
+        .first();
+      return new Response(JSON.stringify({
+        server_side: !!row,
+        expires_at: row?.expires_at ?? null,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // ============= AI PLAN — v10.8.0 Phase A =============
     // Goal-driven AI training plan generation. Reads goal + recent rides
     // + user prefs from D1, calls Anthropic Haiku, persists to ai_plan_sessions.
@@ -1751,10 +1775,22 @@ async function handleRequest(request, env, ctx) {
       apply('target_watts', 'target_watts', (v) => v === null ? null : (typeof v === 'number' && v >= 0 && v <= 2000 ? Math.floor(v) : undefined));
       apply('source', 'source', (v) => SOURCE_ALLOWLIST.has(v) ? v : undefined);
       apply('completed_at', 'completed_at', (v) => v === null ? null : (typeof v === 'number' && v > 0 ? Math.floor(v) : undefined));
+      // v10.9.0 — extended fields from AI plan integration.
+      apply('elevation_gained', 'elevation_gained', (v) => v === null ? null : (typeof v === 'number' && v >= 0 && v <= 20000 ? Math.floor(v) : undefined));
+      apply('surface', 'surface', (v) => v === null ? null : (typeof v === 'string' && v.length <= 32 ? v : undefined));
       if (updates.length === 0) {
         return new Response(JSON.stringify({ error: 'no patchable fields' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
+      }
+      // v10.9.0 — user_edited_at lock. Any field mutation marks the row
+      // as user-touched so Phase D auto-regen skips it. Excludes the
+      // completed_at flip (mark-done isn't a structural edit). The lock
+      // is set on the FIRST user edit only; subsequent edits don't reset.
+      const isOnlyCompletedAt = updates.length === 1 && updates[0]?.startsWith('completed_at');
+      if (!isOnlyCompletedAt) {
+        updates.push('user_edited_at = COALESCE(user_edited_at, ?)');
+        params.push(now);
       }
       updates.push('updated_at = ?');
       params.push(now);
@@ -2609,15 +2645,28 @@ Respond ONLY with valid JSON, no markdown:
         // Strava expects fast 200 response. Logging only since architecture is browser-storage.
         // safeLog redacts any sensitive patterns before they hit persistent logs (#20).
         safeLog('Webhook event:', event);
-        // v10.8.0 Phase D placeholder — when token-tracking infrastructure
-        // exists per athlete (server-side OAuth tokens vs browser-storage),
-        // this is the right place to fire-and-forget plan regeneration:
-        //   if (event.object_type === 'activity' && event.aspect_type === 'create') {
-        //     ctx.waitUntil(regeneratePlanForAthlete(env, event.owner_id));
-        //   }
-        // For v10.8.0 we ship manual "Regenerate" on the AI plan card; the
-        // user re-clicks after a Strava ride syncs. Auto-trigger ships in
-        // a follow-up release once server-side OAuth migration lands.
+
+        // v10.9.0 Phase D — auto-regenerate AI plan when a new activity
+        // arrives. Fire-and-forget so we still return 200 fast (Strava's
+        // 2-second deadline). regenerateForAthlete checks strava_tokens
+        // first; users still on browser-only auth get reason: 'no_server_token'
+        // and no AI cost is incurred.
+        if (
+          event &&
+          event.object_type === 'activity' &&
+          event.aspect_type === 'create' &&
+          typeof event.owner_id === 'number'
+        ) {
+          ctx.waitUntil(
+            regenerateForAthlete({
+              env,
+              athleteId: event.owner_id,
+              deps: { safeWarn },
+            })
+              .then((res) => safeLog('[plan-regen-webhook]', res))
+              .catch((e) => safeWarn(`[plan-regen-webhook] error: ${e.message}`)),
+          );
+        }
       } catch { /* malformed body — Strava expects 200 anyway */ }
       return new Response('OK', { status: 200 });
     }
@@ -3904,7 +3953,28 @@ async function persistUserAndTokens(db, tokenData) {
         is_active = 1
     `).bind(a.id, credentials, now).run();
 
-    console.log(`[D1] Persisted user ${a.id} (${a.firstname || ''}) and Strava tokens`);
+    // v10.9.0 — also write to the new strava_tokens table (mirrors the
+    // rwgps_tokens shape from v10.6.0). Eventually the user_connections
+    // credentials_json blob can retire; for now both stay in sync.
+    await db.prepare(`
+      INSERT INTO strava_tokens (athlete_id, access_token, refresh_token, expires_at, scope, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(athlete_id) DO UPDATE SET
+        access_token = excluded.access_token,
+        refresh_token = excluded.refresh_token,
+        expires_at = excluded.expires_at,
+        scope = excluded.scope,
+        updated_at = excluded.updated_at
+    `).bind(
+      a.id,
+      tokenData.access_token,
+      tokenData.refresh_token,
+      tokenData.expires_at,
+      tokenData.scope ?? null,
+      now, now,
+    ).run();
+
+    console.log(`[D1] Persisted user ${a.id} (${a.firstname || ''}) and Strava tokens (D1 + strava_tokens)`);
   } catch (e) {
     safeError('[D1] persistUserAndTokens failed:', e.message);
   }
@@ -3998,7 +4068,29 @@ async function updateConnectionTokens(db, athleteId, tokenData) {
       SET credentials_json = ?, last_sync_at = ?
       WHERE athlete_id = ? AND source = 'strava'
     `).bind(credentials, now, athleteId).run();
-    console.log(`[D1] Refreshed Strava tokens for athlete ${athleteId}`);
+
+    // v10.9.0 — also upsert into strava_tokens. Hybrid-window migration:
+    // legacy clients refreshing through /refresh self-migrate without
+    // forcing OAuth re-auth.
+    await db.prepare(`
+      INSERT INTO strava_tokens (athlete_id, access_token, refresh_token, expires_at, scope, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(athlete_id) DO UPDATE SET
+        access_token = excluded.access_token,
+        refresh_token = excluded.refresh_token,
+        expires_at = excluded.expires_at,
+        scope = excluded.scope,
+        updated_at = excluded.updated_at
+    `).bind(
+      athleteId,
+      tokenData.access_token,
+      tokenData.refresh_token,
+      tokenData.expires_at,
+      tokenData.scope ?? null,
+      now, now,
+    ).run();
+
+    console.log(`[D1] Refreshed Strava tokens for athlete ${athleteId} (D1 + strava_tokens)`);
   } catch (e) {
     safeError('[D1] updateConnectionTokens failed:', e.message);
   }

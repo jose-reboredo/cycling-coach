@@ -4,6 +4,108 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.9.0] — 2026-05-02
+
+**Strava OAuth → D1 + Phase D auto-regenerate AI plan + `user_edited_at` lock.**
+
+Closes the v10.8.0 Phase D deferral. The AI plan loop is now fully automated: a new Strava ride triggers webhook → `regenerateForAthlete` → `ai_plan_sessions` upsert → `planned_sessions` cascade-update for sessions the user hasn't customised.
+
+### Migration 0012
+
+```sql
+CREATE TABLE strava_tokens (
+  athlete_id INTEGER PRIMARY KEY REFERENCES users(athlete_id) ON DELETE CASCADE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  scope TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+```
+
+Mirrors `rwgps_tokens` (v10.6.0) shape exactly.
+
+### Hybrid-window migration (no forced re-auth)
+
+`/callback` (initial OAuth) and `/refresh` (token rotation) both write to `strava_tokens` from v10.9.0 forward. Currently-logged-in users self-migrate the next time their token rotates — typically within hours. No user is forced through re-OAuth.
+
+`updateConnectionTokens` and `persistUserAndTokens` (existing helpers) extended to UPSERT into `strava_tokens` alongside the legacy `user_connections.credentials_json` blob. Both stay in sync until v10.10+ retires the blob.
+
+### New endpoint: `GET /api/auth/strava-status`
+
+```json
+{ "server_side": true, "expires_at": 1234567890 }
+```
+
+`server_side: true` → user has migrated to D1 tokens; webhook auto-regen is active. UI shows "Auto-updates ON" badge.
+
+### Phase D — webhook auto-regenerate
+
+`/webhook/{secret}` POST handler (Strava activity events) now:
+
+```js
+if (event.object_type === 'activity' && event.aspect_type === 'create' && typeof event.owner_id === 'number') {
+  ctx.waitUntil(regenerateForAthlete({ env, athleteId: event.owner_id, deps: { safeWarn } }));
+}
+```
+
+`regenerateForAthlete` (in `src/routes/aiPlan.js`):
+1. Verifies `strava_tokens` row exists (skips browser-only users with `reason: 'no_server_token'`).
+2. Reads goal + recent 30 days + user prefs (same as `/api/plan/generate`).
+3. Calls Anthropic Haiku.
+4. UPSERTs `ai_plan_sessions` keyed by `(athlete_id, suggested_date, title)`.
+5. **Cascade-updates** `planned_sessions WHERE ai_plan_session_id IN (...) AND user_edited_at IS NULL AND completed_at IS NULL AND cancelled_at IS NULL` — pulls fresh title, zone (parsed from `'Z[1-7]'` text), duration, elevation, surface, description from the matching AI row.
+
+Fire-and-forget via `ctx.waitUntil` so Strava's 2-second webhook response deadline is honoured. Result logged via `safeLog` (`[plan-regen-webhook]`).
+
+### `user_edited_at` lock
+
+`PATCH /api/me/sessions/:id` now sets `user_edited_at = COALESCE(user_edited_at, ?)` on any structural mutation (title, session_date, zone, duration, target_watts, source, elevation_gained, surface). Mark-done flips (only `completed_at` change) skip the lock — that's not a structural edit.
+
+Once locked, `regenerateForAthlete`'s cascade-update SKIPS the row. The user wins; subsequent webhook plan regenerations leave their customised session untouched.
+
+### Frontend — Auto-updates badge
+
+`AiPlanCard` calls `fetchStravaAuthStatus` on mount. When `server_side: true`, header shows green `Auto-updates ON` Pill alongside the Regenerate button. Badge hidden for users still on browser-only auth.
+
+### Token economy (recap)
+
+Each Strava ride a synced user does triggers ~1 Haiku call (~3000 input + 2400 output tokens ≈ $0.005). Active users typically ride 2-4× per week → ~$0.02/user/month. Unchanged from v10.8.0 manual-only.
+
+### What still uses browser-side tokens
+
+**The SPA's API calls.** The browser still holds `access_token` + `refresh_token` in localStorage and sends `Authorization: Bearer ...` for `/api/*` requests. This release adds **server-side mirroring** (D1) so the Worker can act on the user's behalf without a browser request. Both flows coexist; the browser path is unchanged.
+
+### Files changed
+
+```
+migrations/0012_strava_tokens.sql                       # NEW
+schema.sql                                              # +strava_tokens
+src/worker.js                                           # +/api/auth/strava-status; persist+refresh write strava_tokens; webhook fires regenerateForAthlete
+src/routes/aiPlan.js                                    # +regenerateForAthlete (shared with handlePlanGenerate)
+apps/web/src/lib/aiPlanApi.ts                           # +fetchStravaAuthStatus + StravaAuthStatus type
+apps/web/src/components/AiPlanCard/AiPlanCard.tsx       # +Auto-updates badge; status query on mount
+apps/web/src/components/AiPlanCard/AiPlanCard.module.css  # +headRight flex container
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Why MINOR
+
+New feature (server-side OAuth + Phase D webhook auto-regen). No breaking change — browser-side flow continues working unchanged. Per locked SemVer.
+
+### Pipeline ahead
+
+| Release | Theme |
+|---|---|
+| v10.10.0 | Schedule polish trio (quick-add empty cell + repeat-weekly + week-summary footer) |
+| v10.11.0 | Match-reasons display on route cards |
+| v10.12.0 | RWGPS disconnect in Profile/Settings |
+| v10.13.0 | Today inline route shortcut (design pending) |
+
+---
+
 ## [10.8.0] — 2026-05-01
 
 **Goal-driven AI training plan with dynamic session scheduling — Phases A + B + C bundled.**

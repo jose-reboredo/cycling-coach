@@ -90,6 +90,24 @@ export interface SchedulePlanResult {
   ai_plan_session_id: number;
 }
 
+// v10.9.0 — server-side Strava OAuth status. When `server_side: true`,
+// the user has migrated to D1-stored tokens and Strava webhooks can
+// auto-regenerate their AI plan. UI surfaces "Auto-updates ON" badge.
+export interface StravaAuthStatus {
+  server_side: boolean;
+  expires_at: number | null;
+}
+
+export async function fetchStravaAuthStatus(): Promise<StravaAuthStatus> {
+  const tokens = await ensureValidToken();
+  if (!tokens) throw new Error('not_authenticated');
+  const res = await fetch('/api/auth/strava-status', {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+  if (!res.ok) throw new Error(`strava-status ${res.status}`);
+  return (await res.json()) as StravaAuthStatus;
+}
+
 export async function schedulePlanSession(input: SchedulePlanInput): Promise<SchedulePlanResult> {
   const tokens = await ensureValidToken();
   if (!tokens) throw new Error('not_authenticated');
