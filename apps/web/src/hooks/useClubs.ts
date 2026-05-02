@@ -180,7 +180,11 @@ export function useDraftEventDescription(clubId: number) {
 }
 
 /** v9.7.3 (#60) — POST /api/clubs/:id/events/:eventId/cancel. Soft-delete.
- *  Creator/admin only. Invalidates calendar caches on success. */
+ *  Creator/admin only. Invalidates calendar caches on success.
+ *  v10.10.3 — also invalidates ['me','schedule'] so cancellations made
+ *  from the personal scheduler drawer remove the event from the user's
+ *  personal calendar immediately (without this, stale data persists for
+ *  up to 5 minutes — founder bug: "events i cancel don't disappear"). */
 export function useCancelClubEvent(clubId: number) {
   const qc = useQueryClient();
   return useMutation<CancelClubEventResponse, Error, number>({
@@ -188,6 +192,7 @@ export function useCancelClubEvent(clubId: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] });
       qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
+      qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
     },
   });
 }

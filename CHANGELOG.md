@@ -4,6 +4,55 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.10.3] — 2026-05-02
+
+**Hotfix³ — `useCancelClubEvent` cache invalidation + month-range padding for week-spanning views.**
+
+Two related staleness bugs.
+
+### Bug 1 — Cancelled club events linger on personal calendar
+
+Founder report: "events i cancel don't disappear immediately". Root cause: `useCancelClubEvent` (mutation hook used by `EventDetailDrawer` Cancel button on club events) only invalidated the per-club query keys, not the personal-schedule key:
+
+```diff
+  onSuccess: () => {
+    qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] });
+    qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
++   qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
+  },
+```
+
+When the user cancelled a club event from the *personal scheduler* drawer (`/dashboard/schedule` view), the schedule query stayed fresh for up to 5 minutes (`staleTime: FIVE_MIN`). Now both club AND personal caches drop, the event vanishes immediately.
+
+Sister hooks already invalidate correctly: `useCancelPlannedSession` (v9.12.5), `useRsvp` (v10.5.4 unsubscribe).
+
+### Bug 2 — Month-spanning weeks miss cross-month sessions
+
+Founder previously reported repeat-weekly sessions for Apr 27 not appearing when viewing the current week. Root cause: `/api/me/schedule?range=2026-05` returns events between May 1 00:00 UTC and May 31 23:59 UTC. The current week's Monday (Apr 27) falls in April, so an Apr 27 session was missed even though the user was looking at the week containing it.
+
+Fix: pad the SQL `BETWEEN` range by 7 days each side so any week-spanning view always sees its boundary days. Frontend de-dupes by id; over-fetch is safe.
+
+```diff
+- const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000);
+- const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1;
++ const PAD_SEC = 7 * 86400;
++ const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000) - PAD_SEC;
++ const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1 + PAD_SEC;
+```
+
+Applied to both `/api/me/schedule` and `/api/me/sessions` (same range-handling pattern).
+
+### Files changed
+
+```
+src/worker.js                                 # +PAD_SEC for both schedule + sessions endpoints
+apps/web/src/hooks/useClubs.ts                # useCancelClubEvent also invalidates ['me','schedule']
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+---
+
 ## [10.10.2] — 2026-05-02
 
 **Hotfix² — repeat-weekly v3 + calendar accessibility + diacritic-tolerant geocoding.**

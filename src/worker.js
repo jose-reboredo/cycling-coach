@@ -29,7 +29,7 @@ import {
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.10.2';
+const WORKER_VERSION = 'v10.10.3';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -1397,8 +1397,14 @@ async function handleRequest(request, env, ctx) {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000);
-      const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1;
+      // v10.10.3 — pad the month range by 7 days each side so week views
+      // that span month boundaries (e.g., Apr 27 - May 3 = "2026-05" range
+      // but Apr 27 falls outside) include the boundary days. Founder bug:
+      // session created Apr 27 not visible when current week was visible.
+      // Frontend de-dupes by id; over-fetching is safe.
+      const PAD_SEC = 7 * 86400;
+      const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000) - PAD_SEC;
+      const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1 + PAD_SEC;
       const db = env.cycling_coach_db;
 
       const { results: rows } = await db.prepare(
@@ -1498,8 +1504,14 @@ async function handleRequest(request, env, ctx) {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000);
-      const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1;
+      // v10.10.3 — pad the month range by 7 days each side so week views
+      // that span month boundaries (e.g., Apr 27 - May 3 = "2026-05" range
+      // but Apr 27 falls outside) include the boundary days. Founder bug:
+      // session created Apr 27 not visible when current week was visible.
+      // Frontend de-dupes by id; over-fetching is safe.
+      const PAD_SEC = 7 * 86400;
+      const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000) - PAD_SEC;
+      const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1 + PAD_SEC;
       const db = env.cycling_coach_db;
       const { results: rows } = await db.prepare(
         'SELECT id, athlete_id, session_date, title, description, zone, ' +
