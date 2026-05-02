@@ -4,6 +4,65 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.10.1] — 2026-05-02
+
+**Hotfix: repeat-weekly + route picker proximity gate too strict.**
+
+Two real bugs reported same evening as v10.10.0 deploy.
+
+### Bug 1 — Repeat weekly only created the first session
+
+Founder: "session does not appear into the following weeks". Root cause: I called `createSession.mutateAsync` in a `for` loop. TanStack Query's `useMutation` accumulates internal state (`data`, `error`, `isPending`) across calls; when a hook is re-invoked from the same component while still settling from the previous call, only the first POST persists reliably and subsequent calls can be silently dropped depending on render timing.
+
+Fix: bypass the hook for the multi-iteration path. Use `clubsApi.createSession` directly in the loop, then manually invalidate the schedule + sessions query keys via `queryClient.invalidateQueries`. The single-session path keeps using the hook (no behavior change there).
+
+```diff
+- for (let i = 0; i < repetitions; i++) {
+-   await createSession.mutateAsync({ ... });
+- }
++ if (repetitions === 1) {
++   await createSession.mutateAsync({ ... });
++ } else {
++   for (let i = 0; i < repetitions; i++) {
++     setRepeatProgress({ current: i + 1, total: repetitions });
++     await clubsApi.createSession({ ... });
++   }
++   queryClient.invalidateQueries({ queryKey: ['me', 'schedule'] });
++   queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] });
++ }
+```
+
+`isSaving` now also reads `repeatProgress != null` to block double-submits during the loop.
+
+### Bug 2 — "Couldn't find good routes here" for legitimate Zurich addresses
+
+Founder: tested with `Röntgenstrasse 6, 8005 Zürich` — got `no_valid_paths`. Root cause: the v10.7.0 origin proximity gate was `(targetDistanceKm / 2π) × 1.5` ≈ 24% of target distance. Real cycling loops in dense road networks (Switzerland, anywhere with mountains or water blocking direct paths) easily reach 30-50% of target km from origin via natural elongation — a 50km loop with Sihl Valley out-and-back legitimately has its farthest point ~22km away.
+
+Fix: relax the gate to `targetDistanceKm × 0.45`:
+
+```diff
+- const maxAllowedKm = (targetDistanceKm / (2 * Math.PI)) * 1.5;  // ~24%
++ const maxAllowedKm = targetDistanceKm * 0.45;                   // 45%
+```
+
+Verification: still catches the original v10.7.0 bug ("200km from origin for a 50km loop" — 200 > 22.5 = caught), but allows real loops to pass:
+- 50km target → max farthest 22.5km (allows real loops)
+- 100km target → max farthest 45km (allows long climb routes)
+
+Cache prefix bumped `routes:v3:` → `routes:v4:` so prior `no_valid_paths` cached entries are invalidated.
+
+### Files changed
+
+```
+src/lib/routeScoring.js                                  # proximity gate 1.5×(d/2π) → 0.45×d
+src/routes/routeGen.js                                   # CACHE_PREFIX v3 → v4
+apps/web/src/routes/dashboard.schedule-new.tsx           # repeat-weekly loop uses clubsApi.createSession + manual invalidation
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+---
+
 ## [10.10.0] — 2026-05-02
 
 **Schedule polish trio + route-card match reasons (originally planned as v10.10.0 + v10.11.0; bundled per founder request).**

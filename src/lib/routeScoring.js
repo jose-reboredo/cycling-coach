@@ -59,13 +59,17 @@ export function scoreCandidate({
     return null;
   }
 
-  // v10.7.0 — origin proximity gate. Founder reported routes generating
-  // "200km from Zurich" for short-distance sessions. A legitimate loop's
-  // farthest point should sit roughly at radius = perimeter / 2π. We
-  // accept up to 1.5× that (allows for elongated routes) but reject
-  // anything farther — the route has wandered off into another region.
+  // v10.7.0 — origin proximity gate to prevent "200km from origin" garbage
+  //   when route gen drifts away from start.
+  // v10.10.1 — gate too strict; rejected real Zurich routes (Röntgenstrasse).
+  //   The 1.5×(d/2π) ceiling = ~24% of target distance. Real cycling loops
+  //   easily reach 30-50% of target km from origin (out-and-back, lollipop,
+  //   any elongated terrain). Loosen to 45% of target distance:
+  //     50km loop → farthest 22.5 km (allows real loops)
+  //     "200km from origin for 50km loop" still rejected (200 > 22.5)
+  //     100km loop → farthest 45 km (allows long climbs)
   if (origin && Array.isArray(decodedPoints) && decodedPoints.length > 0) {
-    const maxAllowedKm = (targetDistanceKm / (2 * Math.PI)) * 1.5;
+    const maxAllowedKm = targetDistanceKm * 0.45;
     const farthestKm = decodedPoints.reduce((max, [lat, lng]) => {
       const d = haversineKm(origin[0], origin[1], lat, lng);
       return d > max ? d : max;

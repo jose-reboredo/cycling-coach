@@ -13,6 +13,8 @@ import {
   useMyScheduleByMonth,
   usePatchPlannedSession,
 } from '../hooks/useClubs';
+import { useQueryClient } from '@tanstack/react-query';
+import { clubsApi } from '../lib/clubsApi';
 import styles from './dashboard.schedule-new.module.css';
 
 interface SchedNewSearch {
@@ -55,6 +57,7 @@ const ZONE_OPTIONS: { value: number; label: string }[] = [
 
 function NewSessionPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { id: editId, range: editRange, date: prefillDate, time: prefillTime } = Route.useSearch();
   const isEdit = editId != null;
 
@@ -162,26 +165,44 @@ function NewSessionPage() {
         });
       } else {
         // v10.10.0 — Repeat-weekly: client-side sequential loop. Each
-        // iteration shifts session_date forward by 7 days. Progress
-        // surfaced via repeatProgress state so the UI shows
-        // "Saving session 3 of 4…". If browser closes mid-loop, partial
-        // week is acceptable v1 — user can re-run for the missing days.
+        // iteration shifts session_date forward by 7 days.
+        // v10.10.1 — bug fix: previous version used createSession.mutateAsync
+        // in the loop, which has internal state ordering issues — only the
+        // first session got persisted. Now we call clubsApi.createSession
+        // directly (no shared mutation state) and invalidate the cache once
+        // at the end. Sequential POSTs preserve order and consistent error
+        // surfaces.
         const repetitions = repeatWeekly
           ? Math.max(1, Math.min(12, Number(repeatWeeks) || 1))
           : 1;
-        for (let i = 0; i < repetitions; i++) {
-          if (repetitions > 1) setRepeatProgress({ current: i + 1, total: repetitions });
-          const offsetSec = i * 7 * 86400;
+        const baseDateSec = Math.floor(sessionMs / 1000);
+        if (repetitions === 1) {
           await createSession.mutateAsync({
             title: trimmed,
-            session_date: Math.floor(sessionMs / 1000) + offsetSec,
+            session_date: baseDateSec,
             ...(description.trim() ? { description: description.trim() } : {}),
             ...(zoneNum != null ? { zone: zoneNum } : {}),
             ...(durationNum != null ? { duration_minutes: durationNum } : {}),
             ...(wattsNum != null ? { target_watts: wattsNum } : {}),
           });
+        } else {
+          for (let i = 0; i < repetitions; i++) {
+            setRepeatProgress({ current: i + 1, total: repetitions });
+            const offsetSec = i * 7 * 86400;
+            await clubsApi.createSession({
+              title: trimmed,
+              session_date: baseDateSec + offsetSec,
+              ...(description.trim() ? { description: description.trim() } : {}),
+              ...(zoneNum != null ? { zone: zoneNum } : {}),
+              ...(durationNum != null ? { duration_minutes: durationNum } : {}),
+              ...(wattsNum != null ? { target_watts: wattsNum } : {}),
+            });
+          }
+          // Manual cache invalidation since we bypassed useMutation.
+          queryClient.invalidateQueries({ queryKey: ['me', 'schedule'] });
+          queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] });
+          setRepeatProgress(null);
         }
-        setRepeatProgress(null);
       }
       navigate({ to: '/dashboard/schedule' });
     } catch (err) {
@@ -192,7 +213,10 @@ function NewSessionPage() {
 
   // Loading state for Edit mode while we wait for the schedule query.
   const isLoadingEdit = isEdit && !editingSession && (scheduleQuery.isPending || scheduleQuery.isFetching);
-  const isSaving = isEdit ? patchSession.isPending : createSession.isPending;
+  // v10.10.1 — also block during repeat-weekly direct-API loop.
+  const isSaving = isEdit
+    ? patchSession.isPending
+    : createSession.isPending || repeatProgress != null;
 
   return (
     <main id="main" className={styles.page}>

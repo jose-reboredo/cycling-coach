@@ -25,10 +25,10 @@ const MIN_RESULTS = 3;
 const CACHE_TTL_S = 86400; // 24h
 // v10.5.3 — bumped to v2 so cached 1-route responses from the strict v1
 // gate are invalidated. New requests re-generate with the loosened gate.
-// v10.7.0 — bumped to v3 to invalidate cached entries from before the
-// origin-proximity gate landed. Old entries may include 200km-from-origin
-// routes that the new gate would reject.
-const CACHE_PREFIX = 'routes:v3:';
+// v10.10.1 — bumped to v4 to invalidate "no_valid_paths" cached entries
+// from when the proximity gate was 1.5×(d/2π) (too strict). Real loops
+// in dense road networks (Zurich Röntgenstrasse case) were rejected.
+const CACHE_PREFIX = 'routes:v4:';
 
 /**
  * Public handler. Wired in worker.js when the URL matches.
