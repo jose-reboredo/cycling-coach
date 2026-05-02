@@ -1,1 +1,1 @@
-export const APP_VERSION = 'v10.11.2 · May 2026';
+export const APP_VERSION = 'v10.11.3 · May 2026';

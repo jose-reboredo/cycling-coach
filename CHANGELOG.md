@@ -4,6 +4,82 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.11.3] — 2026-05-03
+
+**Defense-in-depth: entry-filter `Cache-Control: private, no-store` for every `/api/*` response. Backfilled retro action item — "audit other endpoints".**
+
+After v10.11.2 root-cause fix on three specific endpoints, founder asked to backfill the test guard across other endpoints. Audit found 12+ user-specific `/api/` GET handlers, three of which had explicit `no-store` (the v10.11.2 fix), and the rest had no `Cache-Control` directive at all — which means the browser falls back to heuristic caching. Heuristic caching varies by browser; Safari especially can cache JSON responses with no headers more aggressively than Chrome / Firefox.
+
+### Single entry-layer filter
+
+New helper in `src/worker.js`:
+
+```js
+function withApiCacheDefault(res, pathname) {
+  if (!pathname.startsWith('/api/')) return res;
+  const headers = new Headers(res.headers);
+  if (!headers.has('Cache-Control')) {
+    headers.set('Cache-Control', 'private, no-store');
+  }
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+```
+
+Wired in the `export default { fetch }` so every `/api/*` response runs through it before `withSecurityHeaders`. Path-gated so static assets (`/assets/...`) keep their own long-cache policy. Endpoints that explicitly set their own `Cache-Control` (e.g. `/roadmap` with `public, max-age=300`) are not overridden — the `headers.has()` check skips defaulting.
+
+Net: every existing and future `/api/` response that doesn't opt out automatically gets `private, no-store`. Backstops the v10.11.2 per-endpoint fix at the entry layer.
+
+### Expanded contract test
+
+`apps/web/src/lib/__tests__/worker-cache-contract.test.ts` grew from 4 → 8 tests:
+
+- 3× per-endpoint regression guards (v10.11.2 fix)
+- 3× entry-filter assertions: function exists, default header is correct, applied in `export default fetch`
+- 1× public endpoint sanity (`/roadmap` allowed to cache)
+- 1× endpoint inventory: enumerates every `url.pathname === '/api/...' && method === 'GET'` literal in worker source and fails if a new path appears that the test author didn't catalog. Forces deliberate review when adding new GET endpoints.
+
+```
+✓ /api/clubs/:id/events?range response must not have max-age
+✓ /api/me/schedule response must not have max-age
+✓ /api/me/sessions?range response must not have max-age
+✓ withApiCacheDefault function exists
+✓ withApiCacheDefault sets private, no-store as default for /api/*
+✓ main fetch handler applies withApiCacheDefault before withSecurityHeaders
+✓ /roadmap response IS allowed to public-cache (max-age=300)
+✓ every /api/ GET path is known and accounted for
+
+Tests  8 passed (8)
+```
+
+### Verified before deploy
+
+- `npm run test:unit` → **35/35 tests pass** (full suite, including 8 contract guards)
+- `npx vite build` → green
+- `npx wrangler deploy` → success
+
+### Manual smoke checklist (run after deploy, ~60 seconds)
+
+After every release containing API or cache changes:
+
+1. **Hard reload** the prod URL: `Cmd+Shift+R` (Mac) / `Ctrl+Shift+R` (Win)
+2. **Footer check**: scroll to bottom — must read `v10.11.3 · May 2026`
+3. **Headers check**: open DevTools → Network tab → reload page → click any `/api/me/schedule?range=...` request → Response Headers panel — must include `Cache-Control: private, no-store`
+4. **Mutation roundtrip**: open any session → drawer → Edit → change duration → save → close drawer → reopen same session — duration must reflect the new value, not the old
+
+If any of (3) or (4) fails, do not declare done — debug before delivering.
+
+### Files changed
+
+```
+src/worker.js                                                    # +withApiCacheDefault helper, wired in fetch handler
+apps/web/public/sw.js                                            # CACHE bump
+apps/web/src/lib/__tests__/worker-cache-contract.test.ts         # 4 → 8 tests
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+---
+
 ## [10.11.2] — 2026-05-03
 
 **ROOT CAUSE FOUND. Browser served stale data for 5 minutes — TanStack invalidate triggered fetches but the browser short-circuited to disk cache before reaching the network.**

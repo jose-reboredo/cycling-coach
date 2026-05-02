@@ -29,7 +29,7 @@ import {
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.11.2';
+const WORKER_VERSION = 'v10.11.3';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -149,10 +149,31 @@ function withSecurityHeaders(res) {
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
+// v10.11.3 — Default cache policy for /api/* responses: never browser-cache.
+// Backstops the v10.11.2 fix at the entry layer so any endpoint that forgets
+// to set Cache-Control inherits `private, no-store` automatically. Endpoints
+// that DO set their own Cache-Control (e.g. /roadmap with public, max-age)
+// take precedence — `headers.has()` check skips defaulting.
+//
+// Why /api/* (not all paths): static assets (/assets/...) MUST be cacheable;
+// browsers and the SW rely on long-cache hashed asset URLs for performance.
+// Worker dynamic responses for non-/api/ paths are auth flows + /version +
+// /roadmap, all of which set their own headers explicitly.
+function withApiCacheDefault(res, pathname) {
+  if (!pathname.startsWith('/api/')) return res;
+  const headers = new Headers(res.headers);
+  if (!headers.has('Cache-Control')) {
+    headers.set('Cache-Control', 'private, no-store');
+  }
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const response = await handleRequest(request, env, ctx);
-    return withSecurityHeaders(response);
+    const url = new URL(request.url);
+    const withCache = withApiCacheDefault(response, url.pathname);
+    return withSecurityHeaders(withCache);
   },
 };
 
