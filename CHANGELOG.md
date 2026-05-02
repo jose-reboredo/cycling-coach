@@ -4,6 +4,112 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.11.0] — 2026-05-03
+
+**Calendar reliability — five interrelated bugs fixed in one pass.**
+
+Founder report after v10.10.3: "the whole calendar implementation is having many issues". Five symptoms with three shared root causes — fixed together to avoid more single-bug hotfix cycles.
+
+### Symptoms reported
+
+1. Edit a club event from 0h → 3h, save. Calendar shows short event. Re-open edit — duration field still 0h.
+2. Click edit, user is redirected to **monthly** calendar even though they were on **weekly** view.
+3. Click cancel — meeting doesn't disappear.
+4. Edited title doesn't persist either.
+5. Created Tuesday repeats x 4 weeks — none appear in calendar.
+
+### Root causes
+
+**A) Mutation hooks weren't fully invalidating, and weren't *awaiting* invalidations.**
+
+`usePatchClubEvent.onSuccess` invalidated `['clubs', clubId, 'events']` and `['clubs', clubId, 'overview']` but NOT `['me','schedule']`. So when a user edited a club event from any surface, the personal scheduler's cached data stayed for up to 5 minutes (`staleTime: FIVE_MIN`).
+
+Worse: `onSuccess` returned synchronously while `invalidateQueries` ran in the background. `mutateAsync` resolved *before* the refetch completed. The form's subsequent `navigate()` fired before fresh data arrived, and on re-mount the form hydrated from stale cache → user saw pre-edit values.
+
+Fix: every mutation hook now `await`s its invalidations:
+
+```diff
+  onSuccess: async () => {
+-   qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] });
+-   qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
++   await Promise.all([
++     qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] }),
++     qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] }),
++     qc.invalidateQueries({ queryKey: ['me', 'schedule'] }),
++   ]);
+  },
+```
+
+Applied to `usePatchClubEvent`, `useCancelClubEvent`, `usePatchPlannedSession`, `useCancelPlannedSession`.
+
+**B) Schedule queries cached too long for the calendar UX.**
+
+`useMyScheduleByMonth` and `useClubEventsByMonth` had `staleTime: FIVE_MIN`. After the 5-minute window passed, queries refetched on next mount; before, they didn't. Calendar surfaces that mutate frequently (create / edit / cancel / RSVP) need fresher reads.
+
+Fix: added `refetchOnMount: 'always'` to both. Every navigation back to the calendar now triggers a fresh fetch — without abandoning the within-component stale-time benefit.
+
+**C) Form re-hydrate gated by a "first-mount-only" flag.**
+
+`dashboard.schedule-new.tsx`'s edit-mode hydrate `useEffect` had `if (!editingSession || prefilled) return;` — it ran exactly once when `editingSession` first arrived, then ignored future changes. So even after `refetchOnMount: 'always'` brought fresh data, the form didn't re-render with it.
+
+Fix: replaced the boolean gate with a `useRef` keyed by `${id}:${updated_at}`. Re-hydrates whenever the underlying data changes; doesn't loop on stable reads.
+
+```diff
+- if (!editingSession || prefilled) return;
+- // ... setTitle(...), setDuration(...), etc
+- setPrefilled(true);
++ const hydrationKey = `${editingSession.id}:${editingSession.updated_at ?? 0}`;
++ if (lastHydratedRef.current === hydrationKey) return;
++ lastHydratedRef.current = hydrationKey;
++ // ... setTitle(...), setDuration(...), etc
+```
+
+**D) View preference dropped on save-then-back navigation.**
+
+`dashboard.schedule.tsx` initial view: `readViewFromHash() ?? defaultViewForViewport()`. After clicking edit on a session, the form navigates to `/dashboard/schedule-new` (no hash). After save, it navigates back to `/dashboard/schedule` — also no hash. The user lands on `defaultViewForViewport()` which is `month` on desktop. They were on `week`.
+
+Fix: persist view in localStorage on every change. New priority on mount: `hash > localStorage > viewport default`. Hash still wins so a shared `/dashboard/schedule#week` link still works.
+
+**E) Club events range strict month boundary missed cross-month weeks.**
+
+`/api/clubs/:id/events?range=YYYY-MM` had the same strict month-boundary issue we fixed for `/api/me/schedule` in v10.10.3. Week views spanning month boundaries (Apr 27 - May 3 = "2026-05" range, but Apr 27 in April) lost the boundary days.
+
+Fix: 7-day padding both sides, mirroring v10.10.3.
+
+### Files changed
+
+```
+src/worker.js                                      # club events range padding
+apps/web/src/hooks/useClubs.ts                     # await invalidations on 4 mutation hooks; refetchOnMount on 2 queries; +invalidate ['me','schedule'] on usePatchClubEvent
+apps/web/src/routes/dashboard.schedule.tsx         # localStorage view persistence
+apps/web/src/routes/dashboard.schedule-new.tsx     # rehydrate form on data change via useRef
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+### Why MINOR (not PATCH)
+
+Multiple substantive UX fixes plus the cross-cutting cache-invalidation pattern change. Not a single-bug hotfix; deserves a MINOR. Per locked SemVer.
+
+### Verification
+
+After hard-reload:
+1. Edit a club event 0h → 3h. Save. Open edit again — should show 3h.
+2. Cancel a club event from drawer — should disappear immediately.
+3. Be on Week view, edit a session, save — should land on Week view (not Month).
+4. Create a Tuesday repeat × 4 weeks — should appear in monthly view AND when you advance week-by-week.
+
+### Pipeline ahead
+
+| Item | Status |
+|---|---|
+| GitHub #80 — Schedule calendar event-block alignment + overlapping events | filed, not implemented (separate work item) |
+| RWGPS disconnect in Profile/Settings | queued |
+| Today inline route shortcut | queued, design pending |
+| Google Places autocomplete (real address validation) | future sprint |
+
+---
+
 ## [10.10.3] — 2026-05-02
 
 **Hotfix³ — `useCancelClubEvent` cache invalidation + month-range padding for week-spanning views.**

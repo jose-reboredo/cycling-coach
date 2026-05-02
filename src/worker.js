@@ -29,7 +29,7 @@ import {
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.10.3';
+const WORKER_VERSION = 'v10.11.0';
 const BUILD_DATE = '2026-05-01';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
@@ -671,11 +671,14 @@ async function handleRequest(request, env, ctx) {
             status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        // UTC month boundaries in unix seconds. Date.UTC(y, m, 1) = first
-        // millisecond of (y, m) where m is 0-indexed; subtract 1 second to
-        // get inclusive end of the target month.
-        const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000);
-        const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1;
+        // v10.11.0 — pad month range by 7 days each side. Mirrors the
+        // /api/me/schedule fix in v10.10.3: weeks that span month
+        // boundaries (e.g. Apr 27 - May 3 = "2026-05" range but Apr 27
+        // sits in April) need the boundary days included. Frontend
+        // de-dupes by id; over-fetch is safe.
+        const PAD_SEC = 7 * 86400;
+        const startEpoch = Math.floor(Date.UTC(yr, mo - 1, 1) / 1000) - PAD_SEC;
+        const endEpoch = Math.floor(Date.UTC(yr, mo, 1) / 1000) - 1 + PAD_SEC;
         const { results: rangeRows } = await db.prepare(
           'SELECT e.id, e.club_id, e.created_by, e.title, e.description, e.location, ' +
           '       e.event_date, e.event_type, e.created_at, ' +

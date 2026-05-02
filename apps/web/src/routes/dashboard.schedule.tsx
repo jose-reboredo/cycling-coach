@@ -55,6 +55,22 @@ function readViewFromHash(): CalendarView | null {
   return null;
 }
 
+// v10.11.0 — persist view preference in localStorage so navigating to
+// schedule-new (the edit/create form) and back doesn't drop the user
+// on the desktop default 'month' view. Founder bug:
+// "i was in the weekly calendar, click on edit, redirected to monthly".
+const VIEW_STORAGE_KEY = 'cc_schedule_view';
+function readViewFromStorage(): CalendarView | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const v = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (v === 'month' || v === 'week' || v === 'day') return v;
+  } catch {
+    /* localStorage may be disabled — fall through */
+  }
+  return null;
+}
+
 function defaultViewForViewport(): CalendarView {
   if (typeof window === 'undefined') return 'month';
   return window.matchMedia('(max-width: 599px)').matches ? 'day' : 'month';
@@ -64,18 +80,27 @@ function PersonalSchedule() {
   const navigate = useNavigate();
   const today = todayUTC();
   const [view, setView] = useState<CalendarView>(
-    () => readViewFromHash() ?? defaultViewForViewport(),
+    // Priority: URL hash > localStorage > viewport default. Hash wins so
+    // a deliberate share link with #week still works.
+    () => readViewFromHash() ?? readViewFromStorage() ?? defaultViewForViewport(),
   );
   const [date, setDate] = useState<CalendarDate>(today);
   const [activeFilters, setActiveFilters] = useState<Set<ClubEventType>>(new Set(ALL_TYPES));
   const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
 
-  // Hash sync
+  // Hash sync — keep URL #view in sync with state.
+  // v10.11.0: also write to localStorage so cross-navigation (e.g. to
+  // /dashboard/schedule-new and back) restores the user's last view.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const target = `#${view}`;
     if (window.location.hash !== target) {
       window.history.replaceState(null, '', target);
+    }
+    try {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, view);
+    } catch {
+      /* localStorage may be disabled — best effort */
     }
   }, [view]);
   useEffect(() => {

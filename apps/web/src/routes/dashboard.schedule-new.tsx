@@ -3,7 +3,7 @@
 // Page-pattern (not modal) per Rule #17 lesson from v9.8.2 — modals on
 // multi-platform are fragile and we want this flow rock-solid.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
@@ -87,26 +87,40 @@ function NewSessionPage() {
   const [watts, setWatts] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [prefilled, setPrefilled] = useState(false);
   // v10.10.0 — repeat-weekly toggle. Off in Edit mode (one row at a time).
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [repeatWeeks, setRepeatWeeks] = useState('4');
   const [repeatProgress, setRepeatProgress] = useState<{ current: number; total: number } | null>(null);
 
-  // v9.12.5 — Edit mode: populate form once the session arrives from cache/fetch.
+  // v9.12.5 — Edit mode: populate form when the session arrives.
+  // v10.11.0 — re-hydrate when the underlying session data changes
+  // (e.g., refetchOnMount: 'always' brought fresh data after the user
+  // saved earlier). Previously gated by `prefilled` which left the form
+  // showing stale values from the first fetch — the founder bug
+  // "edit again duration is still 0 hours" came from this. Trade-off: a
+  // background refetch arriving while the user is mid-edit overrides
+  // their unsaved changes; acceptable since refetch only fires on mount,
+  // not on focus or interval (so this only happens on form-mount, not
+  // mid-edit). Tracks the loaded session id in a ref so we don't keep
+  // overwriting after the initial mount-driven hydration.
+  const lastHydratedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!editingSession || prefilled) return;
+    if (!editingSession) return;
+    // Re-key on (id, updated_at) so a refetch with the same id but newer
+    // data re-hydrates, while a stable read after hydration leaves the
+    // form alone for in-progress edits.
+    const hydrationKey = `${editingSession.id}:${editingSession.updated_at ?? 0}`;
+    if (lastHydratedRef.current === hydrationKey) return;
+    lastHydratedRef.current = hydrationKey;
     const dt = new Date(editingSession.session_date * 1000);
     setTitle(editingSession.title);
     setDate(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`);
     setTime(`${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`);
     setZone(editingSession.zone != null ? String(editingSession.zone) : '');
-    // DB stores minutes; UI works in hours (0.5 step).
     setDuration(editingSession.duration_minutes != null ? String(editingSession.duration_minutes / 60) : '');
     setWatts(editingSession.target_watts != null ? String(editingSession.target_watts) : '');
     setDescription(editingSession.description ?? '');
-    setPrefilled(true);
-  }, [editingSession, prefilled]);
+  }, [editingSession]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -67,6 +67,12 @@ export function useClubEventsByMonth(clubId: number | null, range: string) {
     enabled: clubId != null && /^\d{4}-\d{2}$/.test(range),
     staleTime: FIVE_MIN,
     gcTime: THIRTY_MIN,
+    // v10.11.0 — force a fresh fetch every time the calendar mounts.
+    // The calendar surface mutates frequently (create/edit/cancel/RSVP);
+    // a 5-min stale window meant users saw stale data after navigating
+    // back from the edit form. Mount-refetch keeps the calendar honest
+    // without thrashing the cache during the same session.
+    refetchOnMount: 'always',
   });
 }
 
@@ -87,9 +93,15 @@ export function usePatchPlannedSession() {
   const qc = useQueryClient();
   return useMutation<{ id: number }, Error, { sessionId: number; input: PatchPlannedSessionInput }>({
     mutationFn: ({ sessionId, input }) => clubsApi.patchSession(sessionId, input),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
-      qc.invalidateQueries({ queryKey: ['me', 'sessions'] });
+    // v10.11.0 — await invalidation. mutateAsync resolves only after
+    // onSuccess settles, so awaiting here means the caller's subsequent
+    // navigate() fires AFTER refetch completes. Avoids stale-cache races
+    // where the user re-opens the edit form and sees pre-edit values.
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['me', 'schedule'] }),
+        qc.invalidateQueries({ queryKey: ['me', 'sessions'] }),
+      ]);
     },
   });
 }
@@ -98,9 +110,11 @@ export function useCancelPlannedSession() {
   const qc = useQueryClient();
   return useMutation<{ id: number; cancelled_at: number }, Error, number>({
     mutationFn: (sessionId) => clubsApi.cancelSession(sessionId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
-      qc.invalidateQueries({ queryKey: ['me', 'sessions'] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['me', 'schedule'] }),
+        qc.invalidateQueries({ queryKey: ['me', 'sessions'] }),
+      ]);
     },
   });
 }
@@ -116,6 +130,10 @@ export function useMyScheduleByMonth(range: string) {
     enabled: /^\d{4}-\d{2}$/.test(range),
     staleTime: FIVE_MIN,
     gcTime: THIRTY_MIN,
+    // v10.11.0 — force a fresh fetch every time the calendar mounts
+    // (e.g. user navigated to schedule-new, edited, came back). Without
+    // this, the 5-min stale window showed old data until refetch.
+    refetchOnMount: 'always',
   });
 }
 
@@ -158,14 +176,23 @@ export function useRsvp(clubId: number, eventId: number) {
 }
 
 /** v9.7.3 (#60) — PATCH /api/clubs/:id/events/:eventId. Creator/admin only.
- *  Invalidates the event range query so the calendar refetches on success. */
+ *  Invalidates the event range query so the calendar refetches on success.
+ *  v10.11.0 — also invalidates ['me','schedule'] so club-event edits made
+ *  visible to the personal scheduler are reflected immediately (founder
+ *  bug: "edit again duration is still 0 hours" — stale cache). */
 export function usePatchClubEvent(clubId: number) {
   const qc = useQueryClient();
   return useMutation<{ id: number }, Error, { eventId: number; input: PatchClubEventInput }>({
     mutationFn: ({ eventId, input }) => clubsApi.patchEvent(clubId, eventId, input),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] });
-      qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
+    onSuccess: async () => {
+      // Await the invalidations so the next form-mount sees fresh data.
+      // Without await, navigate() can fire before the refetch completes
+      // and the form re-hydrates from the stale cache.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] }),
+        qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] }),
+        qc.invalidateQueries({ queryKey: ['me', 'schedule'] }),
+      ]);
     },
   });
 }
@@ -189,10 +216,13 @@ export function useCancelClubEvent(clubId: number) {
   const qc = useQueryClient();
   return useMutation<CancelClubEventResponse, Error, number>({
     mutationFn: (eventId) => clubsApi.cancelEvent(clubId, eventId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] });
-      qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] });
-      qc.invalidateQueries({ queryKey: ['me', 'schedule'] });
+    onSuccess: async () => {
+      // v10.11.0 — await all invalidations (mirrors usePatchClubEvent).
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['clubs', clubId, 'events'] }),
+        qc.invalidateQueries({ queryKey: ['clubs', clubId, 'overview'] }),
+        qc.invalidateQueries({ queryKey: ['me', 'schedule'] }),
+      ]);
     },
   });
 }
