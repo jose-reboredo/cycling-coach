@@ -4,6 +4,69 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.10.2] — 2026-05-02
+
+**Hotfix² — repeat-weekly v3 + calendar accessibility + diacritic-tolerant geocoding.**
+
+Three issues from end-of-day testing.
+
+### Bug 1 — Repeat-weekly STILL not working
+
+Founder report after v10.10.1: "i created repeats and they don't appear in the calendar". My v10.10.1 fix used a sequential `for` loop with `await clubsApi.createSession(...)`, which should have worked. Either it's a stale browser bundle (hard-reload required) or there's a deeper sequential-state issue I can't reproduce remotely.
+
+Third attempt: rewrite using `Promise.allSettled` for all repetitions in parallel. Each `clubsApi.createSession` call gets a fully-resolved payload object built up-front (no shared mutable state), fired in parallel, awaited via `allSettled`. If any iteration fails, the others still succeed; we then surface a clear partial-failure error and keep the user on the form so they can retry the missing weeks.
+
+```diff
+- for (let i = 0; i < repetitions; i++) {
+-   await clubsApi.createSession({...});
+- }
++ const payloads = Array.from({ length: repetitions }, (_, i) => ({...}));
++ const results = await Promise.allSettled(
++   payloads.map((p) => clubsApi.createSession(p)),
++ );
++ const successes = results.filter((r) => r.status === 'fulfilled').length;
++ const failures = results.length - successes;
++ await queryClient.invalidateQueries({ queryKey: ['me', 'schedule'] });
++ if (successes === 0) setError(`Couldn't save any sessions — ${reason}`);
++ if (failures > 0) setError(`Saved ${successes} of ${repetitions}.`);
+```
+
+Also: invalidation is now `await`-ed before navigation, so the schedule view lands fresh instead of showing a cached state for a moment.
+
+### Bug 2 — Calendar accessibility (low contrast on out-of-month days)
+
+Founder report from Lighthouse / accessibility scan: "Low-contrast text is difficult or impossible for many users to read" — failing elements were `_dayNum_` inside `_cellOut_` (greyed-out leading/trailing month days).
+
+Root cause: `.cellOut .dayNum` had `opacity: 0.5` on top of `--c-text-faint` (#7a8290, 5.11:1 on canvas). Compounded contrast ≈ 2.6:1, below WCAG AA 4.5:1 threshold for body text.
+
+Fix: removed `opacity: 0.5`; switched to `--c-text-muted` (#7d8290, ~5.x:1) without opacity. Cells still visually muted vs. in-month days (which use `--c-text` = #f0f1f3) — but readable.
+
+This likely also resolves the founder's "monthly calendar may 2026 is missing days" — those leading-month days were so faded they read as missing.
+
+### Bug 3 — Address with umlauts
+
+Founder report: "Röntgenstrasse" works, "Rontgenstrasse" doesn't. Real Nominatim limitation — strict on diacritics.
+
+Fix in `lib/geocode.ts`: tiered fallback in `geocodeAddress(address)`:
+
+1. Try the address as typed.
+2. If 0 hits AND the input contains diacritics, retry with NFD-normalized + combining marks stripped (`Röntgenstrasse` → `Rontgenstrasse`).
+3. If still 0 hits, try the inverse — apply common Swiss/German diacritic substitutions (`oe` → `ö`, `ae` → `ä`, `ue` → `ü`).
+
+Catches "Rontgenstrasse" → "Röntgenstrasse" via step 3. Real Google Places autocomplete is queued for a future sprint (founder noted as future).
+
+### Files changed
+
+```
+apps/web/src/components/Calendar/Calendar.module.css     # cellOut opacity fix
+apps/web/src/lib/geocode.ts                              # diacritic-tolerant fallback
+apps/web/src/routes/dashboard.schedule-new.tsx           # Promise.allSettled repeat-weekly
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+---
+
 ## [10.10.1] — 2026-05-02
 
 **Hotfix: repeat-weekly + route picker proximity gate too strict.**

@@ -100,9 +100,12 @@
 .cellOut {
   background: var(--c-bg-deep);
 }
+/* v10.10.2 — accessibility fix. Removed opacity: 0.5 (was multiplying
+ * with faint text color → ~2.6:1 contrast, below WCAG AA 4.5:1). Uses
+ * --c-text-muted directly which is 5.x:1 on canvas — readable while
+ * still visually muted vs. in-month days (which use --c-text). */
 .cellOut .dayNum {
-  color: var(--c-text-faint);
-  opacity: 0.5;
+  color: var(--c-text-muted);
 }
 .cellToday {
   border: 1px solid var(--c-accent);

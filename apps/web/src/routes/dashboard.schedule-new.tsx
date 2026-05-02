@@ -164,14 +164,13 @@ function NewSessionPage() {
           },
         });
       } else {
-        // v10.10.0 — Repeat-weekly: client-side sequential loop. Each
-        // iteration shifts session_date forward by 7 days.
-        // v10.10.1 — bug fix: previous version used createSession.mutateAsync
-        // in the loop, which has internal state ordering issues — only the
-        // first session got persisted. Now we call clubsApi.createSession
-        // directly (no shared mutation state) and invalidate the cache once
-        // at the end. Sequential POSTs preserve order and consistent error
-        // surfaces.
+        // v10.10.0 — Repeat-weekly multi-session creation.
+        // v10.10.2 — third attempt at making this reliable. Uses Promise
+        // .allSettled so each iteration runs independently and we get a
+        // clear success/failure breakdown. Per-iteration date math kept
+        // simple (baseDateSec + i × 604800), no shared state across calls.
+        // If any iteration fails, surface the count + error and don't
+        // navigate so the user can retry.
         const repetitions = repeatWeekly
           ? Math.max(1, Math.min(12, Number(repeatWeeks) || 1))
           : 1;
@@ -186,22 +185,45 @@ function NewSessionPage() {
             ...(wattsNum != null ? { target_watts: wattsNum } : {}),
           });
         } else {
-          for (let i = 0; i < repetitions; i++) {
-            setRepeatProgress({ current: i + 1, total: repetitions });
-            const offsetSec = i * 7 * 86400;
-            await clubsApi.createSession({
-              title: trimmed,
-              session_date: baseDateSec + offsetSec,
-              ...(description.trim() ? { description: description.trim() } : {}),
-              ...(zoneNum != null ? { zone: zoneNum } : {}),
-              ...(durationNum != null ? { duration_minutes: durationNum } : {}),
-              ...(wattsNum != null ? { target_watts: wattsNum } : {}),
-            });
-          }
-          // Manual cache invalidation since we bypassed useMutation.
-          queryClient.invalidateQueries({ queryKey: ['me', 'schedule'] });
-          queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] });
+          setRepeatProgress({ current: 0, total: repetitions });
+          // Build the request payloads up-front so each fetch sees a
+          // distinct, fully-resolved object. Avoids any sharing of
+          // mutable state across the in-flight requests.
+          const payloads = Array.from({ length: repetitions }, (_, i) => ({
+            title: trimmed,
+            session_date: baseDateSec + i * 7 * 86400,
+            ...(description.trim() ? { description: description.trim() } : {}),
+            ...(zoneNum != null ? { zone: zoneNum } : {}),
+            ...(durationNum != null ? { duration_minutes: durationNum } : {}),
+            ...(wattsNum != null ? { target_watts: wattsNum } : {}),
+          }));
+          // Fire all in parallel. Worker handles them in any order; the
+          // sessions table has no UNIQUE constraint that would conflict.
+          const results = await Promise.allSettled(
+            payloads.map((p) => clubsApi.createSession(p)),
+          );
+          const successes = results.filter((r) => r.status === 'fulfilled').length;
+          const failures = results.length - successes;
+          // Always invalidate — if even one succeeded, the cache should
+          // reflect it. Wait for invalidation so the navigation lands on
+          // a fresh schedule view (some users complained about stale views).
+          await queryClient.invalidateQueries({ queryKey: ['me', 'schedule'] });
+          await queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] });
           setRepeatProgress(null);
+          if (successes === 0) {
+            const firstErr = results.find((r) => r.status === 'rejected');
+            const reason = firstErr && firstErr.status === 'rejected'
+              ? (firstErr.reason instanceof Error ? firstErr.reason.message : String(firstErr.reason))
+              : 'unknown';
+            setError(`Couldn't save any sessions — ${reason}`);
+            return;
+          }
+          if (failures > 0) {
+            // Partial success — keep the user on this page so they can see
+            // the message + retry the missing weeks if desired.
+            setError(`Saved ${successes} of ${repetitions} sessions. ${failures} failed — refresh and try again.`);
+            return;
+          }
         }
       }
       navigate({ to: '/dashboard/schedule' });
