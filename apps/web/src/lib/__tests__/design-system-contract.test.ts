@@ -121,6 +121,81 @@ describe('design system — tokens', () => {
     // referenced it 9× without declaration). Must remain.
     expect(src).toMatch(/--c-border:/);
   });
+
+  it('tokens.css declares the spacing-alias steps consumed by Sprint 12 components', () => {
+    // Phase 5 parity audit caught --space-5 / --space-7 missing from the
+    // alias list — Card.pad-md / pad-lg silently collapsed to padding 0
+    // on every in-app surface. Lock the exact set components reference.
+    const src = readFileSync(TOKENS_CSS, 'utf8');
+    for (const step of ['1', '2', '3', '4', '5', '6', '7', '8', '12', '16', '24', '32']) {
+      expect(src, `--space-${step} is referenced by Sprint 12 CSS but not declared`).toMatch(
+        new RegExp(`--space-${step}:`),
+      );
+    }
+  });
+});
+
+// =============================================================================
+// TOKEN-RESOLUTION CONTRACT
+// =============================================================================
+
+describe('design system — token resolution', () => {
+  // Phase 5 parity audit (Sprint 12) caught Card.pad-md referencing
+  // --space-5 with no declaration anywhere → silent padding 0 on every
+  // in-app Card. This test scans every var(--name) in the rebuilt
+  // component CSS + the showcase route and asserts each one is declared
+  // in tokens.css. Catches the same regression class statically in CI.
+  //
+  // Scope is limited to Sprint 12 rebuild surfaces; legacy CSS modules
+  // are still allowed orphaned refs (e.g. --c-text-muted may be removed
+  // in a future cleanup).
+
+  const SPRINT_12_CSS = [
+    'components/Button/Button.module.css',
+    'components/Card/Card.module.css',
+    'components/EmptyState/EmptyState.module.css',
+    'components/Skeleton/Skeleton.module.css',
+    'components/Toast/Toast.module.css',
+    'routes/design-system.module.css',
+  ];
+
+  function declaredCustomProperties(): Set<string> {
+    const src = readFileSync(TOKENS_CSS, 'utf8');
+    const decls = src.match(/--[a-zA-Z][a-zA-Z0-9-]*\s*:/g) ?? [];
+    return new Set(decls.map((d) => d.replace(/\s*:$/, '').trim()));
+  }
+
+  function refsIn(file: string): Set<string> {
+    // Only flag fallback-less refs: `var(--x)` is a hard dependency,
+    // `var(--x, ...)` is a soft-hook with a fallback (Layer 3
+    // component-token placeholder pattern). Card.pad-md was a hard
+    // dep → silent padding 0; Button's --focusRing-* are soft hooks
+    // with `2px` fallback → correct rendering.
+    const src = readFileSync(file, 'utf8');
+    const hardDeps: string[] = [];
+    const re = /var\(\s*(--[a-zA-Z][a-zA-Z0-9-]*)\s*([,)])/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src)) !== null) {
+      const name = m[1];
+      const terminator = m[2];
+      if (name && terminator === ')') hardDeps.push(name);
+    }
+    return new Set(hardDeps);
+  }
+
+  it('every var(--name) in Sprint 12 CSS resolves to a declared token', () => {
+    const declared = declaredCustomProperties();
+    const offenders: string[] = [];
+    for (const rel of SPRINT_12_CSS) {
+      const full = resolve(SRC, rel);
+      for (const ref of refsIn(full)) {
+        if (!declared.has(ref)) {
+          offenders.push(`${rel} → ${ref}`);
+        }
+      }
+    }
+    expect(offenders, `Undeclared CSS custom properties:\n  ${offenders.join('\n  ')}`).toEqual([]);
+  });
 });
 
 // =============================================================================

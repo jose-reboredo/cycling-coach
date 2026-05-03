@@ -184,5 +184,9 @@ apps/web/playwright-report/
 apps/web/test-results/
 apps/web/playwright/.cache/
 
+# Playwright MCP (browser automation snapshots / ad-hoc screenshots)
+.playwright-mcp/
+/*.png
+
 # macOS metadata
 .DS_Store
