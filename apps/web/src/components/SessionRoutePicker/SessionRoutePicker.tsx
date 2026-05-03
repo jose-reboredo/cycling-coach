@@ -298,6 +298,12 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes, targetEle
 
   // -------------------------------------------------------------------------
   // Tab 2 — Strava saved routes.
+  // v10.13.0 (Sprint 11 bug 2): geocode the saved start_address (when
+  // present) and pass lat/lng to the backend so saved routes that don't
+  // start near the user's session anchor (e.g. a hike in Positano while
+  // they're cycling in Zurich) can be filtered out by a 50 km radius
+  // gate. We don't *block* fetching when no address is configured — we
+  // just skip the anchor filter. Better to surface routes than nag.
   // -------------------------------------------------------------------------
   const handleFindStravaSaved = async () => {
     if (pending) return;
@@ -311,7 +317,24 @@ export function SessionRoutePicker({ sessionId, zone, durationMinutes, targetEle
     setSelectedId(null);
     try {
       const surface = prefs.surface_pref === 'gravel' ? 'gravel' : prefs.surface_pref === 'paved' ? 'paved' : 'any';
-      const saved = await fetchSavedStravaRoutes({ distanceKm: targetDistance, surface });
+      // Try to geocode the saved start_address for anchor relevance.
+      // Failures here are non-fatal — fall through to a non-anchored
+      // fetch so the user still sees their saved routes.
+      let anchor: { lat: number; lng: number } | null = null;
+      const trimmed = (prefs.start_address ?? address).trim();
+      if (trimmed) {
+        try {
+          const geo = await geocodeAddress(trimmed);
+          if (geo) anchor = { lat: geo.lat, lng: geo.lng };
+        } catch {
+          // Network blip on Nominatim — don't block the Strava fetch.
+        }
+      }
+      const saved = await fetchSavedStravaRoutes({
+        distanceKm: targetDistance,
+        surface,
+        ...(anchor ? { lat: anchor.lat, lng: anchor.lng } : {}),
+      });
       if (!Array.isArray(saved) || saved.length === 0) {
         setError(`No Strava saved routes match ~${targetDistance} km.`);
         return;
