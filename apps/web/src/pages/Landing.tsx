@@ -22,7 +22,7 @@ export function Landing() {
     <div className={styles.page}>
       <TopBar
         trailing={
-          <Button href={connectUrl()} size="sm" variant="primary" withArrow>
+          <Button href={connectUrl()} size="sm" variant="primary">
             Connect
           </Button>
         }
@@ -52,19 +52,19 @@ export function Landing() {
             </p>
 
             <div className={styles.heroCtas}>
-              <Button href={connectUrl()} size="lg" variant="primary" withArrow>
+              <Button href={connectUrl()} size="lg" variant="primary">
                 Connect with Strava
               </Button>
-              <Button href="#what" size="lg" variant="ghost">
+              <Button href="#what" size="lg" variant="ghost" withArrow>
                 See what you get
               </Button>
             </div>
 
             <ul className={styles.heroFacts}>
-              <li><span className={styles.heroFactNum}>10s</span><span>setup</span></li>
-              <li><span className={styles.heroFactNum}>$0</span><span>monthly · BYOK</span></li>
-              <li><span className={styles.heroFactNum}>∞</span><span>token refresh</span></li>
-              <li><span className={styles.heroFactNum}>~$0.02</span><span>per AI plan</span></li>
+              <li><span className={styles.heroFactNum}>10s</span><span>typical OAuth round-trip</span></li>
+              <li><span className={styles.heroFactNum}>$0</span><span>monthly subscription</span></li>
+              <li><span className={styles.heroFactNum}>7</span><span>Coggan zones + neuromuscular</span></li>
+              <li><span className={styles.heroFactNum}>~$0.02</span><span>per AI plan (BYOK)</span></li>
             </ul>
           </motion.div>
 
@@ -114,8 +114,8 @@ export function Landing() {
         <Container width="base">
           <ul className={styles.bandList}>
             <li>
-              <span className={styles.bandNum}>6</span>
-              <span className={styles.bandLabel}>Coggan zones</span>
+              <span className={styles.bandNum}>7</span>
+              <span className={styles.bandLabel}>Coggan + neuromuscular zones</span>
             </li>
             <li>
               <span className={styles.bandNum}>$0</span>
@@ -260,7 +260,7 @@ export function Landing() {
               One click. Your Strava history imported. Your training brain ready.
               Your club waiting. All yours, all on your phone, all free.
             </p>
-            <Button href={connectUrl()} size="lg" variant="primary" withArrow>
+            <Button href={connectUrl()} size="lg" variant="primary">
               Connect with Strava
             </Button>
             <p className={styles.finalNote}>

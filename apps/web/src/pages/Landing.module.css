@@ -44,16 +44,20 @@
   max-width: 880px;
 }
 
+/* Sprint 12 — editorial display via Source Serif Pro. The italic
+ * emphasis on the middle clause stays accent-coloured (per
+ * docs/design/landing-ux.md §6) but now reads as a proper italic
+ * serif, not a sans pseudo-italic. */
 .heroH1 {
   margin-top: var(--s-6);
-  font: 700 clamp(40px, 11vw, 96px) / 0.92 var(--font-sans);
-  letter-spacing: -0.04em;
-  color: var(--c-text);
+  font: 600 clamp(40px, 11vw, 88px) / 0.95 var(--font-display);
+  letter-spacing: -0.028em;
+  color: var(--text-primary);
 }
 .heroH1Italic {
   font-style: italic;
-  font-weight: 400;
-  color: var(--c-accent);
+  font-weight: 600;
+  color: var(--accent-default);
 }
 
 .heroLede {
@@ -253,16 +257,18 @@
   max-width: 760px;
   margin-bottom: var(--s-10);
 }
+/* Sprint 12 — section H2s in Source Serif Pro for editorial register
+ * paired with the № framing eyebrows. */
 .sectionH2 {
   margin-top: var(--s-3);
-  font: 600 clamp(32px, 6.5vw, 56px) / 1.04 var(--font-sans);
-  letter-spacing: -0.028em;
-  color: var(--c-text);
+  font: 600 clamp(32px, 6.5vw, 56px) / 1.06 var(--font-display);
+  letter-spacing: -0.022em;
+  color: var(--text-primary);
 }
 .sectionH2 em {
   font-style: italic;
-  font-weight: 400;
-  color: var(--c-accent);
+  font-weight: 600;
+  color: var(--accent-default);
 }
 .sectionLede {
   margin-top: var(--s-4);
@@ -691,15 +697,16 @@
   align-items: center;
   gap: var(--s-4);
 }
+/* Sprint 12 — final CTA H2 in Source Serif Pro. */
 .finalH2 {
-  font: 600 clamp(40px, 8.5vw, 88px) / 0.96 var(--font-sans);
-  letter-spacing: -0.03em;
-  color: var(--c-text);
+  font: 600 clamp(40px, 8.5vw, 88px) / 0.98 var(--font-display);
+  letter-spacing: -0.024em;
+  color: var(--text-primary);
 }
 .finalH2 em {
   font-style: italic;
-  font-weight: 400;
-  color: var(--c-accent);
+  font-weight: 600;
+  color: var(--accent-default);
 }
 .finalLede {
   max-width: 540px;
