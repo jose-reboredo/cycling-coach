@@ -96,6 +96,24 @@ const ALLOWED_ORIGINS = [
 // Resolve the user-facing origin so OAuth redirect_uri lands where the user
 // actually is. Returns null if the origin can't be trusted.
 //
+// Sprint 13 / v11.1.0 — base64 helpers for ciphertext / iv / salt round-tripping.
+// D1 BLOB columns are passed as Uint8Array on the way in and surfaced as
+// ArrayBuffer on the way out; the client uses base64 over JSON.
+function bufToB64(buf) {
+  if (!buf) return null;
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+function b64ToBuf(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+//
 // v9.3.0 (#34): X-Forwarded-Host is ignored entirely — trusting it created an
 // open-redirect / OAuth-phishing vector. The actual origin Cloudflare received
 // (url.origin) is gated against ALLOWED_ORIGINS. Localhost dev keeps an
@@ -1743,6 +1761,179 @@ async function handleRequest(request, env, ctx) {
         created_at: now,
         updated_at: now,
       }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // ============================================================
+    // Sprint 13 / v11.1.0 — credentials substrate.
+    //
+    // POST   /api/me/passphrase/setup   — first-time passphrase setup
+    // POST   /api/me/passphrase/recover — recovery code → return salt + nuke ciphertexts
+    // GET    /api/me/credentials        — list ciphertexts for this athlete
+    // PATCH  /api/me/credentials        — upsert one provider's ciphertext
+    // DELETE /api/me/credentials/:provider — remove one provider's ciphertext
+    //
+    // The Worker stores ciphertext + IV + salt only. Decryption happens
+    // in the browser; the master key never crosses this boundary.
+    // See docs/post-demo-sprint/sprint-13/adr-credentials-substrate.md.
+    // ============================================================
+
+    if (url.pathname === '/api/me/passphrase/setup' && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid_body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!body || typeof body.recovery_code_hash !== 'string'
+          || typeof body.passphrase_set_at !== 'number') {
+        return new Response(JSON.stringify({ error: 'invalid_body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      await env.cycling_coach_db.prepare(
+        'UPDATE users SET recovery_code_hash = ?, passphrase_set_at = ? WHERE athlete_id = ?',
+      ).bind(body.recovery_code_hash, body.passphrase_set_at, authResult.athleteId).run();
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (url.pathname === '/api/me/passphrase/recover' && request.method === 'POST') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid_body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!body || typeof body.recovery_code_hash !== 'string') {
+        return new Response(JSON.stringify({ error: 'invalid_body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const row = await env.cycling_coach_db.prepare(
+        'SELECT recovery_code_hash FROM users WHERE athlete_id = ?',
+      ).bind(authResult.athleteId).first();
+      if (!row || row.recovery_code_hash !== body.recovery_code_hash) {
+        return new Response(JSON.stringify({ error: 'recovery_failed' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // On match: clear hash + nuke ciphertexts. Old master key is gone with
+      // the passphrase; ciphertexts are unrecoverable garbage.
+      await env.cycling_coach_db.batch([
+        env.cycling_coach_db.prepare(
+          'UPDATE users SET recovery_code_hash = NULL, passphrase_set_at = NULL WHERE athlete_id = ?',
+        ).bind(authResult.athleteId),
+        env.cycling_coach_db.prepare(
+          'DELETE FROM user_credentials WHERE athlete_id = ?',
+        ).bind(authResult.athleteId),
+      ]);
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (url.pathname === '/api/me/credentials' && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { results: rows } = await env.cycling_coach_db.prepare(
+        'SELECT provider, managed, ciphertext, iv, kdf_salt, kdf_iterations, updated_at ' +
+        'FROM user_credentials WHERE athlete_id = ?',
+      ).bind(authResult.athleteId).all();
+      const items = (rows ?? []).map((r) => ({
+        provider: r.provider,
+        managed: !!r.managed,
+        ciphertext: r.managed ? null : bufToB64(r.ciphertext),
+        iv: r.managed ? null : bufToB64(r.iv),
+        kdf_salt: bufToB64(r.kdf_salt),
+        kdf_iterations: r.kdf_iterations,
+        updated_at: r.updated_at,
+      }));
+      return new Response(JSON.stringify({ items }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (url.pathname === '/api/me/credentials' && request.method === 'PATCH') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid_body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!body || typeof body.provider !== 'string'
+          || typeof body.ciphertext !== 'string'
+          || typeof body.iv !== 'string'
+          || typeof body.kdf_salt !== 'string'
+          || typeof body.kdf_iterations !== 'number') {
+        return new Response(JSON.stringify({ error: 'invalid_body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const now = Math.floor(Date.now() / 1000);
+      await env.cycling_coach_db.prepare(
+        'INSERT INTO user_credentials ' +
+        '  (athlete_id, provider, managed, ciphertext, iv, kdf_salt, kdf_iterations, created_at, updated_at) ' +
+        'VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?) ' +
+        'ON CONFLICT(athlete_id, provider) DO UPDATE SET ' +
+        '  ciphertext = excluded.ciphertext, ' +
+        '  iv = excluded.iv, ' +
+        '  kdf_salt = excluded.kdf_salt, ' +
+        '  kdf_iterations = excluded.kdf_iterations, ' +
+        '  updated_at = excluded.updated_at',
+      ).bind(
+        authResult.athleteId, body.provider,
+        b64ToBuf(body.ciphertext), b64ToBuf(body.iv),
+        b64ToBuf(body.kdf_salt), body.kdf_iterations,
+        now, now,
+      ).run();
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const credDelMatch = url.pathname.match(/^\/api\/me\/credentials\/([a-z0-9-]+)$/i);
+    if (credDelMatch && request.method === 'DELETE') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const provider = credDelMatch[1];
+      await env.cycling_coach_db.prepare(
+        'DELETE FROM user_credentials WHERE athlete_id = ? AND provider = ?',
+      ).bind(authResult.athleteId, provider).run();
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // PATCH /api/me/sessions/:id — partial update; own-only (Sprint 5 / v9.12.0, #76).
