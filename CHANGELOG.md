@@ -4,6 +4,90 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [11.0.0] — 2026-05-03
+
+**Sprint 12 release. Brand foundation + extended design system. MAJOR version because the design system change touches every surface — though the runtime tokens are strictly additive and existing in-app surfaces render unchanged. No schema changes, no behaviour changes, no API changes.**
+
+### 1 · Three-layer token taxonomy
+
+`apps/web/src/design/tokens.css` (and `tokens.ts`) now declares three semantic layers, **additively** on top of the flat tokens that already shipped:
+
+- **Layer 1 — primitive** (raw ramps): `--color-orange-50..950` (anchor at `--color-orange-500: #ff4d00` preserved from v9.1.1), `--color-warm-grey-50..950` (warm-bias neutrals, not pure slate), alpha steps, font-size scale, etc.
+- **Layer 2 — semantic** (intent): `--surface-page / -card / -elevated / -pressed`, `--text-primary / -secondary / -on-accent`, `--accent-default / -hover / -pressed / -ring-glow`, `--border-default / -strong`, `--state-{success,info,warning,danger}`, motion (`--duration-fast/base/slow`, `--ease-standard/-emphasised`), spacing aliases (`--space-1..32`), radius (`--radius-xs..full`), elevation (`--shadow-1..5`), `--safe-area-top/-bottom/-left/-right`.
+- **Layer 3 — component** (placeholder hooks): wired by component CSS as a `var(--component-token, fallback)` pattern; populated as components are rebuilt.
+
+The flat tokens (`--c-canvas`, `--s-1..-32`, `--c-line`, `--r-md`, `--sh-md`, etc.) are **preserved verbatim**. Existing CSS modules continue to resolve via the unchanged flat tokens — zero in-app visual regression. New components reference Layer 2 / 3 only.
+
+One semantic addition with behavioral effect: `--c-border` was previously undefined (`Calendar.module.css` referenced it 9× and fell through to `currentColor`); now resolves to `var(--c-line)`. **This is a fix, not a regression** — the silent fall-through was a Phase 1 inventory finding.
+
+### 2 · Typography pairing — Source Serif Pro added
+
+`apps/web/index.html` adds **Source Serif Pro** (variable, weights 400/600/700, italic 400/600) to the existing Geist + Geist Mono Google Fonts link. Used by `--font-display` for editorial display + section H2s + the № framing pattern; Inter remains the workhorse face. Same `display=swap`, same preconnect — no FOUT regression. Per `references/ai-aesthetic-tells.md`, "Inter alone with no companion face" was a documented AI-aesthetic tell; the pairing addresses it.
+
+### 3 · Components rebuilt + added
+
+Each component below ships against tokens only, with the full 8-state matrix per `DESIGN.md` §8 (default / hover / active / focus-visible / disabled / loading / empty / error). All public APIs are **additive** (preserved) — old prop sets work unchanged.
+
+- **Button** (rebuilt) — variants extended `primary | secondary | ghost | strava` → `primary | secondary | tertiary | ghost | link | destructive | strava`. New props: `loading` (in-button spinner, no CLS), `iconLeft`, `iconRight`. `withArrow` is now opt-in, not default-on (the universal-arrow pattern was a documented AI tell). Touch-target floor `--hit-min: 44px` honoured.
+- **Card** (rebuilt) — single depth strategy enforced (border OR shadow, never both): `base / elev / pressed` use border, `accent` uses glow shadow with transparent border. New `interactive` prop with keyboard + mouse activation, hover-lift, focus-ring.
+- **EmptyState** (new) — headline + body + optional illustration slot + CTA slot. Honest microcopy per `DESIGN.md` §3 (no generic "No items yet").
+- **Skeleton** (new) — text (with multi-line stacking) / circle / rect / card variants. Token-driven shimmer; honours `prefers-reduced-motion: reduce` (clamps to static muted state).
+- **Toast** (new) — success / info / warning / danger variants, dismiss + action slots, `role` + `aria-live` mapped to severity (alert/assertive on danger). Presentational primitive only; ToastProvider + queue arrive in a follow-up sprint.
+
+### 4 · Marketing landing rebuilt end-to-end
+
+`apps/web/src/pages/Landing.tsx` + `Landing.module.css` rebuilt against the new system: Source Serif Pro display H1 / H2 / italic; arrow suffix dropped from primary CTAs, kept on legitimate jump-links only; stat row replaced vague claims (`∞ token refresh`) with concrete attribution (`7 Coggan zones + neuromuscular`). Founder-approved at the Phase 3 close gate. Manual `/impeccable critique` substitute against `references/ai-aesthetic-tells.md`: 4 documented tells passing, ≤ 1 remaining.
+
+### 5 · `/design-system` showcase route + contract suite
+
+New dev-reachable route at [`/design-system`](https://cycling-coach.josem-reboredo.workers.dev/design-system) (unlinked from nav). Renders every Sprint 12 component in every state at desktop + 375px mobile in a single scroll — the canonical kit reference for Sprint 14+ in-app adoption.
+
+`apps/web/src/lib/__tests__/design-system-contract.test.ts` — **24 static-scan assertions** locking the design-system invariants (same pattern as v10.11.3 worker-cache-contract):
+
+- **Token taxonomy** — three-layer namespaces declared in `tokens.ts`; molten-orange anchor at `primitive.orange[500] = #ff4d00`; Source Serif Pro present; named springs; safe-area semantic tokens; Layer 2 set declared in `tokens.css`; orange ramp 50–950; warm-grey ramp; `--c-border` backward-compat alias; `--space-N` alias presence (1–8, 12, 16, 24, 32).
+- **Hex-literal discipline** — Sprint 12 component rebuilds (Button / Card / EmptyState / Skeleton / Toast) carry zero hex literals; `/design-system` route zero hex literals; non-allowlisted growth ceiling = 20.
+- **Touch-target discipline** — `--hit-min/comfy/big` declared; Button + Toast dismiss reference `--hit-min`; BottomNav handles `safe-area-inset-bottom`.
+- **Component 8-state invariants** — Button declares default + hover + active + focus-visible + disabled + loading; Card.interactive declares hover + active + focus-visible; Skeleton honours `prefers-reduced-motion`.
+- **PWA manifest** — name = `Cadence Club`; theme/background_color = `#0a0a0c`; shortcut URLs are file-based routes (no stale `#hash` drift).
+- **Token resolution scan (NEW)** — every `var(--name)` (without fallback) in Sprint 12 component + route CSS resolves to a declaration in `tokens.css`. Distinguishes hard deps (`var(--x)`) from soft hooks (`var(--x, fallback)`). Caught and locked the Phase 5 `--space-5/7` regression.
+
+### 6 · Phase 5 parity audit + regression
+
+**Bug found, fixed, locked before deploy.** Card's `pad="md"` and `pad="lg"` migrated from `var(--s-5)` / `var(--s-7)` to `var(--space-5)` / `var(--space-7)` during the Phase 3 rebuild — but the Layer 2 alias declarations only covered `--space-1, 2, 3, 4, 6, 8, 12, 16, 24, 32`. The 5 and 7 steps were silently pruned. Result: every Card with `pad="md"` (default) or `pad="lg"` would have collapsed to `padding: 0` across `/dashboard/today`, `/dashboard/you`, Dashboard, and the rebuilt Marketing landing.
+
+Fix: two missing aliases declared in `tokens.css` (same values, same backing primitives — zero visual delta vs pre-Sprint-12 Card padding). Lock: the new token-resolution scan + a literal alias-presence test, both red-green verified. Full audit: [`docs/post-demo-sprint/sprint-12/04-phase-5-parity-audit.md`](./docs/post-demo-sprint/sprint-12/04-phase-5-parity-audit.md).
+
+### 7 · PWA manifest rebrand
+
+`apps/web/public/manifest.webmanifest` updated:
+- `name` `Cycling Coach` → `Cadence Club`; `short_name` `Coach` → `Cadence`.
+- Description aligned with the post-rebrand product voice.
+- `theme_color` + `background_color` `#08090b` → `#0a0a0c` (matches `--c-canvas`).
+- Shortcut URLs `#today / #train / #stats` → `/dashboard/today / /dashboard/train / /dashboard/schedule` (file-based routes; the hash forms had been stale since Sprint 4).
+
+### Verified before deploy
+
+```
+npx vitest run src/lib/__tests__/design-system-contract.test.ts   24/24 pass
+npx vitest run                                                    258/259 pass · 1 skipped · 0 failures
+npx tsc --noEmit                                                   exit 0
+npm run build                                                      green; bundle flat
+```
+
+Visual smoke: `/dashboard/today | train | schedule | you` at desktop (1280×800) + `/dashboard/you` at mobile (375×812) + `/design-system` showcase. Console: 0 errors across all routes (the single warning is a pre-existing Apple meta deprecation, unrelated).
+
+Test count progression: 234 → 256 → **258** (+24 design-system contract assertions, no regressions).
+
+### Not in this release
+
+- **No schema, endpoint, or behavior changes.** Pure design-system work.
+- **In-app surfaces (Today / Train / Schedule / Drawer) not yet refreshed** against the new system — adoption planned for Sprint 14+. The new components ship into the Marketing landing as the reference; in-app rollout is sequenced.
+- **Self-hosted fonts** (`apps/web/public/fonts/` + `font-display: optional`) deferred to a future sprint — fonts still load via Google Fonts in this release with `display=swap`.
+- **Phosphor iconography** migration deferred — existing line icons unchanged.
+- **Form fields** (Input / Textarea / Select / Checkbox / Radio / Toggle) deferred to Sprint 14+ when in-app surfaces refresh.
+
+---
+
 ## [10.13.0] — 2026-05-03
 
 **Sprint 11 prep release. Four overnight workstreams (security, route reliability, contract tests, docs) merged into a single bundle. No new features — every change is correctness, defense-in-depth, or documentation.**

@@ -2,7 +2,7 @@
 
 Performance-training platform for serious cyclists and the clubs they ride with. Cadence Club ingests your Strava history, computes daily form (CTL/ATL/TSB) at the edge, generates AI-coached weekly plans, and gives clubs a shared schedule with RSVP and AI-drafted weekly recaps.
 
-**Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · **Current release:** [v10.13.0](./CHANGELOG.md) · **Security policy:** [SECURITY.md](./SECURITY.md) · **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
+**Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · **Current release:** [v11.0.0](./CHANGELOG.md) · **Security policy:** [SECURITY.md](./SECURITY.md) · **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
 
@@ -331,6 +331,7 @@ Defined in [`apps/web/src/routes/`](./apps/web/src/routes/). All client-side; `n
 | `/join/$code` | `join.$code.tsx` | Invite-link landing |
 | `/privacy` | `privacy.tsx` | Privacy / data handling |
 | `/whats-next` | `whats-next.tsx` | Roadmap (live mirror of `/roadmap`) |
+| `/design-system` | `design-system.tsx` | Design system showcase (v11.0.0; dev-reachable, unlinked) — every rebuilt component in every state |
 
 ---
 
@@ -353,7 +354,7 @@ Source-of-truth: [`apps/web/src/components/`](./apps/web/src/components/) (one d
 
 | Component | Used by | Purpose |
 |---|---|---|
-| `Card` | Everywhere | Surface primitive with optional 3-px accent left rule |
+| `Card` | Everywhere | Surface primitive — tones `base / elev / pressed / accent`; `interactive` opt-in (v11.0.0); single-depth strategy (border OR shadow, never both) |
 | `StatTile` | Today, You | Number + unit + eyebrow; sized sm/md/lg, zone-tinted |
 | `Pill` | Calendar, drawers | Small chip with optional dot; tone neutral / accent / success / warn / danger |
 | `ZonePill` | Calendar, plan cards | Coggan/Strava 1–7 zone chip with glow dot |
@@ -361,7 +362,10 @@ Source-of-truth: [`apps/web/src/components/`](./apps/web/src/components/) (one d
 | `BikeMark` | Brand surfaces | Linework cyclist glyph (currentColor) |
 | `Container` | Layout | Single source of horizontal rhythm (4 widths) |
 | `GrainOverlay` | Hero | Film-noise SVG fractal |
-| `Button` | Everywhere | primary / secondary / ghost / strava variants; `withArrow` for hover |
+| `Button` | Everywhere | 7 variants (primary / secondary / tertiary / ghost / link / destructive / strava); `loading` + `iconLeft` + `iconRight` + `withArrow` (jump-link only); 8-state matrix (v11.0.0) |
+| `EmptyState` | (rebuilt v11.0.0) | Headline + body + optional illustration + CTA; honest microcopy per `DESIGN.md` |
+| `Skeleton` | (rebuilt v11.0.0) | text / circle / rect / card variants; honours `prefers-reduced-motion` |
+| `Toast` | (new v11.0.0) | success / info / warning / danger; `aria-live` mapped to severity |
 
 ### Personal training surface
 
@@ -793,6 +797,8 @@ If the deploy includes risky changes (auth, scheduler aggregation, webhook handl
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full history.
 
+- **v11.0.0** — Sprint 12 brand foundation + extended design system. Three-layer token taxonomy (primitive → semantic → component) added additively to `tokens.css` (flat tokens preserved for backward compat). Source Serif Pro added as editorial display face, paired with Geist sans + Geist Mono. Six core components rebuilt against the new tokens with full 8-state matrices: Button (7 variants), Card (single-depth strategy + interactive), EmptyState, Skeleton, Toast (new). Marketing landing rebuilt end-to-end as the canonical reference page. New `/design-system` showcase route renders every component in every state at desktop + 375px mobile. 24-test design-system contract suite (token taxonomy, hex-literal discipline, touch-target floor, component states, var-resolution scan).
+- **v10.13.0** — Sprint 11 prep release: 5 UPDATE statements scoped by `athlete_id` / `club_id` (defense-in-depth); ORS + Strava saved-routes anchor-distance gates (Zurich → no Path of Gods); 42 → 234 passing tests (authn / authz / migration discipline / pure helpers); README rewrite (167 → 829 lines) + Confluence Architecture/Data Model/Migrations rewrite + Runbook page.
 - **v10.12.0** — Repeat-aware drawer + cascade edit (Migration 0013 adds `recurring_group_id`); calendar event-block alignment + side-by-side overlap rendering (#80) — px-based positioning replaces the % math that drifted off the gridlines; RWGPS disconnect surface in Settings.
 - **v10.11.x** — Calendar reliability cluster: HTTP `Cache-Control: private, no-store` on every `/api/*` response (entry-layer filter in `worker.js`), root-cause fix for the "edit doesn't register / cancel doesn't disappear" symptom class. 8 cache-contract tests added.
 - **v10.7.0–v10.10.0** — Route picker disconnect, AI plan v2 with goal-driven weekly plans (Migration 0011 adds `ai_plan_sessions`), webhook auto-regen + per-session `user_edited_at` lock, Strava browser/server hybrid OAuth (Migration 0012), quick-add via empty-hour-slot click on Week + Day grids.
