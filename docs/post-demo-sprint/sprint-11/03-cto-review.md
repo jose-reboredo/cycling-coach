@@ -2,7 +2,7 @@
 
 **Reviewed:** 2026-05-03 (sprint open + first deploy + v10.13.0 retro)
 **Releases shipped so far:** 1 (v10.13.0)
-**Reviewer:** CTO + Architect (Opus, in-session synthesis) — autonomous overnight run + morning review with founder
+**Reviewer:** CTO + Architect synthesis — autonomous overnight run + morning review with the product lead
 
 > This document gets finalized at sprint close. Current content covers the v10.13.0 cut + the founder-reported route-gen failure that follows it.
 

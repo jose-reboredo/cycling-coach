@@ -1,7 +1,7 @@
 # CTO Review — Sprint 4 · Clubs Expansion (Issue #53)
-**Author:** CTO (Opus, judgment synthesis)
+**Author:** CTO Review
 **Date:** 2026-04-30
-**Inputs:** `01-clubs-experience-design.md` (BA+UX), `#53` issue body + wireframes + founder mid-stream notes
+**Inputs:** `01-business-requirements.md` (BA+UX), `#53` issue body + wireframes + lead's mid-sprint notes
 **Product baseline:** v9.5.2 (live)
 
 ---
@@ -46,7 +46,7 @@ ADR-S4.6 (`Q6` — Metrics leaderboard ranking basis) folds into Phase 5 impleme
 
 ---
 
-## §C. Strategy notes (Opus judgment)
+## §C. Strategy notes
 
 1. **Phase ordering serves founder optionality.** If Phase 4 (AI moments — statistical) is enough to pass demo, Phase 5 (LLM moments) can slip to Sprint 5 without breaking anything. Statistical moments alone (readiness dots, trend arrows) carry meaningful value to Persona A.
 
@@ -68,7 +68,7 @@ Before any code lands, please confirm:
 2. **Sprint 4 = Clubs (~52h, 5 phases v9.6.0 → v9.6.4)** — confirms the originally-planned Sprint 4 (#49/#50/#52) slips to Sprint 5
 3. **Cron handler** — first cron in this codebase, accept the weekly Monday pattern + log-and-skip failure mode
 
-After approval, the architect doc (Sonnet, §C tables and SQL) can land in 1-2 dispatches and Phase 1 can start.
+After approval, the architect doc (`02-architecture-changes.md`) lands and Phase 1 can start.
 
 ---
 

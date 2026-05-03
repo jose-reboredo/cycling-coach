@@ -2,7 +2,7 @@
 
 **Reviewed:** 2026-05-01 sprint close (post-v9.12.8)
 **Releases:** 9 minor + hotfix cuts
-**Reviewer:** CTO + Architect (Opus, in-session synthesis)
+**Reviewer:** CTO + Architect synthesis
 
 ## What worked
 

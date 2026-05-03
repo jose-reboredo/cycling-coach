@@ -1,8 +1,8 @@
-# CTO Plan — Sprint 3
-**Author:** CTO (Opus, single-doc synthesis — no BA/Architect dispatch this sprint, per founder cost-optimization directive)
+# Sprint 3 — Architecture and CTO Plan
+**Author:** CTO (single-document format — no separate BA / Architect docs this sprint; hardening backlogs ship the plan in one pass)
 **Date:** 2026-04-30
-**Inputs:** GitHub issue bodies (`#38–#45`, `#15`, `#6`, `#8`, `#53`); `docs/retros/sprint-1.md`; `docs/post-demo-sprint/sprint-2/` for Sprint 2 retro context (none — Sprint 2 went clean)
-**Product baseline:** v9.3.5 (live, validated by founder)
+**Inputs:** GitHub issue bodies (`#38–#45`, `#15`, `#6`, `#8`, `#53`); `docs/retros/sprint-1.md`; `docs/post-demo-sprint/sprint-2/` for Sprint 2 retro context (Sprint 2 shipped clean)
+**Product baseline:** v9.3.5 (live, validated)
 
 ---
 
@@ -10,7 +10,7 @@
 
 Sprint 3 is **hardening + accessibility + clubs scoping** — no novel features. The 8 audit HIGHs (`#38–#45`) plus `#15` (security headers) cover backend stability, security hardening, and accessibility. `#53` (clubs expansion) is its own track, founder-gated on a scoping session. `#6` and `#8` are older HIGHs that need verification — likely stale post Sprint 1/2.
 
-Why no BA/Architect: every issue body has its own user story + acceptance criteria + recommended fix already. Re-writing them as BA stories is paraphrase work; re-specifying as Architect plans is paraphrase squared. CTO-only synthesis is the right shape for hardening backlogs (~5% budget vs ~25% for full BA→Architect→CTO).
+Why no separate BA / Architect docs: every issue body has its own user story + acceptance criteria + recommended fix already. Re-writing them as BA stories is paraphrase work; re-specifying as Architect plans is paraphrase squared. CTO-only synthesis is the right shape for hardening backlogs.
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Reviewed:** 2026-05-01 sprint close (post-v9.11.0)
 **Releases:** 11 + 4 hotfixes = 15
-**Reviewer:** CTO + Architect (Opus, in-session synthesis)
+**Reviewer:** CTO + Architect synthesis
 
 ## What worked
 

@@ -1,8 +1,8 @@
-# CTO Review — Post-Demo Sprint
-**Author:** CTO Review — Role 4 (Opus, judgment-heavy synthesis)
+# CTO Review — Sprint 1
+**Author:** CTO Review
 **Date:** 2026-04-30
-**Inputs:** `01-business-requirements.md`, `02-ux-design-specs.md`, `03-architecture-changes.md`
-**Issues addressed:** #47–#53 (BA-filed) + Sprint 3 security backlog #33, #34, #38–#45
+**Inputs:** `01-business-requirements.md`, `ux-design-specs.md`, `02-architecture-changes.md`
+**Issues addressed:** #47–#53 (BA-filed) + carry-over security backlog #33, #34, #38–#45
 **Product baseline:** v9.2.5
 
 ---
@@ -180,9 +180,9 @@ The 2026-04-30 overnight audit produced 10 CRITICALs and 28 HIGHs. State as of v
 
 **Sprint 1 closes both remaining CRITICALs** — see ADR-3 in the audit's recommended priority order (closing CRITICALs before adding meaningful new feature surface). 1.5h cumulative cost.
 
-**Sprint 3 takes 8 of the 28 HIGHs** — the audit's enumerated HIGH list (#38–#45). The unenumerated 20 HIGHs (the ones lost when the agent's `/tmp/` write was blocked) need a follow-up Sonnet recovery pass to itemize. Recommended: dispatch a 30-minute Sonnet agent in week 4 to recover those — cheap and unblocks visibility on the full HIGH backlog.
+**Sprint 3 takes 8 of the 28 HIGHs** — the audit's enumerated HIGH list (#38–#45). The unenumerated 20 HIGHs (the ones lost when an earlier audit run's `/tmp/` write was blocked) need a follow-up itemization pass. Recommended: dispatch a 30-minute audit-recovery pass in week 4 — cheap and unblocks visibility on the full HIGH backlog.
 
-**Security audit cadence going forward:** every release-cut commit should include a check that no NEW CRITICALs landed (smoke against the audit's checklist). Sprint reviews should reference the audit's open count. Monthly: dispatch a fresh Sonnet audit pass to catch new drift.
+**Security audit cadence going forward:** every release-cut commit should include a check that no NEW CRITICALs landed (smoke against the audit's checklist). Sprint reviews should reference the audit's open count. Monthly: run a fresh security audit pass to catch new drift.
 
 **Why security cannot be indefinitely deferred:** every shipped feature adds attack surface. Clubs MVP (#46-related work) added 4 endpoints, 1 route, 2 hooks. Without the v9.2.0 OAuth + /refresh hardening, multi-user clubs would have been exploitable via the documented CSRF vector (#14). The audit was the right call at the right time. Sprint 3's HIGH batch maintains that hygiene.
 

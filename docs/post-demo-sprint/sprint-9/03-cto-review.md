@@ -2,7 +2,7 @@
 
 **Reviewed:** 2026-05-02 sprint close (post-v10.10.3)
 **Releases:** 5 (1 major shape change, 1 polish bundle, 3 hotfixes)
-**Reviewer:** CTO + Architect (Opus, in-session synthesis)
+**Reviewer:** CTO + Architect synthesis
 
 ## What worked
 

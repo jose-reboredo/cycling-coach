@@ -1,7 +1,7 @@
 # CTO Review — Sprint 2
-**Author:** CTO Review (Opus, judgment-heavy synthesis)
+**Author:** CTO Review
 **Date:** 2026-04-30
-**Inputs:** `sprint-2/01-business-requirements.md`, `sprint-2/02-architecture-changes.md`, `docs/retros/sprint-1.md`, `docs/post-demo-sprint/03-architecture-changes.md` (Sprint 1 carry-forward specs)
+**Inputs:** `sprint-2/01-business-requirements.md`, `sprint-2/02-architecture-changes.md`, `docs/retros/sprint-1.md`, `sprint-1/02-architecture-changes.md` (Sprint 1 carry-forward specs)
 **Issues addressed:** FB-R1, FB-R2 (regressions) + #50, #49, #52 (Sprint 1 carry-forward features)
 **Product baseline:** v9.3.4 (currently live)
 

@@ -32,5 +32,5 @@
 ## Memory rules validated this sprint
 
 - `feedback_pre-coding-scope-alignment.md` — validated again: the v10.7.0 design doc for goal-driven AI plan went through founder review BEFORE coding the v10.8.0 implementation. Saved several hotfix rounds; v10.8.0 shipped with no immediate hotfixes.
-- `feedback_economy-model.md` — validated by v10.8.0's three-phase Anthropic prompt design (system-paid Haiku for the plan generation, BYOK Sonnet/Opus only on user-paid surfaces).
+- `feedback_economy-model.md` — validated by v10.8.0's three-phase Anthropic prompt design (system-paid lower-cost model for plan generation, BYOK higher-tier models only on user-paid surfaces).
 - `feedback_release-ceremony.md` — Phases A + B + C bundling in v10.8.0 violated "one risk theme per release" but founder approved the bundle as a coherent deliverable. Validated the right-size-ceremony-to-release-scope rule.

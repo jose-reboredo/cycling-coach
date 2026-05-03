@@ -1,7 +1,7 @@
 # Sprint 4 · Architecture Changes (Issue #53)
-**Author:** Architect (Sonnet) · **Date:** 2026-04-30  
-**ADRs locked:** S4.1–S4.5 (founder approved 2026-04-30)  
-**Inputs:** `01-clubs-experience-design.md`, `02-cto-review.md`, `schema.sql`, `migrations/`, `src/worker.js`
+**Author:** Architect · **Date:** 2026-04-30  
+**ADRs locked:** S4.1–S4.5 (approved 2026-04-30)  
+**Inputs:** `01-business-requirements.md`, `03-cto-review.md`, `schema.sql`, `migrations/`, `src/worker.js`
 
 ---
 

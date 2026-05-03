@@ -1,6 +1,6 @@
 # Sprint 2 Business Requirements
-**Source:** Sprint 1 retro (`docs/retros/sprint-1.md`) + Sprint 2 founder-locked scope
-**BA:** Sonnet
+**Source:** Sprint 1 retro (`docs/retros/sprint-1.md`) + Sprint 2 approved scope
+**Author:** Business Analyst
 **Date:** 2026-04-30
 
 ---

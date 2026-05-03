@@ -2,7 +2,7 @@
 
 **Reviewed:** 2026-05-03 sprint close (post-v10.12.0)
 **Releases:** 5 (4 in the cluster, 1 closing bundle)
-**Reviewer:** CTO + Architect (Opus, in-session synthesis) — explicit pass requested by founder after the v10.10.x hotfix cluster
+**Reviewer:** CTO + Architect synthesis — explicit pass requested by the product lead after the v10.10.x hotfix cluster
 **Defining moment:** v10.11.2's discovery of `Cache-Control: private, max-age=300` on three success-path responses
 
 ## What worked

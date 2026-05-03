@@ -1,7 +1,7 @@
 # Architecture Changes — Sprint 2
-**Author:** Architect (Sonnet)
+**Author:** Architect
 **Date:** 2026-04-30
-**Inputs:** `sprint-2/01-business-requirements.md`, `docs/post-demo-sprint/03-architecture-changes.md`
+**Inputs:** `sprint-2/01-business-requirements.md`, `sprint-1/02-architecture-changes.md`
 **Issues addressed:** FB-R1, FB-R2 (regressions) + carry-forward #49, #50, #52
 
 ---

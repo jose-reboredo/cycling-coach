@@ -2,7 +2,7 @@
 
 **Reviewed:** 2026-05-01 sprint close (post-v10.8.0)
 **Releases:** 3 minor — lowest count of any sprint, highest density per cut
-**Reviewer:** CTO + Architect (Opus, in-session synthesis)
+**Reviewer:** CTO + Architect synthesis
 
 ## What worked
 

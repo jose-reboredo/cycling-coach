@@ -1,10 +1,10 @@
 # Sprint 5–8 Plan + Retro/Post-mortem Process
 
-**Author:** CTO + Strategist (Opus, in-session synthesis)
+**Author:** CTO + Strategist
 **Date:** 2026-05-01
-**Inputs:** Sprint 1–4 planning docs, `docs/retros/sprint-1.md`, `RELEASE_CHECKLIST.md`, CHANGELOG (v9.3.0 → v9.6.5), open backlog (13 issues), auto-memory feedback rules
+**Inputs:** Sprint 1–4 planning docs, `docs/retros/sprint-1.md`, `RELEASE_CHECKLIST.md`, CHANGELOG (v9.3.0 → v9.6.5), open backlog (13 issues), process directives
 **Product baseline:** v9.6.5 (live)
-**Founder decisions:** locked 2026-05-01 (see §D)
+**Decisions locked:** 2026-05-01 (see §D)
 
 ---
 
@@ -41,7 +41,7 @@
 
 ---
 
-## §B — CTO view (judgment-heavy)
+## §B — CTO view
 
 ### Engineering capacity model
 
@@ -154,7 +154,7 @@ Trend: planning cost dropped ~4× from S1 → S3 by adopting CTO-only single-doc
 
 ### Dependency order
 
-S5 → S6 (cron infra in S5 is required for S6 LLM moments). S6 → S7 (frees implementation cycles + decouples LLM-prompt review from personal-loop work). S7 ↔ S8 are loosely coupled — S8 can run partially in parallel if Sonnet handles `#16` + CSP while Opus does `#49`.
+S5 → S6 (cron infra in S5 is required for S6 LLM moments). S6 → S7 (frees implementation cycles + decouples LLM-prompt review from personal-loop work). S7 ↔ S8 are loosely coupled — S8 can run partially in parallel.
 
 ---
 

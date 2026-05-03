@@ -1,5 +1,5 @@
-# Backlog Review — 16 open issues, post-Sprint-3-Phase-2
-**Author:** BA + Architect (Sonnet, combined review per founder cost-optimization)
+# Sprint 3 — Backlog Review (16 open issues, post-Sprint-3 Phase 2)
+**Author:** Combined BA + Architect review (single-document format adopted for hardening backlogs)
 **Date:** 2026-04-30
 **Inputs:** GitHub issue bodies (#3, #5, #8, #10, #11, #12, #16, #31, #32, #43–#45, #49, #50, #52, #53), Sprint 1/2/3 ship state, planning docs
 **Product baseline:** v9.5.1 (live)

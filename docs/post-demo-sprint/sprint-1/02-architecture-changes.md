@@ -1,13 +1,13 @@
-# Architecture Changes — Post-Demo Sprint
-**Author:** Architect — Role 3 (Opus for §A, §B-design, §D, §E; Sonnet for §B-SQL, §C — see notes)
+# Architecture Changes — Sprint 1
+**Author:** Architect
 **Date:** 2026-04-30
-**Inputs:** `01-business-requirements.md`, `02-ux-design-specs.md`
+**Inputs:** `01-business-requirements.md`, `ux-design-specs.md`
 **Issues addressed:** #47–#53
 **Product baseline:** v9.2.5
 
 ---
 
-## §A. Route Data Source Evaluation (#47, IR-1) — judgment-heavy, Opus
+## §A. Route Data Source Evaluation (#47, IR-1)
 
 The 5 candidate sources, scored on the dimensions that matter for this product (Workers compatibility, cost at our scale, geo coverage, surface metadata, integration time):
 
@@ -35,7 +35,7 @@ The 5 candidate sources, scored on the dimensions that matter for this product (
 
 ---
 
-## §B. Schema Design (#47, #49, #50, #52) — judgment-heavy, Opus
+## §B. Schema Design (#47, #49, #50, #52)
 
 The BA flagged 4 schema-change buckets (SC-1 to SC-4). Re-evaluating each against the existing schema (12 tables, see `schema.sql` + `db/README.md`):
 
@@ -76,11 +76,11 @@ If we ever go server-side (e.g., to support cross-device sync), revisit then wit
 | 0003 | `users.sex`, `users.country` | FB-6 (profile expansion via Strava sync) |
 | 0004 | `training_prefs.home_region`, `training_prefs.preferred_distance_km`, `training_prefs.preferred_difficulty` | FB-1 (route preferences for filter defaults) |
 
-**Migration SQL fleshed out in §B-SQL below (Sonnet writes that — structured output).**
+**Migration SQL fleshed out in §B-SQL below.**
 
 ---
 
-## §D. Mobile Tab Architecture (#51, AC-3) — judgment-heavy, Opus
+## §D. Mobile Tab Architecture (#51, AC-3)
 
 UX spec defines 4 tabs (Today / Train / Rides / You). BA flagged AC-3: the current Tanstack Router tree is flat/desktop-centric. Two architecture options:
 
@@ -127,7 +127,7 @@ Estimated effort: 16-24h (M-L). Spans router config + 4 new route files + layout
 
 ---
 
-## §E. AI Forecast Model (#49, IR-3) — judgment-heavy, Opus
+## §E. AI Forecast Model (#49, IR-3)
 
 UX §B specifies: <30 days = empty state, 30-55 days = client-side linear, ≥56 days = AI-refined. The architectural questions:
 
@@ -389,4 +389,4 @@ From UX (Role 2): goal type for Persona C; club shared goal scope; Anthropic key
 
 ---
 
-*Sections §C and §B-SQL below this line are written by Sonnet sub-agent.*
+*Sections §C and §B-SQL below this line cover the structured-output portions of the architecture.*

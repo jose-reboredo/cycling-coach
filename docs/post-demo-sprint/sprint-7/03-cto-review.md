@@ -2,7 +2,7 @@
 
 **Reviewed:** 2026-05-01 sprint close (post-v10.5.4)
 **Releases:** 10 (5 features + 5 hotfixes) — high hotfix ratio is a flag
-**Reviewer:** CTO + Architect (Opus, in-session synthesis)
+**Reviewer:** CTO + Architect synthesis
 
 ## What worked
 
