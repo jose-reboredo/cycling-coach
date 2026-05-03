@@ -1,15 +1,24 @@
-/* PARS — tokens.css
+/* Cadence Club — tokens.css · v2.0 (Sprint 12)
  * ----------------------------------------------------------------
- * Mirrors src/design/tokens.ts. Mounted on :root.
+ * Generated from `tokens.ts` (source-of-truth). Mounted on :root.
  * Components consume via var(--*).
- * Two files because (a) JS needs values for Motion + canvas drawing,
- * (b) CSS needs custom properties for runtime theming + transitions.
+ *
+ * THREE-LAYER TAXONOMY (Sprint 12 additive):
+ *   Layer 1 — primitive (raw ramps): `--color-orange-500` etc.
+ *   Layer 2 — semantic (intent):     `--accent-default` etc.
+ *   Layer 3 — component (scoped):    `--button-bg-primary-default` etc.
+ *
+ * The flat tokens at the top of this file (`--c-canvas`, `--s-4`, etc.)
+ * are PRESERVED for backward compatibility. Existing CSS modules
+ * continue to consume them. New components reference Layer 2 / 3.
  * ---------------------------------------------------------------- */
 
 :root {
   /* Fonts */
   --font-sans: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "JetBrains Mono", monospace;
+  /* Sprint 12 — editorial display + section H2s + № framing. */
+  --font-display: "Source Serif Pro", "Source Serif 4", Georgia, serif;
 
   /* Surface */
   --c-canvas: #0a0a0c;
@@ -133,6 +142,144 @@
   --z-overlay: 400;
   --z-modal: 500;
   --z-toast: 700;
+
+  /* ============================================================
+   * Sprint 12 — Three-layer additions (Layer 1 + Layer 2 + Layer 3).
+   * Additive to the flat tokens above; existing CSS unaffected.
+   * ============================================================ */
+
+  /* Layer 1 — primitive: orange ramp (anchor at 500 = #ff4d00) */
+  --color-orange-50:  #fff4ee;
+  --color-orange-100: #ffe5d4;
+  --color-orange-200: #ffc8a8;
+  --color-orange-300: #ffa370;
+  --color-orange-400: #ff7a3d;
+  --color-orange-500: #ff4d00;
+  --color-orange-600: #cc3e00;
+  --color-orange-700: #a02f00;
+  --color-orange-800: #732200;
+  --color-orange-900: #501700;
+  --color-orange-950: #2a0c00;
+
+  /* Layer 1 — primitive: warm-grey ramp */
+  --color-warm-grey-50:  #f0f1f3;
+  --color-warm-grey-100: #e1e3e6;
+  --color-warm-grey-200: #c8ccd1;
+  --color-warm-grey-300: #a8aeb6;
+  --color-warm-grey-400: #7d8290;
+  --color-warm-grey-500: #62687a;
+  --color-warm-grey-600: #4a505f;
+  --color-warm-grey-700: #353a47;
+  --color-warm-grey-800: #1f232a;
+  --color-warm-grey-900: #16181d;
+  --color-warm-grey-950: #0a0a0c;
+
+  /* Layer 1 — primitive: alpha steps */
+  --orange-alpha-08: rgba(255, 77, 0, 0.08);
+  --orange-alpha-12: rgba(255, 77, 0, 0.12);
+  --orange-alpha-22: rgba(255, 77, 0, 0.22);
+  --orange-alpha-32: rgba(255, 77, 0, 0.32);
+  --orange-alpha-50: rgba(255, 77, 0, 0.50);
+  --white-alpha-06: rgba(255, 255, 255, 0.06);
+  --white-alpha-10: rgba(255, 255, 255, 0.10);
+  --white-alpha-14: rgba(255, 255, 255, 0.14);
+  --white-alpha-20: rgba(255, 255, 255, 0.20);
+  --white-alpha-32: rgba(255, 255, 255, 0.32);
+
+  /* Layer 1 — primitive: type display sizes (Source Serif Pro) */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 28px;
+  --font-size-3xl: 40px;
+  --font-size-display: 64px;
+
+  /* Layer 2 — semantic: surface */
+  --surface-page: var(--color-warm-grey-950);
+  --surface-card: var(--color-warm-grey-900);
+  --surface-elevated: var(--color-warm-grey-800);
+  --surface-pressed: #252a33;
+  --surface-overlay: rgba(10, 10, 12, 0.72);
+
+  /* Layer 2 — semantic: text */
+  --text-primary: var(--color-warm-grey-50);
+  --text-secondary: var(--color-warm-grey-400);
+  --text-faint: #7a8290;
+  --text-on-accent: var(--color-warm-grey-950);
+
+  /* Layer 2 — semantic: accent */
+  --accent-default: var(--color-orange-500);
+  --accent-hover: var(--color-orange-400);
+  --accent-pressed: var(--color-orange-600);
+  --accent-soft: var(--orange-alpha-12);
+  --accent-strong-soft: var(--orange-alpha-22);
+  --accent-ring-glow: 0 0 0 1px rgba(255, 77, 0, 0.25),
+                      0 8px 28px rgba(255, 77, 0, 0.18);
+
+  /* Layer 2 — semantic: border */
+  --border-default: var(--white-alpha-06);
+  --border-strong: var(--white-alpha-14);
+
+  /* Layer 2 — semantic: state */
+  --state-success: #22c55e;
+  --state-success-soft: rgba(34, 197, 94, 0.12);
+  --state-warning: #f59e0b;
+  --state-warning-soft: rgba(245, 158, 11, 0.12);
+  --state-danger: #ef4444;
+  --state-danger-soft: rgba(239, 68, 68, 0.12);
+  --state-info: #3b8ce8;
+  --state-info-soft: rgba(59, 140, 232, 0.12);
+
+  /* Layer 2 — semantic: motion (named easings already exist as --e-*;
+   * adding consistent-named aliases and forward-compat duration tokens) */
+  --duration-fast: var(--d-fast);
+  --duration-base: var(--d-base);
+  --duration-slow: var(--d-slow);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasised: cubic-bezier(0.3, 0, 0.1, 1);
+  /* `--e-out / --e-in-out / --e-back / --e-sharp` from above remain
+   * canonical for existing consumers. */
+
+  /* Layer 2 — semantic: spacing aliases (4-pt grid; named for intent) */
+  --space-1: var(--s-1);
+  --space-2: var(--s-2);
+  --space-3: var(--s-3);
+  --space-4: var(--s-4);
+  --space-6: var(--s-6);
+  --space-8: var(--s-8);
+  --space-12: var(--s-12);
+  --space-16: var(--s-16);
+  --space-24: var(--s-24);
+  --space-32: var(--s-32);
+
+  /* Layer 2 — semantic: radius aliases */
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-full: var(--r-full);
+
+  /* Layer 2 — semantic: elevation (5-step ramp; existing `--sh-*` retained) */
+  --shadow-1: var(--sh-sm);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.42);
+  --shadow-3: var(--sh-md);
+  --shadow-4: 0 16px 40px rgba(0, 0, 0, 0.50);
+  --shadow-5: var(--sh-lg);
+
+  /* Sprint 12 — safe-area semantic tokens.
+   * Resolves to env() on web; bridge-supplied in Capacitor /
+   * React Native via the same name. New components reference these
+   * instead of raw env(). */
+  --safe-area-top: env(safe-area-inset-top, 0);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0);
+  --safe-area-left: env(safe-area-inset-left, 0);
+  --safe-area-right: env(safe-area-inset-right, 0);
+
+  /* Layer 3 — component tokens populated as components are rebuilt.
+   * Phase 3: Button, Card. Phase 3.5: Form fields, Empty-state, Skeleton, Toast. */
 }
 
 @media (prefers-reduced-motion: reduce) {

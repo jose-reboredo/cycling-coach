@@ -1,30 +1,38 @@
-// PARS — Performance Dark · v1.0
+// Cadence Club — Design tokens · v2.0 (Sprint 12)
 // ---------------------------------------------------------------
-// Single source of truth for the cycling-coach design system.
-// Reject: AI-slop aesthetic. Pure black canvas, molten orange,
-// mono numerals. Two families. Square-ish radii. Earned shadows.
+// Source-of-truth for the design system. `tokens.css` is generated
+// from this file (see `generate-tokens.ts` — committed; not run at
+// build).
 //
-// Why these choices over the ui-ux-pro-max sports-fitness preset
-// (Vibrant + Block-based · Barlow Condensed · green CTA)?
+// THREE-LAYER TAXONOMY (Sprint 12):
+//   - Layer 1 — primitive: raw values (color ramps, spacing scale,
+//     type sizes, easing curves). Internal scale; component CSS
+//     should not reference these directly.
+//   - Layer 2 — semantic: intent (`accent.default`, `surface.page`,
+//     `text.primary`). What component CSS consumes.
+//   - Layer 3 — component: component-scoped (`button.bgPrimary*`,
+//     `card.shadow*`). Declared per rebuilt component; opt-in.
 //
-// PARS targets the "Marco" persona — Pas Normal Studios audience,
-// 30s, native digital, pro-rider aesthetic. The cockpit / instrument-
-// panel feel (Geist Mono numerals on dark canvas) is the brand;
-// athletic-condensed type would push the surface toward gym-app
-// territory. Molten orange #ff4d00 keeps the Strava-adjacent
-// association without copying their primary. Restraint is the point.
+// BACKWARD COMPATIBILITY:
+//   The flat tokens at the top of this file (`color`, `space`,
+//   `radius`, `shadow`, `motion`, `type`, `hit`, `z`, `breakpoint`)
+//   are PRESERVED. Existing CSS consumers continue to work
+//   unchanged. The new layers are additive.
 //
-// This divergence is intentional and approved (see
-// docs/superpowers/specs/2026-04-28-dashboard-design-audit.md).
-// Future passes: don't regress to the preset; if a finding from the
-// skill's catalog conflicts with PARS, audit-first, fix-second.
+// ORIGINAL HEADER (preserved for project history):
+//   PARS — Performance Dark · v1.0
+//   Reject: AI-slop aesthetic. Pure black canvas, molten orange,
+//   mono numerals. Two families. Square-ish radii. Earned shadows.
 // ---------------------------------------------------------------
 
 export const tokens = {
-  /** Type — Geist + Geist Mono (sibling pair, drawn for instruments). */
+  /** Type — Geist + Geist Mono (workhorse pair, drawn for instruments).
+   *  Sprint 12: Source Serif Pro added for editorial display + section H2s. */
   font: {
     sans: '"Geist", -apple-system, BlinkMacSystemFont, sans-serif',
     mono: '"Geist Mono", ui-monospace, "JetBrains Mono", monospace',
+    /** Sprint 12 — editorial display + section heads (e.g. № 01 framing). */
+    display: '"Source Serif Pro", "Source Serif 4", Georgia, serif',
   },
 
   /** Color — dark cockpit canvas + molten orange. */
@@ -41,6 +49,10 @@ export const tokens = {
 
     line: 'rgba(255,255,255,.06)',
     lineStrong: 'rgba(255,255,255,.14)',
+    /** Sprint 12 / Phase 1 cleanup — added so Calendar.module.css
+     *  references resolve. Aliased to line until Phase 3 component
+     *  layer introduces a real semantic border token. */
+    border: 'rgba(255,255,255,.06)',
 
     accent: '#ff4d00', // molten orange — earned, not Strava
     accentDeep: '#cc3e00',
@@ -150,6 +162,13 @@ export const tokens = {
     sans3xl: { size: '40px', lh: '44px', tracking: '-.025em', weight: 600 },
     sans4xl: { size: '64px', lh: '64px', tracking: '-.035em', weight: 700 },
     sans5xl: { size: '96px', lh: '92px', tracking: '-.045em', weight: 700 },
+
+    /** Sprint 12 — Source Serif Pro display scale.
+     *  Used for section H2s (`<h2>`), the № editorial framing,
+     *  hero H1, and other publication-style chrome. */
+    displayMd: { size: '28px', lh: '34px', tracking: '-.012em', weight: 600, family: 'display' },
+    displayLg: { size: '40px', lh: '44px', tracking: '-.020em', weight: 600, family: 'display' },
+    displayXl: { size: '64px', lh: '64px', tracking: '-.028em', weight: 600, family: 'display' },
   },
 
   /** Hit targets — 44 px accessibility minimum. */
@@ -171,10 +190,143 @@ export const tokens = {
   breakpoint: {
     sm: '375px', // iPhone Mini portrait — design baseline
     md: '414px', // iPhone Pro Max portrait
+    tabletPortrait: '600px', // BottomNav→TopTabs handoff (per v9.7.2)
     lg: '768px', // iPad portrait / large phone landscape
     xl: '1024px', // iPad landscape
     xxl: '1280px', // desktop minimum
     xxxl: '1536px', // wide desktop
+  },
+
+  // ============================================================
+  // Sprint 12 — Three-layer additions (Layer 1 + Layer 2 + Layer 3).
+  // The existing flat tokens above are preserved for backward
+  // compatibility; new components reference these layered tokens.
+  // ============================================================
+
+  /** Layer 1 — primitive ramps. Internal scale; component CSS should
+   *  consume Layer 2 / 3, not these. */
+  primitive: {
+    /** Orange ramp (50 → 950). Anchor at 500 = #ff4d00 (locked since v9.1.1). */
+    orange: {
+      '50': '#fff4ee',
+      '100': '#ffe5d4',
+      '200': '#ffc8a8',
+      '300': '#ffa370',
+      '400': '#ff7a3d', // = legacy `accentLight` — AA-passing on canvas at small sizes
+      '500': '#ff4d00', // = legacy `accent` — anchor
+      '600': '#cc3e00', // = legacy `accentDeep`
+      '700': '#a02f00',
+      '800': '#732200',
+      '900': '#501700',
+      '950': '#2a0c00',
+    },
+    /** Warm-grey ramp (50 → 950). Subtle warm bias vs pure slate.
+     *  Existing surface / text values preserved at their canonical steps. */
+    warmGrey: {
+      '50': '#f0f1f3', // = legacy `text`
+      '100': '#e1e3e6',
+      '200': '#c8ccd1',
+      '300': '#a8aeb6',
+      '400': '#7d8290', // = legacy `textMuted`
+      '500': '#62687a',
+      '600': '#4a505f',
+      '700': '#353a47',
+      '800': '#1f232a', // = legacy `surfaceElev`
+      '900': '#16181d', // = legacy `surface`
+      '950': '#0a0a0c', // = legacy `canvas`
+    },
+    /** Alpha steps — orange. Used for hover bg / soft fills / overlays. */
+    orangeAlpha: {
+      '08': 'rgba(255,77,0,.08)',
+      '12': 'rgba(255,77,0,.12)',
+      '22': 'rgba(255,77,0,.22)', // = legacy `accentGlow`
+      '32': 'rgba(255,77,0,.32)',
+      '50': 'rgba(255,77,0,.50)',
+    },
+    /** Alpha steps — white (line / divider / surface overlay variants). */
+    whiteAlpha: {
+      '06': 'rgba(255,255,255,.06)', // = legacy `line`
+      '10': 'rgba(255,255,255,.10)',
+      '14': 'rgba(255,255,255,.14)', // = legacy `lineStrong`
+      '20': 'rgba(255,255,255,.20)',
+      '32': 'rgba(255,255,255,.32)',
+    },
+  },
+
+  /** Layer 2 — semantic tokens. Components consume these (preferred). */
+  semantic: {
+    surface: {
+      page: '#0a0a0c',          // = primitive.warmGrey.950
+      card: '#16181d',          // = primitive.warmGrey.900
+      elevated: '#1f232a',      // = primitive.warmGrey.800
+      pressed: '#252a33',
+      overlay: 'rgba(10,10,12,.72)',
+    },
+    text: {
+      primary: '#f0f1f3',       // = primitive.warmGrey.50
+      secondary: '#7d8290',     // = primitive.warmGrey.400
+      faint: '#7a8290',
+      onAccent: '#0a0a0c',      // text used on top of accent fill
+    },
+    accent: {
+      default: '#ff4d00',       // = primitive.orange.500
+      hover: '#ff7a3d',         // = primitive.orange.400 (lighter for on-dark hover)
+      pressed: '#cc3e00',       // = primitive.orange.600
+      soft: 'rgba(255,77,0,.10)',
+      strongSoft: 'rgba(255,77,0,.22)',
+      ringGlow: '0 0 0 1px rgba(255,77,0,.25), 0 8px 28px rgba(255,77,0,.18)',
+    },
+    border: {
+      default: 'rgba(255,255,255,.06)',
+      strong: 'rgba(255,255,255,.14)',
+    },
+    state: {
+      success: '#22c55e',
+      successSoft: 'rgba(34,197,94,.12)',
+      warning: '#f59e0b',
+      warningSoft: 'rgba(245,158,11,.12)',
+      danger: '#ef4444',
+      dangerSoft: 'rgba(239,68,68,.12)',
+      info: '#3b8ce8',
+      infoSoft: 'rgba(59,140,232,.12)',
+    },
+    focusRing: {
+      width: '2px',
+      color: '#ff4d00',
+      offset: '2px',
+    },
+  },
+
+  /** Layer 3 — component tokens. Declared per component as it's
+   *  rebuilt in Phase 3. Empty initially; populated as Button,
+   *  Card, Form fields, Empty-state, Skeleton, Toast land. */
+  component: {
+    button: {
+      // Populated when Button is rebuilt (Phase 3 step 5).
+    },
+    card: {
+      // Populated when Card is rebuilt (Phase 3 step 6).
+    },
+  },
+
+  /** Sprint 12 — named springs for forward-compat with React Native /
+   *  Capacitor. On web, `motion`'s spring transitions consume these.
+   *  On native, the equivalent useSpring/Animated.spring config maps
+   *  directly. Mass / Tension / Friction in `motion` library terms. */
+  spring: {
+    default: { mass: 1, tension: 280, friction: 24 },
+    emphasised: { mass: 1, tension: 200, friction: 22 },
+    snap: { mass: 1, tension: 380, friction: 26 },
+    soft: { mass: 1, tension: 180, friction: 18 },
+  },
+
+  /** Sprint 12 — safe-area semantic tokens. Resolves to env() on web;
+   *  bridge-supplied in native (Capacitor / React Native). */
+  safeArea: {
+    top: 'env(safe-area-inset-top, 0)',
+    bottom: 'env(safe-area-inset-bottom, 0)',
+    left: 'env(safe-area-inset-left, 0)',
+    right: 'env(safe-area-inset-right, 0)',
   },
 } as const;
 
