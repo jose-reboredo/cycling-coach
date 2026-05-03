@@ -31,7 +31,12 @@ CREATE TABLE users (
   hr_max INTEGER,
   ftp_set_at INTEGER,
   -- v9.6.2 (migration 0005) — ADR-S4.4 privacy opt-in; 'private'|'public'
-  ftp_visibility TEXT NOT NULL DEFAULT 'private'
+  ftp_visibility TEXT NOT NULL DEFAULT 'private',
+  -- v11.1.0 (migration 0015) — recovery metadata; account-level (one code covers all providers).
+  -- recovery_code_hash = SHA-256 hex of the 24-char dashed code.
+  -- passphrase_set_at NULL = no passphrase yet; fall back to localStorage for AI flow.
+  recovery_code_hash TEXT,
+  passphrase_set_at  INTEGER
 );
 
 -- ============= USER CONNECTIONS =============
