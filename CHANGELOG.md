@@ -4,6 +4,49 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [11.4.2] — 2026-05-03
+
+**Hotfix bundle. 3 founder-flagged issues from v11.4.1 deploy.**
+
+### 1 · `/how-it-works` TopBar nav links
+
+Founder feedback: *"the header has only the logo, I miss the display menus."* Added a marketing-style nav next to the brand mark:
+- **Signed-in users** → "Dashboard" link back to `/dashboard/today`
+- **Signed-out users** → "Product" (`/#what`), "Pricing" (`/#pricing`), "What's next" (`/whats-next`), plus the existing Connect CTA
+- Mobile (<= 640px) hides the secondary text links to keep the header readable; the Connect CTA stays visible
+
+### 2 · Calendar — summary bar over the 22:00 row (root-cause fix; redesign)
+
+Founder report: *"the total weekly is over 20:00 not after the calendar (this is the 5th time we try to fix it)."* The 6th attempt fixes the **actual root cause** — a structural mismatch in the hour-grid component, not a height/z-index/CSS problem at the layout layer.
+
+**The bug** — `WeekCalendarGrid` and `DayCalendarGrid` rendered the `hours` array with `length: TIME_GRID_HOURS + 1` = **17 labels** (06:00, 07:00, …, 22:00) in the hour gutter, while the day-column slot loop used `hours.slice(0, -1)` = 16 slots. The gutter at 17 × 40px = **680px** overflowed the day-columns at 16 × 40px = **640px** by exactly **40px** — that's the band the summary footer was visually "covering."
+
+Prior 5 fixes patched the wrong layer:
+- z-index on `.summary` (didn't help — issue was content overflow, not stacking)
+- `position: relative` on `.summary` (same — wrong layer)
+- Mobile heights bumped 560 → 640 in v11.4.1 (closer, but the gutter still overflowed by 40px)
+- Various flex `align-items` / `justify-content` tweaks (cosmetic — no effect on the height mismatch)
+
+**The fix** — render exactly **`TIME_GRID_HOURS` (16) labels** (06:00 through 21:00) in the hour gutter to match the 16 slots in day columns. The 22:00 end is now implicit (the bottom edge of the 21:00 row, which is what end-of-day actually represents). Both `weekHourCol` and `weekDayCol`/`dayCol` are now exactly 640px tall on every viewport. The summary footer can no longer overlap because the gutter no longer overflows.
+
+Files: `WeekCalendarGrid.tsx` (drop `+ 1` from `Array.from`, drop `.slice(0, -1)` from slot loop), `DayCalendarGrid.tsx` (same).
+
+### 3 · Logo redirect from club-mode tabs
+
+Founder report: *"when user has any of the club tabs open, clicking into header logo is not redirecting the user as expected."* The dashboard layout swaps `<Outlet />` for `<ClubDashboard />` based on `scope.mode === 'club'`. The TopBar logo's `homePath="/dashboard/today"` did navigate, but `setIndividual()` was never called — so `scope` stayed `'club'` and the layout still rendered ClubDashboard. **Visually nothing happened.**
+
+Fixed by adding `onHomeClick?: () => void` prop to `<TopBar>`. The dashboard layout passes `onHomeClick={isClubMode ? setIndividual : undefined}`, which fires the scope reset before TanStack Router's navigation. Same fix in the legacy `pages/Dashboard.tsx`.
+
+### Verified before deploy
+
+```
+npx vitest run            308/309 pass · 1 skipped · 0 failures
+npx tsc --noEmit          exit 0
+npm run build             green
+```
+
+---
+
 ## [11.4.1] — 2026-05-03
 
 **Hotfix bundle. 5 founder-flagged issues from v11.4.0 deploy:**

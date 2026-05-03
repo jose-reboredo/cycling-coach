@@ -39,8 +39,11 @@ export function DayCalendarGrid({
 }: DayCalendarGridProps) {
   const today = todayUTC();
   const eventsByDay = useMemo(() => groupByDay(events, activeFilters), [events, activeFilters]);
+  // Sprint 14 / v11.4.2 — 16 labels (06:00 through 21:00); end at 22:00
+  // is the implicit bottom edge of the 21:00 row. See WeekCalendarGrid
+  // for the full rationale (recurring summary-overlap bug).
   const hours = useMemo(
-    () => Array.from({ length: TIME_GRID_HOURS + 1 }, (_, i) => TIME_GRID_START_HOUR + i),
+    () => Array.from({ length: TIME_GRID_HOURS }, (_, i) => TIME_GRID_START_HOUR + i),
     [],
   );
   const key = `${date.year}-${date.month}-${date.day}`;
@@ -61,7 +64,7 @@ export function DayCalendarGrid({
 
         {/* Single day column */}
         <div className={`${styles.dayCol} ${isToday ? styles.weekDayColToday : ''}`}>
-          {hours.slice(0, -1).map((h) => {
+          {hours.map((h) => {
             // v10.10.0 — clickable hour slot for quick-add.
             const handleSlotClick = () => {
               if (!onCellClick) return;

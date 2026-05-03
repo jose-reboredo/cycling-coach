@@ -8,6 +8,48 @@
   min-height: 100vh;
 }
 
+/* ============ TOP-BAR NAV ============ */
+
+.headerNav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.headerNavLink {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  letter-spacing: -0.005em;
+  transition: color var(--duration-fast, 150ms) var(--ease-standard, ease);
+}
+
+.headerNavLink:hover,
+.headerNavLink:focus-visible {
+  color: var(--accent-default);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.headerNavLink:focus-visible {
+  outline: 2px solid var(--accent-default);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+@media (max-width: 640px) {
+  .headerNav {
+    gap: var(--space-3);
+  }
+  .headerNavLink {
+    /* Hide the secondary nav links on narrow screens; the Connect CTA
+     * remains visible. The page itself remains scrollable; users on a
+     * phone don't need 3 marketing links in a 360px-wide header. */
+    display: none;
+  }
+}
+
 /* ============ HERO ============ */
 
 .hero {

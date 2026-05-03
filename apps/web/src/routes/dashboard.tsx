@@ -160,7 +160,7 @@ function TabsLayout() {
   // when clubsEnabled), and when scope.mode === 'club' the tabs view swaps
   // its Outlet for ClubDashboard. ClubCreateCard renders above ClubDashboard
   // (it self-hides when the user already owns a club).
-  const { scope } = useAppContext();
+  const { scope, setIndividual } = useAppContext();
   const clubsEnabled = useClubsEnabled();
   const isClubMode = clubsEnabled && scope.mode === 'club' && scope.clubId != null;
 
@@ -169,6 +169,13 @@ function TabsLayout() {
       <TopBar
         variant="app"
         homePath="/dashboard/today"
+        // Sprint 14 / v11.4.2 — when in club mode, the logo click MUST
+        // reset scope to 'individual' before navigating. Otherwise the
+        // route changes to /dashboard/today but isClubMode stays true
+        // and the layout still renders ClubDashboard — visually nothing
+        // happens. setIndividual flips scope; the URL change then
+        // re-renders the personal Today.
+        onHomeClick={isClubMode ? setIndividual : undefined}
         trailing={
           <>
             {clubsEnabled ? <ContextSwitcher /> : null}

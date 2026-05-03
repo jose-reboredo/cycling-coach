@@ -49,10 +49,16 @@ export function WeekCalendarGrid({
   const days = useMemo(() => weekDates(start), [start]);
   const eventsByDay = useMemo(() => groupByDay(events, activeFilters), [events, activeFilters]);
 
-  // Hour markers — TIME_GRID_START_HOUR (6) → END (22)
+  // Sprint 14 / v11.4.2 — 16 hour markers (06:00 through 21:00). The grid
+  // ends at 22:00 implicitly (the bottom edge of the 21:00 row). The prior
+  // 17-label render mismatched the 16 day-column slots, causing a 40px
+  // gutter overflow that visually pushed the summary footer over the
+  // 22:00 row on mobile (recurring bug — 5 prior attempts to patch the
+  // wrong layer). With 16 labels both gutter and slots are exactly
+  // TIME_GRID_HOURS × HOUR_PX = 640px on every viewport.
   const hours = useMemo(
     () =>
-      Array.from({ length: TIME_GRID_HOURS + 1 }, (_, i) => TIME_GRID_START_HOUR + i),
+      Array.from({ length: TIME_GRID_HOURS }, (_, i) => TIME_GRID_START_HOUR + i),
     [],
   );
 
@@ -98,7 +104,7 @@ export function WeekCalendarGrid({
               key={`col-${key}`}
               className={`${styles.weekDayCol} ${isToday ? styles.weekDayColToday : ''}`}
             >
-              {hours.slice(0, -1).map((h) => {
+              {hours.map((h) => {
                 // v10.10.0 — clickable hour slot for quick-add.
                 const handleSlotClick = () => {
                   if (!onCellClick) return;

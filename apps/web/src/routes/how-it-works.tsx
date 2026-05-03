@@ -30,21 +30,38 @@ export const Route = createFileRoute('/how-it-works')({
 });
 
 function HowItWorks() {
-  // Sprint 14 / v11.5.0 — global TopBar at the top of the page;
-  // signed-in users get the dashboard home; signed-out users see
-  // the marketing connect CTA. AppFooter is provided by the
-  // route-tree root (__root.tsx) so every route has it.
+  // Sprint 14 / v11.4.2 — TopBar with full nav (founder feedback:
+  // 'the header has only the logo, I miss the display menus').
+  // For signed-out users: marketing nav links + Connect CTA.
+  // For signed-in users: link back to the dashboard.
   const isAuthed = !!readTokens();
   return (
     <div className={styles.page}>
       <TopBar
         homePath={isAuthed ? '/dashboard/today' : '/'}
         trailing={
-          !isAuthed ? (
-            <Button href={connectUrl()} size="sm" variant="primary">
-              Connect
-            </Button>
-          ) : null
+          <nav className={styles.headerNav} aria-label="Main">
+            {isAuthed ? (
+              <a href="/dashboard/today" className={styles.headerNavLink}>
+                Dashboard
+              </a>
+            ) : (
+              <>
+                <a href="/#what" className={styles.headerNavLink}>
+                  Product
+                </a>
+                <a href="/#pricing" className={styles.headerNavLink}>
+                  Pricing
+                </a>
+                <a href="/whats-next" className={styles.headerNavLink}>
+                  What's next
+                </a>
+                <Button href={connectUrl()} size="sm" variant="primary">
+                  Connect
+                </Button>
+              </>
+            )}
+          </nav>
         }
       />
 

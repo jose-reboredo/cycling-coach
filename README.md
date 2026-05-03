@@ -2,7 +2,7 @@
 
 Performance-training platform for serious cyclists and the clubs they ride with. Cadence Club ingests your Strava history, computes daily form (CTL/ATL/TSB) at the edge, generates AI-coached weekly plans, and gives clubs a shared schedule with RSVP and AI-drafted weekly recaps.
 
-**Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · **Current release:** [v11.4.1](./CHANGELOG.md) · **Security policy:** [SECURITY.md](./SECURITY.md) · **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
+**Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · **Current release:** [v11.4.2](./CHANGELOG.md) · **Security policy:** [SECURITY.md](./SECURITY.md) · **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
 

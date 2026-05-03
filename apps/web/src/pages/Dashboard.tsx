@@ -158,7 +158,7 @@ function DashboardView({
   onSync,
   onDisconnect,
 }: DashboardViewProps) {
-  const { scope } = useAppContext();
+  const { scope, setIndividual } = useAppContext();
   const clubsEnabled = useClubsEnabled();
   // Kill-switch override: even if persisted scope says 'club', when the flag is
   // off we render the individual dashboard EXACTLY as today (CTO NOTE 5).
@@ -260,6 +260,9 @@ function DashboardView({
     <div className={styles.shell}>
       <TopBar
         variant="app"
+        homePath="/dashboard/today"
+        // Sprint 14 / v11.4.2 — exit club scope when logo clicked.
+        onHomeClick={scope.mode === 'club' ? setIndividual : undefined}
         trailing={
           <>
             <ContextSwitcher />
