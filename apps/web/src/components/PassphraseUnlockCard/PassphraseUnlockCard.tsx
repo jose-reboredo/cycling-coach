@@ -31,7 +31,7 @@ export function PassphraseUnlockCard({ saltB64, iterations, onUnlocked }: Props)
       await unlock(passphrase, salt, iterations);
       onUnlocked();
     } catch {
-      setError("That passphrase doesn't match. Try again or use your recovery code.");
+      setError("That password doesn't match. Try again or use your backup code.");
     } finally {
       setBusy(false);
     }
@@ -41,7 +41,7 @@ export function PassphraseUnlockCard({ saltB64, iterations, onUnlocked }: Props)
     <Card tone="elev" pad="md">
       <Eyebrow rule tone="accent">AI Coach · locked</Eyebrow>
       <p className={styles.lede}>
-        Enter your passphrase to use AI features in this session.
+        Enter your password to use AI features.
       </p>
       <input
         className={styles.input}
@@ -50,11 +50,11 @@ export function PassphraseUnlockCard({ saltB64, iterations, onUnlocked }: Props)
         onChange={(e) => setPassphrase(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') handleUnlock(); }}
         autoFocus
-        placeholder="passphrase"
+        placeholder="password"
       />
       {error && <p className={styles.error}>{error}</p>}
       <div className={styles.actions}>
-        <a className={styles.recoveryLink} href="/account/recover">Forgot passphrase?</a>
+        <a className={styles.recoveryLink} href="/account/recover">Forgot password?</a>
         <Button
           variant="primary"
           disabled={passphrase.length < 1 || busy}

@@ -15,14 +15,14 @@ interface Props {
 export function MigrationBanner({ onMigrate }: Props) {
   return (
     <Card tone="accent" pad="md">
-      <Eyebrow rule tone="accent">One-time migration</Eyebrow>
+      <Eyebrow rule tone="accent">One-time setup</Eyebrow>
       <p className={styles.lede}>
-        Your Anthropic key currently lives in browser storage. Move it to
-        encrypted storage so it persists across devices, encrypted with a
-        passphrase only you know.
+        Your Anthropic key is saved in this browser only. Lock it with a
+        password so it works across your devices — only you will know the
+        password.
       </p>
       <div className={styles.actions}>
-        <Button variant="primary" onClick={onMigrate}>Set up encryption</Button>
+        <Button variant="primary" onClick={onMigrate}>Add a password</Button>
       </div>
     </Card>
   );

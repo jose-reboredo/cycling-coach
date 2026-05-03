@@ -34,7 +34,7 @@ function AccountRecover() {
         body: JSON.stringify({ recovery_code_hash: recoveryHash }),
       });
       if (!res.ok) {
-        setError('Recovery code did not match. Check the code and try again.');
+        setError('Backup code did not match. Check the code and try again.');
         return;
       }
       setStage('success');
@@ -56,20 +56,19 @@ function AccountRecover() {
           fontWeight: 600,
           margin: 0,
         }}>
-          Lost your passphrase?
+          Forgot your password?
         </h1>
       </header>
       {stage === 'enter-code' && (
         <Card tone="elev" pad="lg">
           <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Enter your recovery code. We'll clear the encrypted key on the
-            server (it's unrecoverable without the old passphrase anyway).
-            Set a new passphrase next, then re-enter your Anthropic key to
-            encrypt against the new master key.
+            Enter your backup code. We'll clear the locked key (we can't open
+            it without the old password anyway). Then you'll set a new
+            password and re-enter your Anthropic key.
           </p>
           <input
             type="text"
-            placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+            placeholder="Backup code: XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             style={{
@@ -116,8 +115,8 @@ function AccountRecover() {
             Recovery successful.
           </h2>
           <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Your encrypted keys have been cleared. Visit your account to set
-            a new passphrase and re-enter your Anthropic key.
+            Your locked keys have been cleared. Visit your account to set a
+            new password and re-enter your Anthropic key.
           </p>
           <div style={{ marginTop: 'var(--space-4)' }}>
             <Button variant="primary" onClick={() => navigate({ to: '/dashboard/you' })}>

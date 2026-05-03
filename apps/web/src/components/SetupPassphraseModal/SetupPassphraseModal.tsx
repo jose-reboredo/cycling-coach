@@ -96,7 +96,7 @@ export function SetupPassphraseModal({
   const downloadRecovery = useCallback(() => {
     const blob = new Blob(
       [
-        'Cadence Club — recovery code\n\n',
+        'Cadence Club — backup code\n\n',
         `${recoveryCode}\n\n`,
         `Generated: ${new Date().toISOString()}\n`,
         'Use at: https://cycling-coach.josem-reboredo.workers.dev/account/recover\n',
@@ -106,7 +106,7 @@ export function SetupPassphraseModal({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'cadence-club-recovery-code.txt';
+    a.download = 'cadence-club-backup-code.txt';
     a.click();
     URL.revokeObjectURL(url);
   }, [recoveryCode]);
@@ -117,15 +117,15 @@ export function SetupPassphraseModal({
         {step === 1 && (
           <>
             <Eyebrow rule tone="accent">Step 1 of 3</Eyebrow>
-            <h2 className={styles.h2}>Set your passphrase</h2>
+            <h2 className={styles.h2}>Set a password to lock your AI key</h2>
             <p className={styles.lede}>
-              Your Anthropic key needs a passphrase. We use it to encrypt the
-              key on your device — neither Cadence Club nor Cloudflare can
-              read it. Forget the passphrase, lose the key (recovery code on
-              the next step).
+              Pick a password — only you will know it. We use it to lock your
+              Anthropic key on this device. Nobody at Cadence Club or
+              Cloudflare can see your key, ever. Forget the password and you
+              lose the key (we'll give you a backup code on the next screen).
             </p>
             <label className={styles.fieldLabel}>
-              Passphrase <span className={styles.required}>*</span>
+              Password <span className={styles.required}>*</span>
               <input
                 className={styles.input}
                 type="password"
@@ -136,7 +136,7 @@ export function SetupPassphraseModal({
               />
             </label>
             <label className={styles.fieldLabel}>
-              Confirm passphrase <span className={styles.required}>*</span>
+              Confirm password <span className={styles.required}>*</span>
               <input
                 className={styles.input}
                 type="password"
@@ -170,11 +170,11 @@ export function SetupPassphraseModal({
         {step === 2 && (
           <>
             <Eyebrow rule tone="accent">Step 2 of 3</Eyebrow>
-            <h2 className={styles.h2}>Save your recovery code</h2>
+            <h2 className={styles.h2}>Save your backup code</h2>
             <p className={styles.lede}>
-              Write this down. We can't recover it for you. This code resets
-              your passphrase on a lost device — without it, you re-enter
-              your Anthropic key from scratch.
+              Write this down. If you forget your password, this code lets you
+              start fresh. Without it, you'd have to enter your Anthropic key
+              from scratch.
             </p>
             <pre className={styles.recoveryCode}>{recoveryCode}</pre>
             <div className={styles.actions}>
@@ -203,7 +203,7 @@ export function SetupPassphraseModal({
                 loading={busy}
                 onClick={handleEncryptAndSave}
               >
-                Encrypt my key
+                Lock my key
               </Button>
             </div>
           </>
@@ -212,10 +212,11 @@ export function SetupPassphraseModal({
         {step === 3 && (
           <>
             <Eyebrow rule tone="accent">Step 3 of 3</Eyebrow>
-            <h2 className={styles.h2}>Encrypted</h2>
+            <h2 className={styles.h2}>Locked. You're set.</h2>
             <p className={styles.lede}>
-              Your key is on your device, encrypted with your passphrase.
-              Re-enter on each new device or use the recovery code.
+              Your Anthropic key is locked on this device. On a new device,
+              just enter your password again — or use your backup code if you
+              forget it.
             </p>
             <div className={styles.actions}>
               <Button
