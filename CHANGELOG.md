@@ -4,6 +4,83 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [11.3.0] — 2026-05-03
+
+**Sprint 14 closeout. Single bundled tester-readiness release. 18 of 21 founder-flagged tester-blocking issues fixed in code; 2 require founder follow-up actions; 1 flagged for visual reproduction at deploy.**
+
+Founder ran the live product against real testers and surfaced 21 distinct bugs / inconsistencies clustered into four themes: form inconsistency, top-menu / navigation patterns, data clarity, and surface-specific UI bugs. Single bundled release per founder direction, despite the multiple unrelated areas (acknowledged risk-theme density).
+
+### 1 · TopBar / UserMenu fixes
+
+- **Z-index stacking-context bug** (#17) — UserMenu's `.menu` was at `--z-dropdown` (50); TopBar uses `--z-sticky` (100). Menu sat below the TopBar's stacking context, so clicking a menu item registered against the page beneath. Bumped to `--z-overlay` (400). Fixes 'when I click Sync now I click the template behind' tester report.
+- **"Signed as" reads from database** (#16) — new `useProfileData` hook wraps `GET /api/me/profile` with TanStack Query; `resolveDisplayName` splits `users.name` into first/last halves with Strava firstname/lastname as fallback. The dashboard layout displays the user's set name (or Strava when unset). City likewise.
+- **"Edit Profile" menu item removed** (#18) — duplicated `/dashboard/you` (My Account) since v11.2.0; was confusing testers. UserMenu's `onEditProfile` prop + matching prop on `Dashboard.DashboardView` deleted.
+- **Logo redirect path-aware** (#21) — `TopBar` accepts `homePath` prop; default `/` for marketing, `/dashboard/today` for signed-in dashboard layout. Plus dropped the stale hardcoded "v9" brand badge (we're at v11.x).
+- **Weekly streak** (#15) — `computeStreak` now counts consecutive ISO weeks (Mon–Sun) with ≥ 1 training, not daily Strava activity. Cyclists train weekly; the prior daily counter inflated for commuters and was wrong-in-spirit. New `isoWeekKey` helper. Resets if both this and last week empty.
+
+### 2 · Personal section UX
+
+- **Gender capitalization** (#2) — new `GENDER_LABELS` map renders "Prefer not to say", "Woman", "Man", "Non-binary", "Self-describe". Stored values stay kebab-case (worker enum + DB column unchanged).
+- **Country picker** (#3) — new `apps/web/src/lib/countries.ts` (~64 ISO 3166-1 alpha-2 entries, UN members + cycling territories). `<select>` shows country names; alpha-2 stored. Founder feedback: "users don't know the country ISO code, they know their country name."
+- **Save success / error surfacing** (#4) — both Personal AND Performance now branch on `r.ok`: green "Saved." on success, inline error on validation/HTTP failure. Silent fail was the real "no success message" bug — Personal sometimes got 400 validation errors (e.g. when country was free-text "Spain" instead of "ES") and the user saw nothing.
+- **Pre-fill** (#1) — pre-fill logic was already correct; root cause was the silent save-failure (#4). Fixed transitively.
+
+### 3 · Today, Train, Rides, Schedule
+
+- **Today YTD forecast replaces "of 8000"** (#8) — `MOCK_GOAL` static target removed. The Today goal card now shows YTD km + projected year-end at current pace (`YTD/days × 365`). Footer link points to `/how-it-works`. AI-refined forecast still future work.
+- **Train tab section order is API-key-aware** (#12) — when no Anthropic key set, AiCoachCard (key entry surface) renders FIRST; AiPlanCard second. With a key set, AiPlanCard FIRST (primary surface), AiCoachCard second.
+- **Rides Coach Verdict toggle** (#14) — `RideFeedbackPanel` header is now an `aria-expanded` button; clicking collapses the verdict body. Auto-opens when feedback first arrives. Founder: 'now we can only open it.'
+- **Schedule mobile totals bar** (#10) — defensive `position: relative; z-index: 1` + 599px-max media query. Founder report ambiguous; explicit stacking-context eliminates the regression class.
+- **Tab-heading font alignment** (#13) — `.tabHeading` (Train + Rides + Schedule + You) now uses `var(--font-display)` at the v11.2.0 dashboard.you scale. All tab-level page titles feel like one app.
+
+### 4 · Navigation patterns
+
+- **Scroll-to-top on every dashboard sub-route change** (#20) — new `useScrollToTopOnRouteChange` hook in `dashboard.tsx`. Uses `useRouterState({ select: (s) => s.location.pathname })`; resets scroll on every pathname change in the SPA shell with `behavior: 'instant'`. `scrollRestoration: true` (already in main.tsx) continues to handle browser back/forward (POP); this fixes the SPA-PUSH case the founder flagged across My Account / Club / Dashboard tabs.
+
+### 5 · New route — `/how-it-works`
+
+KPI explainer (#7). Public, footer-linked from AppFooter ('Reference' column) + Today YTD card. Cyclist-language explanations of:
+
+- **CTL / fitness** — 42-day EWMA of TSS; the math + intuition.
+- **ATL / fatigue** — 7-day EWMA; explicitly addresses founder's "why fatigue is 77 with no recent training" question (decay math: ATL drops ~14%/day, so a fatigue of 77 with no training drops to ~50 after a week, not to 0).
+- **TSB / form** — `CTL − ATL`; explains why form goes UP during a rest week (ATL drops faster than CTL).
+- **TSS** — `IF² × duration × 100`; with the zone→IF approximation table when normalized power is unavailable.
+- **Weekly streak** — consecutive ISO-weeks with ≥ 1 training; reset rule.
+- **Year-end forecast** — linear projection math; honest about why the prior 8000 km goal was made up.
+- **What's NOT measured** — HRV, sleep, cross-training, FTP staleness, HR drift. Honest limits.
+
+### 6 · Founder follow-ups (no code change in v11.3.0)
+
+- **#6 RWGPS connect doesn't work** — investigated: server-side OAuth start works (302 redirects to RWGPS with `client_id=26b4326d`). Likely RWGPS app config redirect URI mismatch on the RWGPS dashboard side. **Founder action: verify at https://ridewithgps.com/oauth/applications that the registered Redirect URI for `client_id=26b4326d` is exactly `https://cycling-coach.josem-reboredo.workers.dev/callback-rwgps`** (no trailing slash, https not http). If stale (e.g. an old worker URL), updating it should fix the connect flow without code changes.
+- **#19 Club calendar shows personal events** — investigated: the worker query at `GET /api/clubs/:id/events?range=` already SELECTs FROM `club_events` scoped by `club_id`. The TS `ClubEvent` type has no `is_personal` field, confirming the data shape. No code defect. Likely stale browser cache (already mitigated by `Cache-Control: private, no-store` in v10.11.2) or founder confusion between `/dashboard/schedule` (personal scheduler that intentionally merges club + personal) and ClubDashboard's ScheduleTab (club-only). Code comment added documenting the finding. **Founder action: visual-reproduce at deploy with cache cleared.**
+- **#5/#11 Form pattern consolidation** — Personal + Performance now share the validation+save+error pattern. Full atomic-design extraction (`Form` molecule + `FormField` atom + canonical `useFormSection` hook) deferred to Sprint 15+. The two new memory rules (`feedback_form-pattern-canonical.md` + `feedback_atomic-design-extraction-from-bugs.md`) capture the discipline.
+
+### Verified before deploy
+
+```
+npx vitest run                                                  308/309 pass · 1 skipped · 0 failures
+npx tsc --noEmit                                                exit 0
+npm run build                                                   green; bundle flat (new how-it-works code-split chunk)
+Z-index review                                                  --z-overlay (400) > --z-sticky (100) ✓
+Scroll-to-top hook                                              useRouterState + scrollTo on pathname change ✓
+Country picker                                                  Country names in option labels; alpha-2 stored ✓
+Save error surfacing                                            Both Personal + Performance handle non-ok PATCH ✓
+```
+
+Phase 5 parity audit at [`docs/post-demo-sprint/sprint-14/04-phase-5-parity-audit.md`](./docs/post-demo-sprint/sprint-14/04-phase-5-parity-audit.md).
+
+Test count: pre-Sprint-14 = 308 → after v11.3.0 = 308 (no new contract tests; no behavioural changes to tested paths; pure UX fixes).
+
+### Not in this release
+
+- **`useAthleteProfile` localStorage hook deprecation** — duplicates state with v11.2.0 server-backed profile API. Removed from `dashboard.tsx` (no longer used by the layout); kept exported for `OnboardingModal` until that surface refreshes (Sprint 15+).
+- **Full atomic-design `Form` molecule extraction** — the patterns are captured as memory rules; the atom→molecule extraction is Sprint 15.
+- **PassphraseUnlockCard daily-use wiring** — substrate ready since v11.1.0; consumer-side state-machine integration on AI Coach card (Today / Train) deferred.
+- **#49 AI year-end forecast (refined)** — Today YTD card removes the static goal and ships linear projection; AI-refined version is a focused future sprint.
+- **#56 Club Share & Invite Flow** — Sprint 15+.
+
+---
+
 ## [11.2.0] — 2026-05-03
 
 **Sprint 13 closeout. My Account UI + VolumeChart numbers (#5) + cyclist-friendly copy sweep + housekeeping (close stale GH #79 + #80). Consumes the v11.1.0 credentials substrate; first in-app surface to use the v11.0.0 design system end-to-end beyond the Marketing landing.**
