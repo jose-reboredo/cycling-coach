@@ -5,6 +5,8 @@ import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
 import { Card } from '../components/Card/Card';
 import { Button } from '../components/Button/Button';
+import { MigrationBanner } from '../components/MigrationBanner/MigrationBanner';
+import { SetupPassphraseModal } from '../components/SetupPassphraseModal/SetupPassphraseModal';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
 import { useApiKey } from '../hooks/useApiKey';
 import { useRides } from '../hooks/useStravaData';
@@ -45,6 +47,43 @@ function YouTab() {
 
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [showKey, setShowKey] = useState(false);
+
+  // Sprint 13 / v11.1.0 — credentials substrate migration banner.
+  // Show when: legacy localStorage key present AND no encrypted credentials yet.
+  // Hide once the user runs the migration (modal completes).
+  const [substrateChecked, setSubstrateChecked] = useState(false);
+  const [hasEncryptedCreds, setHasEncryptedCreds] = useState(false);
+  const [setupModalOpen, setSetupModalOpen] = useState(false);
+  const athleteId = athlete?.id ?? 0;
+
+  useEffect(() => {
+    if (!tokens || usingMock) {
+      setSubstrateChecked(true);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/me/credentials')
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((data: { items?: Array<{ provider: string }> }) => {
+        if (!cancelled) {
+          setHasEncryptedCreds((data.items ?? []).length > 0);
+          setSubstrateChecked(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSubstrateChecked(true);
+      });
+    return () => { cancelled = true; };
+  }, [tokens, usingMock]);
+
+  const showMigrationBanner =
+    substrateChecked && !!apiKey && !hasEncryptedCreds && !!athleteId;
+
+  function handleMigrationComplete() {
+    clearApiKey();
+    setHasEncryptedCreds(true);
+    setSetupModalOpen(false);
+  }
 
   const stravaConnected = !!tokens && !usingMock;
 
@@ -135,6 +174,27 @@ function YouTab() {
             )}
           </Card>
         </motion.section>
+
+        {/* MIGRATION BANNER (Sprint 13 / v11.1.0) — opt-in encryption */}
+        {showMigrationBanner && (
+          <motion.section
+            className={styles.section}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.05 }}
+          >
+            <MigrationBanner onMigrate={() => setSetupModalOpen(true)} />
+          </motion.section>
+        )}
+
+        {setupModalOpen && (
+          <SetupPassphraseModal
+            athleteId={athleteId}
+            initialAnthropicKey={apiKey ?? undefined}
+            onComplete={handleMigrationComplete}
+            onClose={() => setSetupModalOpen(false)}
+          />
+        )}
 
         {/* ANTHROPIC API KEY */}
         <motion.section
