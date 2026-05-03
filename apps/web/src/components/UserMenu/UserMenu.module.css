@@ -30,10 +30,15 @@
 }
 
 .menu {
+  /* Sprint 14 / v11.3.0 — bumped from --z-dropdown (50) to --z-overlay
+   * (400). The TopBar itself is --z-sticky (100), so the menu used to
+   * render *below* sticky content in the same stacking context, causing
+   * the founder's reported bug where clicking a menu item registered
+   * against the page beneath. */
   position: absolute;
   right: 0;
   top: calc(100% + var(--s-2));
-  z-index: var(--z-dropdown);
+  z-index: var(--z-overlay);
   min-width: 280px;
   background: var(--c-surface-overlay);
   backdrop-filter: blur(20px) saturate(160%);

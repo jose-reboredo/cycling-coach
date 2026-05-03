@@ -7,6 +7,10 @@ interface TopBarProps {
   variant?: 'marketing' | 'app';
   /** rightmost content — usually a Button or icon */
   trailing?: ReactNode;
+  /** Sprint 14 / v11.3.0 — where the logo links. Defaults to '/' (marketing).
+   *  The dashboard layout passes '/dashboard/today' so signed-in users
+   *  go to their main surface, not the marketing landing. */
+  homePath?: string;
 }
 
 /**
@@ -14,15 +18,12 @@ interface TopBarProps {
  *  - marketing variant: light blur, brand mark + nav links + connect CTA
  *  - app variant: same brand chip, but the trailing slot is the app's header
  */
-export function TopBar({ variant = 'marketing', trailing }: TopBarProps) {
+export function TopBar({ variant = 'marketing', trailing, homePath = '/' }: TopBarProps) {
   return (
     <header className={`${styles.root} ${styles[variant]}`}>
-      <Link to="/" className={styles.brand}>
+      <Link to={homePath} className={styles.brand}>
         <BikeMark size={24} className={styles.mark} />
-        <span className={styles.brandName}>
-          Cadence Club
-          <span className={styles.brandBadge}>v9</span>
-        </span>
+        <span className={styles.brandName}>Cadence Club</span>
       </Link>
       {trailing ? <div className={styles.trailing}>{trailing}</div> : null}
     </header>

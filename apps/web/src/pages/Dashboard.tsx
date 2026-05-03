@@ -118,7 +118,6 @@ function DashboardInner({ usingMock }: { usingMock: boolean }) {
           clearTokens();
           if (typeof window !== 'undefined') window.location.href = '/';
         }}
-        onEditProfile={() => profile.resetDismissal()}
       />
       <OnboardingModal
         open={!usingMock && profile.needsOnboarding}
@@ -144,7 +143,6 @@ interface DashboardViewProps {
   weight: number;
   onSync: () => void;
   onDisconnect: () => void;
-  onEditProfile: () => void;
 }
 
 function DashboardView({
@@ -159,7 +157,6 @@ function DashboardView({
   weight,
   onSync,
   onDisconnect,
-  onEditProfile,
 }: DashboardViewProps) {
   const { scope } = useAppContext();
   const clubsEnabled = useClubsEnabled();
@@ -270,7 +267,8 @@ function DashboardView({
               username={`${firstName}${lastName ? ' ' + lastName : ''}`}
               onSync={onSync}
               onDisconnect={onDisconnect}
-              onEditProfile={onEditProfile}
+              /* Sprint 14 / v11.3.0 — Edit profile removed from menu;
+               * /dashboard/you is the canonical surface. */
             >
               <span className={styles.userPill}>
                 {profilePhoto ? (

@@ -13,7 +13,7 @@ import { Container } from '../components/Container/Container';
 import { Pill } from '../components/Pill/Pill';
 import { computeTabsEnabled, useTabsEnabled, useClubsEnabled } from '../lib/featureFlags';
 import { useAppContext } from '../lib/AppContext';
-import { useAthleteProfile } from '../hooks/useAthleteProfile';
+import { useProfileData, resolveDisplayName } from '../hooks/useProfileData';
 import { useRides } from '../hooks/useStravaData';
 import { readTokens, clearTokens } from '../lib/auth';
 import { MARCO, MOCK_ACTIVITIES } from '../lib/mockMarco';
@@ -27,27 +27,51 @@ function greetingForHour(h: number): string {
   return 'Evening';
 }
 
-/** v10.3.0 — Consecutive-day streak ending at the most-recent activity.
- *  Lifted from dashboard.today.tsx so the layout salutation row can render
- *  the streak chip beside the greeting (matches ClubDashboard's pattern of
- *  putting context info above its TopTabs). */
+/**
+ * Sprint 14 / v11.3.0 — Streak is now WEEKLY + training-based.
+ *
+ * Counts consecutive ISO-weeks (Mon–Sun) ending at the current week
+ * with at least one training activity. Resets to 0 if the current week
+ * has no training and the previous week also has none.
+ *
+ * Founder feedback: the prior daily-streak counted any Strava activity
+ * including non-training (commutes that synced as rides). Cyclists
+ * train weekly, not daily, so the weekly view is the right mental model.
+ */
 function computeStreak(activities: { date: string }[]): number {
   if (activities.length === 0) return 0;
-  const dateKeys = new Set(activities.map((a) => a.date.slice(0, 10)));
-  const sortedDesc = Array.from(dateKeys).sort((a, b) => b.localeCompare(a));
-  if (sortedDesc.length === 0) return 0;
-  const cursor = new Date(`${sortedDesc[0]}T12:00:00`);
+  const weekKeys = new Set(activities.map((a) => isoWeekKey(new Date(`${a.date.slice(0, 10)}T12:00:00`))));
+  const cursor = new Date();
   let count = 0;
   while (true) {
-    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-    if (dateKeys.has(key)) {
+    const key = isoWeekKey(cursor);
+    if (weekKeys.has(key)) {
       count++;
-      cursor.setDate(cursor.getDate() - 1);
+      cursor.setDate(cursor.getDate() - 7);
     } else {
+      // If the current week has no training yet, allow checking from
+      // last week (so a streak doesn't drop to 0 just because Monday).
+      if (count === 0) {
+        cursor.setDate(cursor.getDate() - 7);
+        if (!weekKeys.has(isoWeekKey(cursor))) break;
+        continue;
+      }
       break;
     }
   }
   return count;
+}
+
+/** ISO week key — `YYYY-Www`, ISO-8601 (Mon–Sun, week 1 = first 4-day week of the year). */
+function isoWeekKey(d: Date): string {
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7; // Mon=0..Sun=6
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  const week = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
 export const Route = createFileRoute('/dashboard')({
@@ -85,12 +109,24 @@ function TabsLayout() {
   );
   const usingMock = !tokens || isDemo;
 
-  const profile = useAthleteProfile();
+  // Sprint 14 / v11.3.0 — useAthleteProfile localStorage hook is no longer
+  // used by the layout (display name + city now come from /api/me/profile
+  // via useProfileData). The hook remains exported for OnboardingModal
+  // until that surface refreshes (Sprint 15+).
   const { athlete, rides } = useRides({ enabled: !usingMock, ftp: 0 });
+  // Sprint 14 / v11.3.0 — display name + city come from /api/me/profile
+  // (database-backed, set in /dashboard/you), with Strava firstname/lastname
+  // as fallback when the user hasn't set their name yet.
+  const profileData = useProfileData(!usingMock);
 
-  const firstName = usingMock ? MARCO.firstName : athlete?.firstname ?? 'You';
-  const lastName = usingMock ? MARCO.lastName : athlete?.lastname ?? '';
-  const city = usingMock ? MARCO.city : athlete?.city ?? '';
+  const stravaFirst = usingMock ? MARCO.firstName : athlete?.firstname ?? 'You';
+  const stravaLast = usingMock ? MARCO.lastName : athlete?.lastname ?? '';
+  const { firstName, lastName } = resolveDisplayName(
+    profileData.data?.name ?? null,
+    stravaFirst,
+    stravaLast,
+  );
+  const city = profileData.data?.city ?? (usingMock ? MARCO.city : athlete?.city ?? '');
   const profilePhoto = usingMock ? '' : athlete?.profile ?? '';
   const avatarInitials =
     (firstName.charAt(0) + (lastName.charAt(0) || '')).toUpperCase() || 'YOU';
@@ -113,6 +149,7 @@ function TabsLayout() {
     <>
       <TopBar
         variant="app"
+        homePath="/dashboard/today"
         trailing={
           <>
             {clubsEnabled ? <ContextSwitcher /> : null}
@@ -126,7 +163,8 @@ function TabsLayout() {
                 clearTokens();
                 if (typeof window !== 'undefined') window.location.href = '/';
               }}
-              onEditProfile={() => profile.resetDismissal()}
+              /* Sprint 14 / v11.3.0: 'Edit Profile' removed from menu —
+               * duplicated /dashboard/you (My Account). */
             >
               <span className={dashboardStyles.userPill}>
                 {profilePhoto ? (

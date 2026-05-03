@@ -8,7 +8,6 @@ interface UserMenuProps {
   children: React.ReactNode;
   onSync: () => void;
   onDisconnect: () => void;
-  onEditProfile?: () => void;
   username: string;
 }
 
@@ -18,7 +17,7 @@ interface UserMenuProps {
  * Surfaces sync, disconnect, and the Strava revoke-link (so users can fully
  * remove the OAuth grant, not just delete local tokens).
  */
-export function UserMenu({ children, onSync, onDisconnect, onEditProfile, username }: UserMenuProps) {
+export function UserMenu({ children, onSync, onDisconnect, username }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useFocusTrap<HTMLDivElement>(open);
@@ -126,22 +125,9 @@ export function UserMenu({ children, onSync, onDisconnect, onEditProfile, userna
               </span>
             </button>
 
-            {onEditProfile ? (
-              <button
-                role="menuitem"
-                className={styles.item}
-                onClick={() => {
-                  setOpen(false);
-                  onEditProfile();
-                }}
-              >
-                <span className={styles.itemIcon} aria-hidden="true">⚙</span>
-                <span className={styles.itemBody}>
-                  <span>Edit profile</span>
-                  <span className={styles.itemSub}>FTP · weight · HR max</span>
-                </span>
-              </button>
-            ) : null}
+            {/* Sprint 14 / v11.3.0 — 'Edit profile' menu item removed.
+             *  /dashboard/you (My Account) now hosts the full profile editor
+             *  per v11.2.0; the menu duplicate was confusing testers. */}
 
             <a
               role="menuitem"
