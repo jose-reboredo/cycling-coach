@@ -121,6 +121,9 @@ describe('Worker Cache-Control contract', () => {
       '/api/plan/current',
       '/api/routes/saved',
       '/api/routes/rwgps-saved',
+      // Sprint 13 / v11.1.0 — credentials substrate.
+      // User-specific; ciphertext per athlete; no-store applies via entry filter.
+      '/api/me/credentials',
     ]);
 
     it('every /api/ GET path is known and accounted for', () => {
