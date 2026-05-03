@@ -115,6 +115,7 @@ function TodayTab() {
               ctlDelta={pmc.ctlDelta}
               atlDelta={pmc.atlDelta}
               tsbDelta={pmc.tsbDelta}
+              learnMoreBase="/how-it-works"
             />
           ) : null}
 

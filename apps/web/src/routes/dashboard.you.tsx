@@ -17,7 +17,7 @@ import { MigrationBanner } from '../components/MigrationBanner/MigrationBanner';
 import { SetupPassphraseModal } from '../components/SetupPassphraseModal/SetupPassphraseModal';
 import { useApiKey } from '../hooks/useApiKey';
 import { useRides } from '../hooks/useStravaData';
-import { readTokens } from '../lib/auth';
+import { ensureValidToken, readTokens } from '../lib/auth';
 import { connectUrl } from '../lib/connectUrl';
 import { MARCO } from '../lib/mockMarco';
 import { fetchRwgpsStatus, disconnectRwgps } from '../lib/routesApi';
@@ -86,7 +86,11 @@ function YouTab() {
       return;
     }
     try {
-      const r = await fetch('/api/me/profile');
+      const t = await ensureValidToken();
+      if (!t) { setProfileLoaded(true); return; }
+      const r = await fetch('/api/me/profile', {
+        headers: { Authorization: `Bearer ${t.access_token}` },
+      });
       if (r.ok) {
         const data = (await r.json()) as ProfileResponse;
         setProfile(data);
@@ -118,15 +122,22 @@ function YouTab() {
       return;
     }
     let cancelled = false;
-    fetch('/api/me/credentials')
-      .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((data: { items?: Array<{ provider: string }> }) => {
+    (async () => {
+      try {
+        const t = await ensureValidToken();
+        if (!t) { if (!cancelled) setCredsChecked(true); return; }
+        const r = await fetch('/api/me/credentials', {
+          headers: { Authorization: `Bearer ${t.access_token}` },
+        });
+        const data = r.ok ? await r.json() : { items: [] };
         if (!cancelled) {
           setHasEncryptedCreds((data.items ?? []).length > 0);
           setCredsChecked(true);
         }
-      })
-      .catch(() => { if (!cancelled) setCredsChecked(true); });
+      } catch {
+        if (!cancelled) setCredsChecked(true);
+      }
+    })();
     return () => { cancelled = true; };
   }, [usingMock]);
 
@@ -354,6 +365,12 @@ function PersonalSection({
     setBusy(true);
     setSaveError(null);
     try {
+      const t = await ensureValidToken();
+      if (!t) {
+        setSaveError('Not signed in. Reload the page and try again.');
+        setBusy(false);
+        return;
+      }
       const body = {
         name: draft.name.trim() || null,
         dob: draft.dob ? new Date(draft.dob + 'T00:00:00Z').getTime() / 1000 : null,
@@ -364,7 +381,10 @@ function PersonalSection({
       };
       const r = await fetch('/api/me/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${t.access_token}`,
+        },
         body: JSON.stringify(body),
       });
       if (r.ok) {
@@ -522,9 +542,18 @@ function PerformanceSection({
     setBusy(true);
     setSaveError(null);
     try {
+      const t = await ensureValidToken();
+      if (!t) {
+        setSaveError('Not signed in. Reload the page and try again.');
+        setBusy(false);
+        return;
+      }
       const r = await fetch('/api/me/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${t.access_token}`,
+        },
         body: JSON.stringify({
           ftp: draft.ftp ? ftpN : null,
           weight_kg: draft.weight_kg ? wN : null,

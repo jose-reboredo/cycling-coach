@@ -11,6 +11,7 @@ import { Card } from '../components/Card/Card';
 import { Button } from '../components/Button/Button';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
 import { hashRecoveryCode } from '../lib/credentials';
+import { ensureValidToken } from '../lib/auth';
 
 export const Route = createFileRoute('/account/recover')({
   component: AccountRecover,
@@ -27,10 +28,18 @@ function AccountRecover() {
     setBusy(true);
     setError(null);
     try {
+      const t = await ensureValidToken();
+      if (!t) {
+        setError('Not signed in. Sign in first, then try recovery again.');
+        return;
+      }
       const recoveryHash = await hashRecoveryCode(code.trim().toUpperCase());
       const res = await fetch('/api/me/passphrase/recover', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${t.access_token}`,
+        },
         body: JSON.stringify({ recovery_code_hash: recoveryHash }),
       });
       if (!res.ok) {

@@ -626,12 +626,22 @@
   .weekHeader {
     grid-template-columns: 40px repeat(7, 1fr);
   }
+  /* Sprint 14 / v11.5.0 — mobile height was 560px (14h × 40px) but the
+   * JS positioning math uses TIME_GRID_HOURS = 16 (06:00–22:00). Events
+   * at 20:00 computed top = (20 − 6) × 40 = 560px and landed AT the
+   * mobile grid's bottom edge — visually rendering on top of the summary
+   * footer below. The fix is to make the column 640px tall on mobile
+   * too (matches HOUR_PX × 16 = the actual hour count). The calendar is
+   * 80px taller on mobile than before; everything still scrolls. */
   .weekBody {
     grid-template-columns: 40px repeat(7, 1fr);
-    height: 560px;
+    height: 640px;
+  }
+  .weekDayCol {
+    height: 640px;
   }
   .dayBody {
     grid-template-columns: 40px 1fr;
-    height: 560px;
+    height: 640px;
   }
 }

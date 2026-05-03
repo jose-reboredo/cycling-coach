@@ -5,7 +5,12 @@
 // Used by /dashboard layout to render the user's name + city in the
 // header from the user's database profile (not from Strava), per the
 // founder's tester-readiness feedback.
+//
+// Sprint 14 / v11.5.0 — wire auth. The worker's resolveAthleteId reads
+// the Authorization: Bearer header; without it the endpoint 401s. The
+// founder's PATCH-failure report on My Account was the missing header.
 import { useQuery } from '@tanstack/react-query';
+import { ensureValidToken } from '../lib/auth';
 
 export interface ProfileData {
   name: string | null;
@@ -24,7 +29,11 @@ export function useProfileData(enabled = true) {
   return useQuery<ProfileData | null>({
     queryKey: ['me', 'profile'],
     queryFn: async () => {
-      const r = await fetch('/api/me/profile');
+      const tokens = await ensureValidToken();
+      if (!tokens) return null;
+      const r = await fetch('/api/me/profile', {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
       if (r.status === 401 || r.status === 404) return null;
       if (!r.ok) throw new Error(`profile_fetch_failed: ${r.status}`);
       return r.json();

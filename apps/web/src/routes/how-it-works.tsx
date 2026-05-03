@@ -15,10 +15,14 @@ import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
+import { Button } from '../components/Button/Button';
+import { TopBar } from '../components/TopBar/TopBar';
 import { FeatureSpread } from '../components/FeatureSpread/FeatureSpread';
 import { PmcStrip } from '../components/PmcStrip/PmcStrip';
 import { ZonePill } from '../components/ZonePill/ZonePill';
 import { GrainOverlay } from '../components/GrainOverlay/GrainOverlay';
+import { connectUrl } from '../lib/connectUrl';
+import { readTokens } from '../lib/auth';
 import styles from './how-it-works.module.css';
 
 export const Route = createFileRoute('/how-it-works')({
@@ -26,8 +30,24 @@ export const Route = createFileRoute('/how-it-works')({
 });
 
 function HowItWorks() {
+  // Sprint 14 / v11.5.0 — global TopBar at the top of the page;
+  // signed-in users get the dashboard home; signed-out users see
+  // the marketing connect CTA. AppFooter is provided by the
+  // route-tree root (__root.tsx) so every route has it.
+  const isAuthed = !!readTokens();
   return (
     <div className={styles.page}>
+      <TopBar
+        homePath={isAuthed ? '/dashboard/today' : '/'}
+        trailing={
+          !isAuthed ? (
+            <Button href={connectUrl()} size="sm" variant="primary">
+              Connect
+            </Button>
+          ) : null
+        }
+      />
+
       {/* HERO */}
       <section className={styles.hero}>
         <GrainOverlay intensity={0.18} />
@@ -63,6 +83,7 @@ function HowItWorks() {
 
           <FeatureSpread
             num="01"
+            id="fitness"
             kicker="Have you trained enough to ride this hard?"
             title="Fitness · CTL · Chronic Training Load"
             visual={<PmcStrip ctl={78} atl={82} tsb={-4} ctlDelta={2.4} atlDelta={-1.1} tsbDelta={3.5} />}
@@ -88,6 +109,7 @@ function HowItWorks() {
 
           <FeatureSpread
             num="02"
+            id="fatigue"
             kicker="How tired are you right now?"
             title="Fatigue · ATL · Acute Training Load"
             reverse
@@ -121,6 +143,7 @@ function HowItWorks() {
 
           <FeatureSpread
             num="03"
+            id="form"
             kicker="Are you fresh, peaked, or buried?"
             title="Form · TSB · Training Stress Balance"
             visual={
@@ -155,6 +178,7 @@ function HowItWorks() {
 
           <FeatureSpread
             num="04"
+            id="tss"
             kicker="How hard was a single ride?"
             title="TSS · Training Stress Score"
             reverse
@@ -195,6 +219,7 @@ function HowItWorks() {
 
           <FeatureSpread
             num="05"
+            id="streak"
             kicker="The chip on your name."
             title="Weekly streak"
             visual={

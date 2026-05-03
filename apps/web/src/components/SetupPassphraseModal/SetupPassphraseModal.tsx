@@ -13,6 +13,7 @@ import {
   deriveMasterKey,
 } from '../../lib/credentials';
 import { usePassphrase } from '../../hooks/usePassphrase';
+import { ensureValidToken } from '../../lib/auth';
 import styles from './SetupPassphraseModal.module.css';
 
 interface Props {
@@ -59,9 +60,15 @@ export function SetupPassphraseModal({
       const recoveryHash = await hashRecoveryCode(recoveryCode);
 
       // Persist passphrase metadata + the first ciphertext.
+      // Sprint 14 / v11.5.0 — Authorization header required by the worker's
+      // resolveAthleteId(). Without it the endpoints return 401.
+      const t = await ensureValidToken();
+      if (!t) throw new Error('not_authenticated');
+      const authHeader = { Authorization: `Bearer ${t.access_token}` };
+
       const setupRes = await fetch('/api/me/passphrase/setup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({
           recovery_code_hash: recoveryHash,
           passphrase_set_at: Math.floor(Date.now() / 1000),
@@ -71,7 +78,7 @@ export function SetupPassphraseModal({
 
       const credRes = await fetch('/api/me/credentials', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({
           provider: 'anthropic',
           ciphertext: bufToB64(ciphertext),

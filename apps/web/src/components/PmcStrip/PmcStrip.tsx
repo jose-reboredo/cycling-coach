@@ -12,6 +12,11 @@ interface PmcStripProps {
   ctlDelta?: number;
   atlDelta?: number;
   tsbDelta?: number;
+  /** Sprint 14 / v11.5.0 — when set, each label becomes a link to the
+   *  matching section on the explainer page (e.g. '/how-it-works' →
+   *  '/how-it-works#fitness'). Today tab passes this to make the
+   *  numbers clickable; the explainer page itself omits it. */
+  learnMoreBase?: string;
 }
 
 /**
@@ -19,15 +24,15 @@ interface PmcStripProps {
  * Three numerals with their labels, plus trend arrows. The single most
  * important number Marco scans first thing in the morning.
  */
-export function PmcStrip({ ctl, atl, tsb, ctlDelta, atlDelta, tsbDelta }: PmcStripProps) {
+export function PmcStrip({ ctl, atl, tsb, ctlDelta, atlDelta, tsbDelta, learnMoreBase }: PmcStripProps) {
   const tsbState = tsb > 5 ? 'fresh' : tsb < -15 ? 'overreached' : tsb < -5 ? 'fatigued' : 'productive';
   return (
     <div className={styles.root}>
-      <Cell label="Fitness · CTL" value={ctl} delta={ctlDelta} accent="default" />
+      <Cell label="Fitness · CTL" value={ctl} delta={ctlDelta} accent="default" learnMoreHref={learnMoreBase ? `${learnMoreBase}#fitness` : undefined} />
       <Divider />
-      <Cell label="Fatigue · ATL" value={atl} delta={atlDelta} accent="warn" />
+      <Cell label="Fatigue · ATL" value={atl} delta={atlDelta} accent="warn" learnMoreHref={learnMoreBase ? `${learnMoreBase}#fatigue` : undefined} />
       <Divider />
-      <Cell label="Form · TSB" value={tsb} signed delta={tsbDelta} accent={tsbState} />
+      <Cell label="Form · TSB" value={tsb} signed delta={tsbDelta} accent={tsbState} learnMoreHref={learnMoreBase ? `${learnMoreBase}#form` : undefined} />
     </div>
   );
 }
@@ -42,13 +47,20 @@ interface CellProps {
   delta: number | undefined;
   signed?: boolean;
   accent: 'default' | 'fresh' | 'productive' | 'fatigued' | 'overreached' | 'warn';
+  learnMoreHref?: string;
 }
 
-function Cell({ label, value, delta, signed, accent }: CellProps) {
+function Cell({ label, value, delta, signed, accent, learnMoreHref }: CellProps) {
   const display = signed && value > 0 ? `+${Math.round(value)}` : Math.round(value).toString();
   return (
     <div className={styles.cell}>
-      <span className={styles.label}>{label}</span>
+      {learnMoreHref ? (
+        <a href={learnMoreHref} className={styles.label} title="Learn how this is calculated">
+          {label}
+        </a>
+      ) : (
+        <span className={styles.label}>{label}</span>
+      )}
       <motion.span
         className={`${styles.value} ${styles[`accent-${accent}`]}`}
         initial={{ opacity: 0, y: 6 }}

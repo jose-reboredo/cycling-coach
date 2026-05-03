@@ -27,6 +27,24 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--c-text-muted);
+  /* Sprint 14 / v11.5.0 — when rendered as <a> (Today tab passes
+   * learnMoreBase), preserve the visual + add a subtle hover hint. */
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--duration-fast, 150ms) var(--ease-standard, ease);
+}
+
+a.label:hover,
+a.label:focus-visible {
+  color: var(--c-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a.label:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .value {

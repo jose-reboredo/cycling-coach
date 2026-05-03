@@ -4,6 +4,59 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [11.4.1] — 2026-05-03
+
+**Hotfix bundle. 5 founder-flagged issues from v11.4.0 deploy:**
+
+### 1 · Auth bug — My Account save returned HTTP 401
+
+The single highest-severity bug. `useProfileData` hook + every fetch in `dashboard.you.tsx` was missing the `Authorization: Bearer ${access_token}` header. The worker's `resolveAthleteId()` reads that header to identify the user; without it, every endpoint returned 401. The founder reported "I cannot save my name, birth date, city and country (it says 'Save failed (HTTP 401)')."
+
+Fixed across **5 fetch sites:**
+- `useProfileData` GET `/api/me/profile`
+- `dashboard.you.tsx` PATCH `/api/me/profile` (Personal section)
+- `dashboard.you.tsx` PATCH `/api/me/profile` (Performance section)
+- `dashboard.you.tsx` GET `/api/me/credentials`
+- `SetupPassphraseModal.tsx` POST `/api/me/passphrase/setup` + PATCH `/api/me/credentials`
+- `account.recover.tsx` POST `/api/me/passphrase/recover`
+
+All now use `ensureValidToken()` + the `Authorization: Bearer` header. The worker side was correct since v11.2.0; the frontend just wasn't sending the header. Existing endpoints in `lib/api.ts`, `lib/clubsApi.ts`, `lib/coachApi.ts`, `lib/aiPlanApi.ts`, `lib/routesApi.ts` already follow this pattern.
+
+### 2 · `/how-it-works` missing global TopBar
+
+The route rendered its own hero but omitted the TopBar (and so the page felt like a different app). Added `<TopBar homePath={isAuthed ? '/dashboard/today' : '/'} trailing={isAuthed ? null : <Connect button>} />`. AppFooter was already present (it's in `__root.tsx` for every route).
+
+### 3 · Calendar — events at 20:00+ rendering on top of the summary footer (5th attempt)
+
+Real root cause this time. Mobile (`max-width: 600px`) had `weekBody` and `dayBody` set to `height: 560px` (14h × 40px), but the JS positioning math uses `TIME_GRID_HOURS = 16` (06:00–22:00). An event at 20:00 computed `top = (20 − 6) × 40 = 560px` — **exactly at the mobile grid's bottom edge**. Events spilled below the column into the summary footer's space.
+
+Fixed by setting mobile heights to **640px** (matching desktop and the actual hour count: HOUR_PX × 16 = 640). Also added `weekDayCol { height: 640px }` for mobile so the per-day columns match the grid body. The calendar is 80px taller on mobile than before; the page still scrolls. **Prior 4 fixes attempted z-index, position, summary CSS — all defended the wrong layer; the bug was column height vs JS const mismatch.**
+
+### 4 · Today "How is this calculated?" anchor jump hidden behind sticky TopBar
+
+`/how-it-works#forecast` did jump but the `<TopBar>` (--z-sticky 100, ~64px tall) covered the section heading. Added `scroll-margin-top: 80px` to `.feat` (FeatureSpread) so anchor targets land below the sticky chrome with a small visual breath.
+
+### 5 · Per-KPI links from Today PMC strip
+
+Added `id="fitness"` / `id="fatigue"` / `id="form"` (plus `tss`, `streak`, `forecast` already added) to FeatureSpread sections. PmcStrip now accepts an optional `learnMoreBase` prop; when set (Today tab passes `'/how-it-works'`), each cell label becomes a link to the matching anchor:
+- "Fitness · CTL" → `/how-it-works#fitness`
+- "Fatigue · ATL" → `/how-it-works#fatigue`
+- "Form · TSB" → `/how-it-works#form`
+
+Hover state is accent-coloured + underlined; focus-visible ring. The explainer page itself omits `learnMoreBase` so its embedded PmcStrip stays plain (no self-loops).
+
+### Verified before deploy
+
+```
+npx vitest run            308/309 pass · 1 skipped · 0 failures
+npx tsc --noEmit          exit 0
+npm run build             green
+```
+
+7-file release pattern bumped; standard release ceremony.
+
+---
+
 ## [11.4.0] — 2026-05-03
 
 **Sprint 14 follow-up release. `/how-it-works` redesign matching the marketing landing's `/#what` visual template + `<FeatureSpread />` molecule extraction.**
