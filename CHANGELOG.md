@@ -4,6 +4,71 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [11.4.0] — 2026-05-03
+
+**Sprint 14 follow-up release. `/how-it-works` redesign matching the marketing landing's `/#what` visual template + `<FeatureSpread />` molecule extraction.**
+
+Founder feedback after v11.3.0 deploy: *"the how-it-works page must have the same template as `/#what` — I like the pictures of the what page, it's visual and easy for users to understand."*
+
+### 1 · `<FeatureSpread />` extracted as a shared molecule
+
+`apps/web/src/components/FeatureSpread/{FeatureSpread.tsx,FeatureSpread.module.css}` — extracted from `Landing.tsx`'s local-only `FeatureSpread` function (which served only the `/#what` section). Same component now powers both the marketing landing's product section and `/how-it-works`. Per `feedback_atomic-design-extraction-from-bugs.md` (Sprint 14 retro): when 2+ surfaces need the same alternating picture/text layout, extract once.
+
+API:
+```ts
+<FeatureSpread
+  num="01"
+  kicker="Italic line above the title"
+  title="Display heading"
+  body="Plain-text paragraph"   // OR
+  bodyNode={<>...</>}           // for richer JSX
+  visual={<MyVisualComponent />}
+  reverse                        // optional desktop layout flip
+  id="anchor"                    // optional anchor target (new in v11.4.0)
+/>
+```
+
+Landing.tsx now imports the molecule. The local CSS duplicates in `Landing.module.css` are left in place this release for binary compat with shipped CSS; a follow-up sprint can drop them after the molecule is proven across both surfaces.
+
+### 2 · `/how-it-works` rebuilt with picture/text alternating layout
+
+7 sections, each a `FeatureSpread`:
+
+| № | Section | Visual |
+|---|---|---|
+| 01 | Fitness · CTL | `<PmcStrip />` (the same component testers see on Today) |
+| 02 | Fatigue · ATL | New `<DecayChart />` — 14 bars showing how 77 fatigue decays to ~10 with no training |
+| 03 | Form · TSB | New `<FormScale />` — `+5 to +25` race-ready · `+0 to +5` fresh · `−10 to 0` overload · `below −20` overreaching |
+| 04 | TSS · per ride | New `<ZoneStack />` — Z1–Z7 with `<ZonePill />` + IF approximation table |
+| 05 | Weekly streak | New `<StreakChips />` — 5 weeks filled + 1 current-week dashed outline |
+| 06 | Year-end forecast | New `<ForecastBar />` — YTD km → projected km with a "today" marker on the bar (id="forecast") |
+| 07 | What's NOT measured | New `<NotMeasured />` — HRV, cross-training, FTP staleness, HR drift |
+
+Section 06 anchors as `#forecast` so the Today tab's "How is this calculated?" link deep-jumps directly to the relevant explainer (was previously landing on the page top).
+
+### 3 · Today YTD card links to `#forecast` anchor
+
+`/dashboard/today` YTD card's "How is this calculated? →" link now points to `/how-it-works#forecast` (was `/how-it-works` page-top). Direct context for the user's question.
+
+### 4 · Removed a fabricated explainer paragraph
+
+The v11.3.0 `/how-it-works` had a "Why no fixed 8 000 km target" paragraph framing the YTD removal as a deliberate business decision. The 8000 km was a placeholder I invented in the explainer text, not a shipped feature with a story behind it. Founder called it out: *"the text referring to fixed 8000km is not needed, 8000km was a dummy number you added without any business logic."* Removed.
+
+### Verified before deploy
+
+```
+npx vitest run            308/309 pass · 1 skipped · 0 failures
+npx tsc --noEmit          exit 0
+npm run build             green; bundle flat (how-it-works code-split chunk slightly bigger from new visual components)
+```
+
+### Not in this release
+
+- **Removing the `.feat*` CSS duplicates from `Landing.module.css`** — the molecule has its own scoped module CSS; Landing's local copy is now unused but harmless. Cleanup in a follow-up sprint.
+- **Animated KPI visualizations** — the visuals are static demonstrations; live values from the user's data aren't wired (would require fetch + mock-fallback). Static is the right shape for an explainer page.
+
+---
+
 ## [11.3.0] — 2026-05-03
 
 **Sprint 14 closeout. Single bundled tester-readiness release. 18 of 21 founder-flagged tester-blocking issues fixed in code; 2 require founder follow-up actions; 1 flagged for visual reproduction at deploy.**

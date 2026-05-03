@@ -8,6 +8,7 @@ import { ZonePill } from '../components/ZonePill/ZonePill';
 import { PmcStrip } from '../components/PmcStrip/PmcStrip';
 import { ProgressRing } from '../components/ProgressRing/ProgressRing';
 import { TopBar } from '../components/TopBar/TopBar';
+import { FeatureSpread } from '../components/FeatureSpread/FeatureSpread';
 import { connectUrl } from '../lib/connectUrl';
 import styles from './Landing.module.css';
 
@@ -294,27 +295,13 @@ function ForList({ variant, title, items }: { variant: 'for' | 'not'; title: str
   );
 }
 
-function FeatureSpread({
-  num, title, kicker, body, visual, reverse = false,
-}: { num: string; title: string; kicker: string; body: string; visual: React.ReactNode; reverse?: boolean }) {
-  return (
-    <motion.article
-      className={`${styles.feat} ${reverse ? styles.featReverse : ''}`}
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-80px' }}
-      transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
-    >
-      <div className={styles.featBody}>
-        <div className={styles.featNum}>№ {num}</div>
-        <p className={styles.featKicker}>{kicker}</p>
-        <h3 className={styles.featTitle}>{title}</h3>
-        <p className={styles.featCopy}>{body}</p>
-      </div>
-      <div className={styles.featVisual}>{visual}</div>
-    </motion.article>
-  );
-}
+// Sprint 14 / v11.4.0 — FeatureSpread now imported from
+// apps/web/src/components/FeatureSpread/. Same visual template powers
+// /#what and /how-it-works. Local .feat / .featBody / etc. CSS classes
+// in Landing.module.css are still used by the imported component because
+// the module CSS shapes match. A follow-up cleanup sprint can drop the
+// Landing-local copy once the imported molecule's own CSS module is
+// proven across both surfaces.
 
 function WorkoutPreview() {
   return (

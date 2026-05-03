@@ -1,0 +1,71 @@
+/* apps/web/src/components/FeatureSpread/FeatureSpread.module.css
+ * Cadence Club — FeatureSpread · v1 (Sprint 14 / v11.4.0)
+ * Extracted verbatim from Landing.module.css; both /#what and
+ * /how-it-works consume the same class shapes for consistency. */
+
+.feat {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-8);
+  padding: var(--s-12) 0;
+  border-top: 1px solid var(--c-line);
+  align-items: center;
+}
+
+.feat:first-of-type {
+  margin-top: var(--s-10);
+}
+
+@media (min-width: 1024px) {
+  .feat {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-16);
+    padding: var(--s-16) 0;
+  }
+}
+
+.featReverse {
+  /* visual order swap for desktop */
+}
+
+@media (min-width: 1024px) {
+  .featReverse .featBody {
+    order: 2;
+  }
+}
+
+.featBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.featNum {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+  margin-bottom: var(--s-2);
+}
+
+.featKicker {
+  font: italic 400 17px/1.4 var(--font-sans);
+  color: var(--c-text-muted);
+  letter-spacing: -0.005em;
+}
+
+.featTitle {
+  font: 600 clamp(28px, 4.5vw, 44px) / 1.05 var(--font-sans);
+  letter-spacing: -0.025em;
+  color: var(--c-text);
+}
+
+.featCopy {
+  font: 400 16px/1.6 var(--font-sans);
+  color: var(--c-text-muted);
+  max-width: 50ch;
+}
+
+.featVisual {
+  width: 100%;
+}

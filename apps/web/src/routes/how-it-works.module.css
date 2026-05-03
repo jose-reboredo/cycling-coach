@@ -1,26 +1,44 @@
 /* apps/web/src/routes/how-it-works.module.css
- * Cadence Club — How it works · v1 (Sprint 14 / v11.3.0)
- * Token-only styling. */
+ * Cadence Club — How it works · v2 (Sprint 14 / v11.4.0)
+ * Token-only styling. Matches Landing's /#what visual template. */
 
-.head {
-  padding: var(--space-12) 0 var(--space-8);
+.page {
+  background: var(--surface-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* ============ HERO ============ */
+
+.hero {
+  position: relative;
+  padding: var(--space-16) 0 var(--space-12);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.heroInner {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.h1 {
-  margin: 0;
+.heroH1 {
+  margin: var(--space-3) 0 0 0;
   font-family: var(--font-display);
-  font-size: clamp(36px, 5vw, 56px);
-  line-height: 1.05;
-  letter-spacing: -0.022em;
+  font-size: clamp(40px, 6vw, 72px);
+  line-height: 1.02;
+  letter-spacing: -0.026em;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.lede {
-  margin: 0;
+.heroH1 em {
+  color: var(--accent-default);
+  font-style: italic;
+}
+
+.heroLede {
+  margin: var(--space-3) 0 0 0;
   max-width: 60ch;
   font-family: var(--font-sans);
   font-size: var(--font-size-lg);
@@ -28,15 +46,35 @@
   color: var(--text-secondary);
 }
 
-.h2 {
-  margin: var(--space-2) 0 var(--space-3) 0;
+/* ============ FEATURES SECTION ============ */
+
+.features {
+  padding: var(--space-16) 0 var(--space-32);
+}
+
+.sectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+
+.sectionH2 {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: var(--font-size-2xl);
-  line-height: 1.1;
-  letter-spacing: -0.018em;
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.022em;
   font-weight: 600;
   color: var(--text-primary);
 }
+
+.sectionH2 em {
+  color: var(--accent-default);
+  font-style: italic;
+}
+
+/* ============ SHARED FORMULA + SUBTLE COPY ============ */
 
 .formula {
   font-family: var(--font-mono);
@@ -49,6 +87,7 @@
   color: var(--text-primary);
   letter-spacing: 0.02em;
   overflow-x: auto;
+  white-space: pre-wrap;
 }
 
 .subtle {
@@ -62,28 +101,383 @@
   border-radius: var(--radius-sm);
 }
 
-.bullets {
-  margin: var(--space-2) 0;
-  padding-left: var(--space-5);
+.subtle a {
+  color: var(--accent-default);
+  text-decoration: underline;
+}
+
+/* ============ ATL DECAY CHART (visual for §02) ============ */
+
+.decay {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.decayHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.decayLabel {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.decayBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 140px;
+}
+
+.decayBar {
+  flex: 1;
+  background: var(--text-faint);
+  border-radius: 2px 2px 0 0;
+  transition: height var(--duration-base) var(--ease-standard);
+}
+
+.decayBarAccent {
+  background: linear-gradient(
+    to top,
+    var(--accent-default) 0%,
+    var(--accent-hover) 100%
+  );
+}
+
+.decayAxis {
+  display: flex;
+  justify-content: space-between;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.decayCaption {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ============ FORM SCALE (visual for §03) ============ */
+
+.formScale {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.formScaleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-default);
+  gap: var(--space-3);
+}
+
+.formScaleRow:last-child {
+  border-bottom: 0;
+}
+
+.formScaleRange {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--accent-default);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.formScaleLabel {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  text-align: right;
+}
+
+/* ============ ZONE STACK (visual for §04 TSS) ============ */
+
+.zoneStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.zoneStackRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.zoneStackRow:last-child {
+  border-bottom: 0;
+}
+
+.zoneStackName {
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
-  line-height: 1.7;
   color: var(--text-primary);
 }
 
-.bullets li {
-  margin-bottom: var(--space-1);
-}
-
-.footnote {
-  margin: var(--space-12) 0 var(--space-16);
-  font-family: var(--font-sans);
+.zoneStackIf {
+  font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* ============ STREAK CHIPS (visual for §05) ============ */
+
+.streakChips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.streakChip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-pressed);
+}
+
+.streakChip.streakFilled {
+  background: var(--accent-soft);
+}
+
+.streakChip.streakCurrent {
+  border: 1px dashed var(--accent-default);
+  background: transparent;
+}
+
+.streakDot {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-md);
+  color: var(--text-faint);
+}
+
+.streakFilled .streakDot {
+  color: var(--accent-default);
+}
+
+.streakCurrent .streakDot {
+  color: var(--accent-default);
+}
+
+.streakLabel {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+
+.streakCaption {
+  margin: var(--space-2) 0 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ============ FORECAST BAR (visual for §06) ============ */
+
+.forecast {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.forecastNums {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.forecastNums > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.forecastBig {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xl);
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.forecastUnit {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.forecastArrow {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xl);
+  color: var(--accent-default);
   text-align: center;
 }
 
-.footnote a {
-  color: var(--accent-default);
-  text-decoration: underline;
+.forecastBar {
+  position: relative;
+  height: 12px;
+  background: var(--surface-pressed);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.forecastBarFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent-default);
+  border-radius: var(--radius-full);
+}
+
+.forecastBarMarker {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--text-primary);
+}
+
+.forecastCaption {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ============ NOT MEASURED (visual for §07) ============ */
+
+.notMeasured {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.notMeasuredRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.notMeasuredRow:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.notMeasuredX {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--state-danger);
+  background: var(--state-danger-soft);
+  border-radius: 50%;
+}
+
+.notMeasuredBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.notMeasuredBody strong {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.notMeasuredBody span {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+/* ============ MOBILE ============ */
+
+@media (max-width: 599px) {
+  .features {
+    padding: var(--space-12) 0 var(--space-24);
+  }
+  .heroH1 {
+    font-size: clamp(36px, 9vw, 48px);
+  }
+  .formScaleRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+  .formScaleLabel {
+    text-align: left;
+  }
+  .zoneStackRow {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+  }
+  .zoneStackIf {
+    grid-column: 2;
+  }
+  .forecastNums {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+  .forecastNums > div {
+    align-items: flex-start;
+  }
+  .forecastArrow {
+    transform: rotate(90deg);
+    text-align: left;
+  }
 }

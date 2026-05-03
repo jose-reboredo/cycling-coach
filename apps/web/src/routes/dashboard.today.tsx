@@ -182,7 +182,7 @@ function TodayTab() {
                 <p className={styles.goalSub}>
                   Linear projection from YTD distance. The AI-refined forecast
                   arrives in a later release.{' '}
-                  <a href="/how-it-works" className={styles.goalLink}>
+                  <a href="/how-it-works#forecast" className={styles.goalLink}>
                     How is this calculated? →
                   </a>
                 </p>
