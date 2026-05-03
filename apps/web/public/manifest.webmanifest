@@ -1,13 +1,13 @@
 {
-  "name": "Cycling Coach",
-  "short_name": "Coach",
-  "description": "Performance training intelligence for serious cyclists. PMC, structured workouts, smart route picker.",
+  "name": "Cadence Club",
+  "short_name": "Cadence",
+  "description": "Form curve, structured sessions, club schedule. Performance training for serious cyclists.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#08090b",
-  "theme_color": "#08090b",
+  "background_color": "#0a0a0c",
+  "theme_color": "#0a0a0c",
   "categories": ["fitness", "health", "lifestyle", "sports"],
   "lang": "en",
   "dir": "ltr",
@@ -27,19 +27,19 @@
   ],
   "shortcuts": [
     {
-      "name": "Today's workout",
-      "url": "/dashboard#today",
-      "description": "Jump straight to today's session"
+      "name": "Today",
+      "url": "/dashboard/today",
+      "description": "Today's form curve and session"
     },
     {
-      "name": "AI Coach",
-      "url": "/dashboard#train",
-      "description": "Generate or review the weekly plan"
+      "name": "Train",
+      "url": "/dashboard/train",
+      "description": "Generate or review the AI weekly plan"
     },
     {
-      "name": "Previous rides",
-      "url": "/dashboard#stats",
-      "description": "Browse the last 8 rides + per-ride coach verdict"
+      "name": "Schedule",
+      "url": "/dashboard/schedule",
+      "description": "Solo sessions and club rides on one calendar"
     }
   ]
 }

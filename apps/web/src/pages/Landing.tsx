@@ -64,7 +64,7 @@ export function Landing() {
               <li><span className={styles.heroFactNum}>10s</span><span>setup</span></li>
               <li><span className={styles.heroFactNum}>$0</span><span>monthly · BYOK</span></li>
               <li><span className={styles.heroFactNum}>∞</span><span>token refresh</span></li>
-              <li><span className={styles.heroFactNum}>100%</span><span>local-first</span></li>
+              <li><span className={styles.heroFactNum}>~$0.02</span><span>per AI plan</span></li>
             </ul>
           </motion.div>
 

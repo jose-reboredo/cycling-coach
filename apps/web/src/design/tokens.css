@@ -29,6 +29,12 @@
   /* Line */
   --c-line: rgba(255, 255, 255, 0.06);
   --c-line-strong: rgba(255, 255, 255, 0.14);
+  /* Sprint 12 / Phase 1 cleanup — `--c-border` was referenced 9× in
+   * Calendar.module.css but never declared, falling through silently
+   * to currentColor. Aliased to --c-line for visual parity until the
+   * Phase 3 three-layer token refactor introduces a semantic
+   * `--border-default` token. */
+  --c-border: var(--c-line);
 
   /* Accent — molten orange */
   --c-accent: #ff4d00;
