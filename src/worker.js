@@ -1936,6 +1936,170 @@ async function handleRequest(request, env, ctx) {
       });
     }
 
+    // ============================================================
+    // Sprint 13 / v11.2.0 — My Account profile endpoints.
+    //
+    // GET   /api/me/profile  — return profile fields + passphrase status
+    // PATCH /api/me/profile  — partial-update; server validates against
+    //                          the same constants as lib/validation.ts
+    //                          (drift-locked by profile-contract.test.ts)
+    // ============================================================
+
+    if (url.pathname === '/api/me/profile' && request.method === 'GET') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const row = await env.cycling_coach_db.prepare(
+        'SELECT name, dob, gender, gender_self, city, country, ftp_w, weight_kg, hr_max, ' +
+        '  passphrase_set_at ' +
+        'FROM users WHERE athlete_id = ?',
+      ).bind(authResult.athleteId).first();
+      if (!row) {
+        return new Response(JSON.stringify({ error: 'not_found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({
+        name: row.name,
+        dob: row.dob,
+        gender: row.gender,
+        gender_self: row.gender_self,
+        city: row.city,
+        country: row.country,
+        ftp: row.ftp_w,
+        weight_kg: row.weight_kg,
+        hr_max: row.hr_max,
+        passphrase_set_at: row.passphrase_set_at,
+      }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (url.pathname === '/api/me/profile' && request.method === 'PATCH') {
+      const authResult = await resolveAthleteId(request);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: authResult.error,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      let body;
+      try { body = await request.json(); } catch {
+        return new Response(JSON.stringify({ error: 'invalid_body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!body || typeof body !== 'object') {
+        return new Response(JSON.stringify({ error: 'invalid_body' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // Server-side validation — same constants as apps/web/src/lib/validation.ts.
+      // Drift-locked by apps/web/src/lib/__tests__/profile-contract.test.ts.
+      const NAME_MAX = 80, CITY_MAX = 64;
+      const FTP_MIN = 50, FTP_MAX = 600;
+      const WEIGHT_MIN = 30, WEIGHT_MAX = 200;
+      const HR_MIN = 100, HR_MAX = 230;
+      const COUNTRY_RE = /^[A-Z]{2}$/;
+      const GENDERS = ['prefer-not-to-say', 'woman', 'man', 'non-binary', 'self-describe'];
+
+      const errors = {};
+      const updates = {};
+
+      if ('name' in body) {
+        if (body.name !== null && (typeof body.name !== 'string' || body.name.length > NAME_MAX)) {
+          errors.name = 'invalid';
+        } else {
+          updates.name = body.name === null ? null : body.name.trim() || null;
+        }
+      }
+      if ('dob' in body) {
+        if (body.dob !== null && (!Number.isFinite(body.dob)
+            || body.dob < new Date('1900-01-01').getTime() / 1000
+            || body.dob > Date.now() / 1000)) {
+          errors.dob = 'invalid';
+        } else {
+          updates.dob = body.dob;
+        }
+      }
+      if ('gender' in body) {
+        if (body.gender !== null && !GENDERS.includes(body.gender)) {
+          errors.gender = 'invalid';
+        } else {
+          updates.gender = body.gender;
+        }
+      }
+      if ('gender_self' in body) {
+        if (body.gender_self !== null && (typeof body.gender_self !== 'string' || body.gender_self.length > 80)) {
+          errors.gender_self = 'invalid';
+        } else {
+          updates.gender_self = body.gender_self;
+        }
+      }
+      if ('city' in body) {
+        if (body.city !== null && (typeof body.city !== 'string' || body.city.length > CITY_MAX)) {
+          errors.city = 'invalid';
+        } else {
+          updates.city = body.city;
+        }
+      }
+      if ('country' in body) {
+        if (body.country !== null && !COUNTRY_RE.test(body.country)) {
+          errors.country = 'invalid';
+        } else {
+          updates.country = body.country;
+        }
+      }
+      if ('ftp' in body) {
+        if (body.ftp !== null && (!Number.isFinite(body.ftp) || body.ftp < FTP_MIN || body.ftp > FTP_MAX)) {
+          errors.ftp = 'invalid';
+        } else {
+          // The DB column is `ftp_w`; map back from the API field name.
+          updates.ftp_w = body.ftp;
+        }
+      }
+      if ('weight_kg' in body) {
+        if (body.weight_kg !== null && (!Number.isFinite(body.weight_kg) || body.weight_kg < WEIGHT_MIN || body.weight_kg > WEIGHT_MAX)) {
+          errors.weight_kg = 'invalid';
+        } else {
+          updates.weight_kg = body.weight_kg;
+        }
+      }
+      if ('hr_max' in body) {
+        if (body.hr_max !== null && (!Number.isFinite(body.hr_max) || body.hr_max < HR_MIN || body.hr_max > HR_MAX)) {
+          errors.hr_max = 'invalid';
+        } else {
+          updates.hr_max = body.hr_max;
+        }
+      }
+
+      if (Object.keys(errors).length) {
+        return new Response(JSON.stringify({ error: 'validation', fields: errors }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const keys = Object.keys(updates);
+      if (keys.length === 0) {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const setClause = keys.map((k) => `${k} = ?`).join(', ');
+      const values = keys.map((k) => updates[k]);
+      await env.cycling_coach_db.prepare(
+        `UPDATE users SET ${setClause} WHERE athlete_id = ?`,
+      ).bind(...values, authResult.athleteId).run();
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // PATCH /api/me/sessions/:id — partial update; own-only (Sprint 5 / v9.12.0, #76).
     // POST /api/me/sessions/:id/cancel — soft-delete; idempotent.
     // POST /api/me/sessions/:id/uncancel — restore.
