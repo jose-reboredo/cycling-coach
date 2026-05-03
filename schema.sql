@@ -274,6 +274,9 @@ CREATE TABLE planned_sessions (
 
 CREATE INDEX idx_planned_sessions_athlete_date ON planned_sessions(athlete_id, session_date);
 CREATE INDEX idx_planned_sessions_ai_report ON planned_sessions(ai_report_id) WHERE ai_report_id IS NOT NULL;
+-- Sprint 11 — restore parity with migrations/0011_ai_plan_sessions.sql.
+-- Drift caught by apps/web/src/lib/__tests__/migration-discipline.test.ts.
+CREATE INDEX idx_planned_sessions_ai_plan ON planned_sessions(ai_plan_session_id) WHERE ai_plan_session_id IS NOT NULL;
 CREATE INDEX idx_planned_sessions_recurring_group ON planned_sessions(recurring_group_id) WHERE recurring_group_id IS NOT NULL;
 
 -- v10.6.0 / Migration 0010 — Per-user OAuth tokens for Ride with GPS.
