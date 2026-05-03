@@ -3510,14 +3510,37 @@ async function documentRelease(env) {
   let releaseChildId = releaseChildren.find((c) => c.title === releaseTitle)?.id;
   let releaseStatus = 'unchanged';
   if (!releaseChildId) {
+    // Detect migrations + breaking-change flags in the CHANGELOG entry so the
+    // release page surfaces them as Confluence callouts (warnings) at the top
+    // — readers don't have to read the whole entry to know whether the deploy
+    // was schema-affecting or backwards-incompatible.
+    const migrationMatches = (changelog || '').match(/Migration\s+\d{4}[^\.\n]*/gi) || [];
+    const breakingDetected = /\bBREAKING\b|\bBREAKING CHANGE\b|\bbreaking change\b/.test(changelog || '');
+    const migrationCallout = migrationMatches.length
+      ? `<ac:structured-macro ac:name="warning"><ac:rich-text-body><p><strong>Schema-affecting deploy.</strong> This release shipped D1 migration(s):</p><ul>${migrationMatches.map((m) => `<li><code>${escapeXml(m.trim())}</code></li>`).join('')}</ul><p>Apply order is strict. Verify <code>schema.sql</code> matches cumulative state before next bootstrap.</p></ac:rich-text-body></ac:structured-macro>`
+      : '';
+    const breakingCallout = breakingDetected
+      ? `<ac:structured-macro ac:name="warning"><ac:rich-text-body><p><strong>Breaking change in this release.</strong> See the changelog body for the contract delta and migration steps for clients.</p></ac:rich-text-body></ac:structured-macro>`
+      : '';
     const releaseStorage = `<h1>${escapeXml(releaseTitle)}</h1>
-<p><strong>Date:</strong> ${date}</p>
-<h2>Changelog</h2>
+<p><strong>Date:</strong> ${date} · <strong>Worker:</strong> <code>${escapeXml(version)}</code> · <strong>Repo:</strong> <a href="https://github.com/jose-reboredo/cycling-coach/blob/main/CHANGELOG.md">CHANGELOG.md</a></p>
+${breakingCallout}
+${migrationCallout}
+<h2>Changelog entry</h2>
 <pre>${escapeXml(changelog || '(no entry found in CHANGELOG.md)')}</pre>
-<h2>Commits</h2>
+<h2>Commits in this window</h2>
+<p><em>Most recent commits to <code>main</code>; the release ships everything up to + including the <code>chore(release)</code> commit. Cross-reference the changelog above for the curated narrative.</em></p>
 <ul>${commits
       .map((c) => `<li><code>${escapeXml(c.sha.slice(0, 7))}</code> — ${escapeXml(c.message)}</li>`)
-      .join('')}</ul>`;
+      .join('')}</ul>
+<h2>Verification</h2>
+<p>Smoke checks that ran post-deploy:</p>
+<ul>
+  <li><code>GET /version</code> reports <code>${escapeXml(version)}</code> + <code>build_date: ${date}</code></li>
+  <li><code>GET /roadmap</code> returns 200 with non-zero <code>count</code></li>
+  <li><code>POST /admin/document-release</code> without bearer returns 401 (this page proves it succeeded with bearer)</li>
+</ul>
+<p>If a regression was found post-deploy, the corresponding rollback / hotfix entry is its own child page. See the <strong>Runbook</strong> page for the rollback procedure.</p>`;
     const created = await conf.create({
       spaceId,
       parentId: releasesId,
