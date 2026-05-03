@@ -36,7 +36,18 @@ CREATE TABLE users (
   -- recovery_code_hash = SHA-256 hex of the 24-char dashed code.
   -- passphrase_set_at NULL = no passphrase yet; fall back to localStorage for AI flow.
   recovery_code_hash TEXT,
-  passphrase_set_at  INTEGER
+  passphrase_set_at  INTEGER,
+  -- v11.2.0 (migration 0016) — My Account profile fields. All nullable.
+  -- gender: prefer-not-to-say | woman | man | non-binary | self-describe (NULL = not stated)
+  -- gender_self: only set when gender = 'self-describe'
+  -- country: ISO 3166-1 alpha-2 (2-char uppercase)
+  -- dob: unix epoch seconds, 00:00 UTC of the chosen date
+  name        TEXT,
+  dob         INTEGER,
+  gender      TEXT,
+  gender_self TEXT,
+  city        TEXT,
+  country     TEXT
 );
 
 -- ============= USER CONNECTIONS =============
