@@ -4,6 +4,111 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [10.13.0] — 2026-05-03
+
+**Sprint 11 prep release. Four overnight workstreams (security, route reliability, contract tests, docs) merged into a single bundle. No new features — every change is correctness, defense-in-depth, or documentation.**
+
+### 1 · Route reliability (two user-reported bugs)
+
+**Bug 1 — Zurich-anchored ORS routes drifted > 2 km from anchor.**
+The existing per-point proximity gate caught loops whose extremes wandered, but missed loops whose centre of mass sat off-axis. Added a `CENTROID_MAX_KM = 2.0` post-generation gate in `src/routes/routeGen.js`: any candidate whose centroid is > 2 km from the geocoded anchor is dropped before scoring. New `routeCentroid()` and `haversineKm()` helpers exported. Cache prefix bumped `routes:v4` → `routes:v5` to evict pre-fix entries. Existing zero-pass behaviour preserved (returns 503 `no_valid_paths`, never silent substitution).
+
+**Bug 2 — Strava saved-routes recommended hiking trails (Path of Gods, Positano) when the anchor was Zurich.**
+Two layered fixes in `/api/routes/saved`:
+- **Type filter:** drops Strava routes where `type !== 1` (1 = Ride, 2 = Run/Hike). Kills the Path of Gods directly.
+- **Anchor filter:** handler now reads optional `?lat=&lng=` query params, decodes the first lat/lng of `summary_polyline`, and rejects routes more than 50 km from the anchor. 50 km picked over 2 km because Strava saves often anchor in nearby towns; documented in `SPRINT_11_BUGS_REPORT.md`.
+- Frontend (`SessionRoutePicker.tsx` + `routesApi.ts`) geocodes the saved start address and forwards lat/lng. Geocode failures degrade gracefully.
+
+New shared module `apps/web/src/lib/geoMath.ts` (haversine, decodeFirstPoint, centroid) reused by both fixes. 25 new tests (17 geoMath + 4 bug-1 contract + 4 bug-2 contract).
+
+### 2 · Security audit + defense-in-depth fix
+
+Single-night tech-lead audit across four planes (SQL parameterization, authn, authz, CORS/CSRF/rate/secrets). Net call: the worker was healthier than the audit budget assumed. **One HIGH defense-in-depth gap fixed:**
+
+5 UPDATE statements in `src/worker.js` relied on a SELECT-then-compare pre-check for ownership instead of the WHERE clause itself. Hardened all five to scope by the resource owner:
+
+```
+PATCH  /api/clubs/:id/events/:eventId               +AND club_id    = ?
+POST   /api/clubs/:id/events/:eventId/cancel        +AND club_id    = ?
+POST   /api/me/sessions/:id/cancel                  +AND athlete_id = ?
+POST   /api/me/sessions/:id/uncancel                +AND athlete_id = ?
+PATCH  /api/me/sessions/:id                         +AND athlete_id = ?
+```
+
+No behaviour change for legitimate callers. New static contract test (`worker-authz-contract.test.ts`, 9 cases) fails CI on any future loosening of the WHERE-clause shape — same pattern as v10.11.3's cache-contract guards.
+
+Full audit: `SPRINT_11_SECURITY_REPORT.md`. Backlog (deferred to a real sprint with proper harness): `SPRINT_11_BACKLOG.md` — fuzzing, OAuth-replay, Strava-token-leak SIEM, dependency-audit CI gate, OAuth-callback per-IP rate limit, `/refresh` table-scan rate limit.
+
+### 3 · API contract regression suite (+158 tests)
+
+42 → **234 passing tests**. Static-scan + pure-helper coverage for the surface that v10.11.x proved we lacked. The cache-contract pattern from v10.11.3 is now applied across the entire `/api/*` surface plus worker-side pure modules:
+
+- `worker-authn-contract.test.ts` (21 cases) — every user-data handler invokes `resolveAthleteId()` before any `db.prepare()`
+- `worker-authz-coverage.test.ts` (23 cases) — ownership-guard placement on owned-resource handlers
+- `migration-discipline.test.ts` (60 cases, 1 intentional skip) — every migration `CREATE`/`ALTER` reflected in `schema.sql`
+- `worker-pure-helpers-contract.test.ts` (16 cases) — inline pure helpers presence + signature
+- 5 direct-import test files (39 cases) — `decodePolyline`, `buildGpx`, `scoreCandidate`, `generateLoopCandidates`, `profileForCyclingType`
+
+**Bug caught during writing:** `idx_planned_sessions_ai_plan` from migration 0011 was missing from `schema.sql` cumulative. Added (severity Low — production runs migrations, not schema). The discipline test now mechanically blocks the next drift.
+
+Layer C (live worker round-trips via miniflare/wrangler-dev) deliberately deferred. Static guards already cover the drift class for ~5× ROI in one night; a dedicated future task can stand up the round-trip layer.
+
+### 4 · Documentation rewrite (Merkle quality)
+
+**README.md: 167 → 829 lines.** Source-of-truth tables (parsed from `src/worker.js`, `apps/web/src/components/`, `schema.sql`), 6 Mermaid diagrams (1 architecture flowchart, 4 sequence diagrams for the OAuth + AI plan + calendar flows, 1 ERD covering all 17 tables), Deploy + on-call section with secrets matrix, migration apply, rollback, log-tailing, alarms→responses table.
+
+**Confluence (`src/docs.js`):**
+- Architecture page: ASCII diagram → Mermaid flowchart.
+- Data Model page: 12 tables → 17 (`event_rsvps`, `planned_sessions`, `ai_plan_sessions`, `rwgps_tokens`, `strava_tokens` were undocumented).
+- Migrations table: 2 → 12 entries.
+- New **Runbook** spec page: deploy / rollback / secrets / alarms / log-tailing / D1 recipes / incident checklist.
+
+**`documentRelease()` upgrade in `src/worker.js`:** auto-detects `Migration NNNN` and `BREAKING` patterns in CHANGELOG entries → renders Confluence warning callouts at the top of each per-release child page. Adds a Verification section to release pages.
+
+**IA proposal:** new `docs/confluence-information-architecture.md` — 3-level page tree for the founder to apply manually (or wire programmatically as a follow-up).
+
+### Verified before deploy
+
+- `cd apps/web && npm run test:unit -- --run` → **234 passing, 1 intentionally skipped** (was 42 at v10.12.0).
+- `cd apps/web && npx tsc --noEmit` → exit 0.
+- All four sprint-11 branches merged to main with no conflicts.
+
+### Not in this release
+
+- **No new features.** Every diff is correctness, hardening, tests, or docs. Sprint 12 is for features.
+- **No perf testing or pentest.** Both need real tooling + baseline; backlog'd in `SPRINT_11_BACKLOG.md`.
+- **Backlog items requiring real harness** (fuzzing, OAuth replay, dependency-audit CI gate) deferred to a focused future sprint.
+
+### Files changed
+
+```
+src/worker.js                                                                # security + bugs + docs (3 disjoint hunk sets)
+src/routes/routeGen.js                                                       # bug 1 — centroid 2 km gate
+src/docs.js                                                                  # Confluence content upgrade
+README.md                                                                    # full rewrite (167 -> 829 lines)
+schema.sql                                                                   # missing idx_planned_sessions_ai_plan added
+apps/web/src/components/SessionRoutePicker/SessionRoutePicker.tsx           # bug 2 — geocode + lat/lng forward
+apps/web/src/lib/routesApi.ts                                                # bug 2 — query param wiring
+apps/web/src/lib/geoMath.ts                                                  # NEW — haversine, decode, centroid (shared)
+apps/web/src/lib/__tests__/geoMath.test.ts                                   # NEW — 17 tests
+apps/web/src/lib/__tests__/worker-route-bug1-contract.test.ts                # NEW — 4 static contract assertions
+apps/web/src/lib/__tests__/worker-route-bug2-contract.test.ts                # NEW — 4 static contract assertions
+apps/web/src/lib/__tests__/worker-authz-contract.test.ts                     # NEW — security branch (9 cases, UPDATE WHERE)
+apps/web/src/lib/__tests__/worker-authz-coverage.test.ts                     # NEW — tests branch (23 cases, ownership-guard)
+apps/web/src/lib/__tests__/worker-authn-contract.test.ts                     # NEW — 21 cases
+apps/web/src/lib/__tests__/migration-discipline.test.ts                      # NEW — 60 cases
+apps/web/src/lib/__tests__/worker-pure-helpers-contract.test.ts              # NEW — 16 cases
+apps/web/src/lib/__tests__/lib-{polyline,gpx,routeScoring,waypointGen,orsAdapter}.test.ts  # NEW — 39 cases
+docs/confluence-information-architecture.md                                  # NEW — IA proposal
+SPRINT_11_HANDOFF.md                                                         # autonomous run handoff (kept)
+SPRINT_11_{SECURITY,BUGS,TESTS,DOCS}_REPORT.md                               # autonomous run reports
+SPRINT_11_BACKLOG.md                                                         # consolidated backlog
++ 5 version-bump files
++ CHANGELOG.md (this entry)
+```
+
+---
+
 ## [10.12.0] — 2026-05-02
 
 **Bundle release — three independent improvements that the founder asked to ship together rather than across three patch cuts: (1) repeat-aware editing for weekly-recurring sessions, (2) calendar event-block alignment + overlap rendering (GH #80), (3) RWGPS disconnect surface in Settings.**

@@ -29,8 +29,8 @@ import {
 
 // Bump this on every meaningful deploy so users (and you) can track which
 // version is live by looking at the footer of any page.
-const WORKER_VERSION = 'v10.12.0';
-const BUILD_DATE = '2026-05-02';
+const WORKER_VERSION = 'v10.13.0';
+const BUILD_DATE = '2026-05-03';
 
 // Defensive log redaction — strips api_key, access_token, refresh_token,
 // and Anthropic key prefixes from anything that would otherwise hit

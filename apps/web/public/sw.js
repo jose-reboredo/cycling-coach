@@ -12,7 +12,7 @@
 // that doesn't match. Effect on rollout: existing PWA-installed users
 // get a one-time eviction of every cached asset on next launch, then
 // rebuild the cache against the current bundle. No flash, no logout.
-const CACHE = 'cycling-coach-v10.12.0';
+const CACHE = 'cycling-coach-v10.13.0';
 const CORE = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
 
 const NEVER_CACHE = (path) =>
