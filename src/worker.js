@@ -1983,6 +1983,20 @@ async function handleRequest(request, env, ctx) {
     // Strava's saved-routes shape doesn't always carry a surface attribute;
     // we infer from sub_type when present and fall back to 'unknown'.
     // 'unknown' surface always passes the filter (graceful degradation per spec).
+    //
+    // v10.13.0 (Sprint 11 bug 2): two layered fixes after the founder
+    // reported "Path of Gods (Positano hike)" appearing for a Zurich
+    // session.
+    //   1. Type filter — Strava's SummaryRoute has `type` (1 = Ride,
+    //      2 = Run/Hike). Path-of-Gods is type 2. Filter to type === 1.
+    //   2. Anchor-relevance gate — when the client passes ?lat=&lng=
+    //      query params (the geocoded session anchor), reject routes
+    //      whose first geometry point is more than 50 km away from the
+    //      anchor. 50 km is loose enough to handle Strava saved routes
+    //      starting at "the next town over" (Strava saved routes don't
+    //      always anchor at the user's home — some are Sunday-ride
+    //      routes from a friend's house) but tight enough to throw out
+    //      "1000 km away" trash. Documented in SPRINT_11_BUGS_REPORT.md.
     if (url.pathname === '/api/routes/saved' && request.method === 'GET') {
       const authResult = await resolveAthleteId(request);
       if (authResult.error) {
@@ -1995,6 +2009,18 @@ async function handleRequest(request, env, ctx) {
       const distanceParam = url.searchParams.get('distance');
       const distanceKm = distanceParam ? parseInt(distanceParam, 10) : null;
       const difficulty = (url.searchParams.get('difficulty') || '').toLowerCase();
+
+      // v10.13.0 Sprint 11 bug 2: anchor-relevance ranking inputs.
+      const anchorLatParam = url.searchParams.get('lat');
+      const anchorLngParam = url.searchParams.get('lng');
+      const anchorLat = anchorLatParam !== null ? Number(anchorLatParam) : null;
+      const anchorLng = anchorLngParam !== null ? Number(anchorLngParam) : null;
+      const hasAnchor =
+        Number.isFinite(anchorLat) && Number.isFinite(anchorLng) &&
+        anchorLat >= -90 && anchorLat <= 90 &&
+        anchorLng >= -180 && anchorLng <= 180;
+      // Sane radius for Strava saved routes (see top-of-handler comment).
+      const STRAVA_ANCHOR_RADIUS_KM = 50;
 
       let stravaRoutes;
       try {
@@ -2041,22 +2067,83 @@ async function handleRequest(request, env, ctx) {
         return 'unknown';
       };
 
+      // v10.13.0 — decode the first lat/lng of an encoded polyline so
+      // we can rank Strava saved routes by anchor proximity. We only
+      // need the first point (~30 chars in) — no need to decode the
+      // whole geometry. Returns null on malformed input.
+      const decodeFirstLatLng = (poly) => {
+        if (typeof poly !== 'string' || poly.length === 0) return null;
+        let index = 0;
+        let lat = 0;
+        let lng = 0;
+        let result = 0;
+        let shift = 0;
+        let b;
+        do {
+          if (index >= poly.length) return null;
+          b = poly.charCodeAt(index++) - 63;
+          result |= (b & 0x1f) << shift;
+          shift += 5;
+        } while (b >= 0x20);
+        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+        result = 0;
+        shift = 0;
+        do {
+          if (index >= poly.length) return null;
+          b = poly.charCodeAt(index++) - 63;
+          result |= (b & 0x1f) << shift;
+          shift += 5;
+        } while (b >= 0x20);
+        lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+        return { lat: lat / 1e5, lng: lng / 1e5 };
+      };
+
+      // v10.13.0 — Haversine great-circle distance in km.
+      const haversineKm = (lat1, lng1, lat2, lng2) => {
+        const R = 6371;
+        const φ1 = (lat1 * Math.PI) / 180;
+        const φ2 = (lat2 * Math.PI) / 180;
+        const dφ = ((lat2 - lat1) * Math.PI) / 180;
+        const dλ = ((lng2 - lng1) * Math.PI) / 180;
+        const a =
+          Math.sin(dφ / 2) * Math.sin(dφ / 2) +
+          Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) * Math.sin(dλ / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      };
+
       const mapped = stravaRoutes.map((r) => {
         const distance_m = Number(r.distance) || 0;
         const elevation_gain_m = Number(r.elevation_gain) || 0;
         const idStr = r.id_str || (r.id != null ? String(r.id) : null);
+        const summaryPoly = r.map?.summary_polyline || null;
+        const firstPoint = summaryPoly ? decodeFirstLatLng(summaryPoly) : null;
         return {
           id: r.id,
           name: r.name || 'Untitled route',
           distance_m,
           elevation_gain_m,
           surface: inferSurface(r),
-          map_url: r.map?.summary_polyline || null,
+          map_url: summaryPoly,
           strava_url: idStr ? `https://www.strava.com/routes/${idStr}` : null,
+          // Internal fields used for filtering — stripped from the
+          // response below so the public shape doesn't change.
+          _type: typeof r.type === 'number' ? r.type : null,
+          _firstPoint: firstPoint,
         };
       });
 
+      let droppedByType = 0;
+      let droppedByAnchor = 0;
       const filtered = mapped.filter((r) => {
+        // Sprint 11 bug 2 fix #1: type filter. Strava saved routes
+        // include `type` (1 = Ride, 2 = Run/Hike). Drop non-rides.
+        // We're permissive when `type` is missing (older API entries)
+        // — better to keep an unknown-type ride than to over-filter
+        // and surprise the user with an empty list.
+        if (r._type !== null && r._type !== 1) {
+          droppedByType++;
+          return false;
+        }
         // Surface filter — 'unknown' always passes (graceful degradation)
         if (surface !== 'any' && r.surface !== 'unknown' && r.surface !== surface) return false;
         // Distance filter — ±20% band around target km
@@ -2074,8 +2161,27 @@ async function handleRequest(request, env, ctx) {
             if (difficulty === 'hilly' && elevPerKm <= 15) return false;
           }
         }
+        // Sprint 11 bug 2 fix #2: anchor-relevance gate. Only applied
+        // when the client supplies a valid anchor. Routes without a
+        // decodable first-point are kept (graceful degradation — same
+        // policy as the surface filter).
+        if (hasAnchor && r._firstPoint) {
+          const d = haversineKm(anchorLat, anchorLng, r._firstPoint.lat, r._firstPoint.lng);
+          if (d > STRAVA_ANCHOR_RADIUS_KM) {
+            droppedByAnchor++;
+            return false;
+          }
+        }
         return true;
+      }).map((r) => {
+        // Strip internal fields before returning to the client.
+        const { _type, _firstPoint, ...publicShape } = r;
+        return publicShape;
       });
+
+      if (droppedByType > 0 || droppedByAnchor > 0) {
+        safeWarn(`[routes] Strava saved-routes filtered: type=${droppedByType}, anchor>${STRAVA_ANCHOR_RADIUS_KM}km=${droppedByAnchor}`);
+      }
 
       return new Response(JSON.stringify({ routes: filtered }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -28,7 +28,23 @@ const CACHE_TTL_S = 86400; // 24h
 // v10.10.1 — bumped to v4 to invalidate "no_valid_paths" cached entries
 // from when the proximity gate was 1.5×(d/2π) (too strict). Real loops
 // in dense road networks (Zurich Röntgenstrasse case) were rejected.
-const CACHE_PREFIX = 'routes:v4:';
+// v10.13.0 — bumped to v5 to invalidate entries cached before the
+// centroid-anchor gate (Sprint 11 bug 1: founder reported Zurich loops
+// drifting > 2 km from anchor). Old cache entries may contain
+// far-from-anchor routes that the new gate would reject.
+const CACHE_PREFIX = 'routes:v5:';
+
+// v10.13.0 (Sprint 11 bug 1) — Maximum allowed distance between the
+// user's geocoded anchor and the centroid of a generated route. The
+// founder reported "if i say zurich the route cannot be more far away
+// than 1 or 2 km". 2 km is the upper edge of that tolerance — tight
+// enough to keep "Zurich" loops in Zurich, loose enough that a long
+// (e.g. 80 km) loop with one big out-and-back arm doesn't get rejected
+// just because the centroid drifts a kilometre or two. The per-point
+// proximity gate in routeScoring.js still catches loops whose extremes
+// wander far from origin (45% of target distance); this gate adds the
+// missing "centre of mass" check.
+const CENTROID_MAX_KM = 2.0;
 
 /**
  * Public handler. Wired in worker.js when the URL matches.
@@ -110,13 +126,32 @@ export async function handleRoutesGenerate({ request, env, ctx, deps }) {
     ),
   );
 
-  // 7. Score + dedupe.
+  // 7. Score + dedupe + centroid-anchor gate (v10.13.0).
+  //    The centroid gate is enforced HERE, between decoding and scoring,
+  //    so a route whose mean lat/lng drifts > CENTROID_MAX_KM from the
+  //    user's anchor is dropped before it gets a score. This is the
+  //    primary fix for sprint-11 bug 1 (Zurich routes landing > 2 km
+  //    away). The per-point proximity gate inside scoreCandidate is
+  //    complementary — it catches loops whose extremes wander, while
+  //    this catches loops whose centre of mass wanders.
   const accepted = [];
   const acceptedDecoded = [];
+  let droppedByCentroidGate = 0;
   for (const route of orsResults) {
     if (!route) continue;
     const decoded = decodePolyline(route.polyline);
     if (decoded.length < 2) continue;
+
+    // Centroid-anchor gate (Sprint 11 bug 1).
+    const centroid = routeCentroid(decoded);
+    if (centroid) {
+      const centroidKm = haversineKm(input.lat, input.lng, centroid.lat, centroid.lng);
+      if (centroidKm > CENTROID_MAX_KM) {
+        droppedByCentroidGate++;
+        continue;
+      }
+    }
+
     const scored = scoreCandidate({
       route,
       targetDistanceKm: input.distance_km,
@@ -130,6 +165,10 @@ export async function handleRoutesGenerate({ request, env, ctx, deps }) {
     accepted.push({ route, decoded, scored });
     acceptedDecoded.push(decoded);
     if (accepted.length >= TARGET_RESULTS) break;
+  }
+
+  if (droppedByCentroidGate > 0) {
+    safeWarn(`[routes-gen] dropped ${droppedByCentroidGate} routes by centroid gate (>${CENTROID_MAX_KM}km from anchor) for athlete=${athleteId}`);
   }
 
   if (accepted.length < MIN_RESULTS) {
@@ -225,4 +264,52 @@ function jsonResponse(obj, status, corsHeaders, extra = {}) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json', ...extra },
   });
+}
+
+// -----------------------------------------------------------------
+// Centroid-anchor gate helpers (v10.13.0 / Sprint 11 bug 1)
+// -----------------------------------------------------------------
+// These are duplicated rather than imported because src/lib/routeScoring.js
+// keeps haversineKm private (file-scoped). Duplicating ~10 LOC here is
+// cheaper than rewiring the export surface and keeps each module
+// self-contained. The contract test in apps/web/src/lib/__tests__/
+// asserts the centroid gate function is wired into routeGen.js so an
+// accidental deletion is caught at CI time.
+
+/**
+ * Mean lat/lng across the decoded waypoints of a route. Equivalent to
+ * the centroid of the polyline polygon's vertices (close enough for the
+ * 2 km gate at city scale; we don't need the area-weighted version).
+ *
+ * Returns null when the input is empty so callers can short-circuit.
+ *
+ * @param {Array<[number, number]>} points
+ * @returns {{ lat: number, lng: number } | null}
+ */
+export function routeCentroid(points) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  let latSum = 0;
+  let lngSum = 0;
+  for (const [lat, lng] of points) {
+    latSum += lat;
+    lngSum += lng;
+  }
+  return { lat: latSum / points.length, lng: lngSum / points.length };
+}
+
+/**
+ * Haversine great-circle distance in km. Mirror of the helper in
+ * src/lib/routeScoring.js — kept module-local here so the centroid gate
+ * has no cross-module dependency.
+ */
+export function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const dφ = ((lat2 - lat1) * Math.PI) / 180;
+  const dλ = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dφ / 2) * Math.sin(dφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) * Math.sin(dλ / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }

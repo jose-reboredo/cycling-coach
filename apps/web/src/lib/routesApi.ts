@@ -75,6 +75,12 @@ export interface FetchSavedStravaRoutesInput {
   surface?: string;
   /** 'flat' | 'rolling' | 'hilly' — m/km elevation bands. */
   difficulty?: string;
+  /** v10.13.0 — Optional anchor (geocoded session start address). When
+   *  present, the worker rejects saved routes whose start point is
+   *  > 50 km from the anchor. Sprint 11 bug 2: prevents Path-of-Gods
+   *  (Positano hike) showing up for a Zurich session. */
+  lat?: number;
+  lng?: number;
 }
 
 export async function fetchSavedStravaRoutes(input: FetchSavedStravaRoutesInput = {}): Promise<SavedStravaRoute[]> {
@@ -84,6 +90,8 @@ export async function fetchSavedStravaRoutes(input: FetchSavedStravaRoutesInput 
   if (input.distanceKm != null) params.set('distance', String(input.distanceKm));
   if (input.surface) params.set('surface', input.surface);
   if (input.difficulty) params.set('difficulty', input.difficulty);
+  if (input.lat != null && Number.isFinite(input.lat)) params.set('lat', String(input.lat));
+  if (input.lng != null && Number.isFinite(input.lng)) params.set('lng', String(input.lng));
   const qs = params.toString();
   const url = `/api/routes/saved${qs ? `?${qs}` : ''}`;
   const res = await fetch(url, {
