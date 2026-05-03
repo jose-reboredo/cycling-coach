@@ -137,7 +137,9 @@ function ChartBar({
           transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
         />
       </div>
-      <span className={styles.barValue}>{bucket.distanceKm}</span>
+      <span className={styles.barValue}>
+        {Math.round(bucket.distanceKm)}km · {Math.round(bucket.elevationM)}m
+      </span>
     </div>
   );
 }
