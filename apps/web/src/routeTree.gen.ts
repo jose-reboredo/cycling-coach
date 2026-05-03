@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WhatsNextRouteImport } from './routes/whats-next'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
@@ -30,6 +31,11 @@ const WhatsNextRoute = WhatsNextRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DesignSystemRoute = DesignSystemRouteImport.update({
+  id: '/design-system',
+  path: '/design-system',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -86,6 +92,7 @@ const ClubsNewRoute = ClubsNewRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/design-system': typeof DesignSystemRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
   '/clubs/new': typeof ClubsNewRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/design-system': typeof DesignSystemRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
   '/clubs/new': typeof ClubsNewRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/design-system': typeof DesignSystemRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
   '/clubs/new': typeof ClubsNewRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/design-system'
     | '/privacy'
     | '/whats-next'
     | '/clubs/new'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/design-system'
     | '/privacy'
     | '/whats-next'
     | '/clubs/new'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/design-system'
     | '/privacy'
     | '/whats-next'
     | '/clubs/new'
@@ -174,6 +186,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  DesignSystemRoute: typeof DesignSystemRoute
   PrivacyRoute: typeof PrivacyRoute
   WhatsNextRoute: typeof WhatsNextRoute
   ClubsNewRoute: typeof ClubsNewRoute
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/design-system': {
+      id: '/design-system'
+      path: '/design-system'
+      fullPath: '/design-system'
+      preLoaderRoute: typeof DesignSystemRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -294,6 +314,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  DesignSystemRoute: DesignSystemRoute,
   PrivacyRoute: PrivacyRoute,
   WhatsNextRoute: WhatsNextRoute,
   ClubsNewRoute: ClubsNewRoute,

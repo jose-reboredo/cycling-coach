@@ -1,0 +1,257 @@
+/* Cadence Club — design-system showcase route · v1.0 (Sprint 12)
+ * Token-only styling. */
+
+.page {
+  background: var(--surface-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+  padding: var(--space-12) 0 var(--space-32);
+}
+
+.pageHead {
+  margin-bottom: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pageH1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(40px, 6vw, 64px);
+  line-height: 1;
+  letter-spacing: -0.024em;
+  font-weight: 600;
+}
+
+.pageLede {
+  margin: 0;
+  max-width: 60ch;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-lg);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-12) 0;
+  border-top: 1px solid var(--border-default);
+}
+
+.sectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionH2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-3xl);
+  line-height: 1.06;
+  letter-spacing: -0.022em;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.subhead {
+  margin: var(--space-8) 0 var(--space-3) 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stateRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.stateRow:last-child {
+  border-bottom: 0;
+}
+
+.stateLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.stateExamples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* ============ SWATCHES ============ */
+
+.swatchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+}
+
+.swatchSwatch {
+  width: 100%;
+  height: 64px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-default);
+}
+
+.swatchToken {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+/* ============ TYPE PAIRING DEMO ============ */
+
+.typeStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.typeStack > p {
+  margin: 0;
+}
+
+.typeDisplay {
+  font-family: var(--font-display);
+  font-size: var(--font-size-display);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.028em;
+  color: var(--text-primary);
+}
+
+.typeH2 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-3xl);
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  color: var(--text-primary);
+}
+
+.typeBody {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.typeMono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+/* ============ CARD GRID ============ */
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+.cardGrid p {
+  margin: var(--space-2) 0 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ============ EMPTY STATE GRID ============ */
+
+.emptyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--space-4);
+}
+
+/* ============ SKELETON STACK ============ */
+
+.skelStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.skelInline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ============ TOAST STACK ============ */
+
+.toastStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+/* ============ MOBILE FRAME ============ */
+
+.mobileFrame {
+  width: 375px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: var(--space-3);
+  background: var(--surface-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+}
+
+.mobileFrameInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--surface-page);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+.mobileFrameInner p {
+  margin: var(--space-1) 0 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* ============ DEMO HELPERS ============ */
+
+/* Used to show hover state in a static page (force the visual; not
+ * mouse-driven). Applied in JSX explicitly. */
+.forceHover {
+  background: var(--accent-hover) !important;
+}
