@@ -1,0 +1,73 @@
+/* Cadence Club — EmptyState · v1.0 (Sprint 12) */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+.align-center {
+  align-items: center;
+  text-align: center;
+}
+
+.align-left {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.tone-default {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.tone-subtle {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+.illustration {
+  display: inline-flex;
+  width: 64px;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+  color: var(--text-secondary);
+  /* Reduce opacity slightly so the illustration reads as a visual
+   * cue, not the focal point — the headline is what users read. */
+  opacity: 0.85;
+}
+
+.illustration svg {
+  width: 100%;
+  height: 100%;
+}
+
+.headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--text-primary);
+}
+
+.body {
+  margin: 0;
+  max-width: 48ch;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.cta {
+  margin-top: var(--space-3);
+  display: inline-flex;
+  gap: var(--space-2);
+}

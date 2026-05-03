@@ -1,38 +1,50 @@
+/* Cadence Club — Card · v2.0 (Sprint 12)
+ * Single depth strategy per DESIGN.md §4: border OR shadow, never both.
+ * Token-only styling. No hex literals. */
+
 .root {
   position: relative;
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-lg);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
 }
 
 .base {
-  background: var(--c-surface);
+  background: var(--surface-card);
 }
 
 .elev {
-  background: var(--c-surface-elev);
+  background: var(--surface-elevated);
 }
 
 .pressed {
-  background: var(--c-surface-pressed);
+  background: var(--surface-pressed);
 }
 
+/* Accent — single depth: shadow only, NO border (border becomes
+ * transparent so the layout doesn't shift, but the visual depth
+ * is the glow shadow alone). v1 had border + shadow which is the
+ * documented "belt-and-suspenders" AI tell. */
 .accent {
-  background: var(--c-surface);
-  border-color: rgba(255, 77, 0, 0.22);
-  box-shadow: var(--sh-glow);
+  background: var(--surface-card);
+  border-color: transparent;
+  box-shadow: var(--accent-ring-glow);
 }
 
 .pad-sm {
-  padding: var(--s-4);
+  padding: var(--space-4);
 }
 
 .pad-md {
-  padding: var(--s-5);
+  padding: var(--space-5);
 }
 
 .pad-lg {
-  padding: var(--s-7);
+  padding: var(--space-7);
 }
 
 .rule::before {
@@ -42,15 +54,35 @@
   left: 0;
   width: 3px;
   height: 100%;
-  background: var(--c-accent);
+  background: var(--accent-default);
   pointer-events: none;
+}
+
+/* ============ INTERACTIVE STATE (Sprint 12 — new) ============ */
+
+.interactive {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.interactive:hover {
+  background: var(--surface-elevated);
+}
+
+.interactive:active {
+  transform: translateY(1px);
+}
+
+.interactive:focus-visible {
+  outline: 2px solid var(--accent-default);
+  outline-offset: 2px;
 }
 
 @media (min-width: 1024px) {
   .pad-md {
-    padding: var(--s-6);
+    padding: var(--space-6);
   }
   .pad-lg {
-    padding: var(--s-8);
+    padding: var(--space-8);
   }
 }
