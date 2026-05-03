@@ -22,6 +22,7 @@ import { Route as DashboardScheduleNewRouteImport } from './routes/dashboard.sch
 import { Route as DashboardScheduleRouteImport } from './routes/dashboard.schedule'
 import { Route as DashboardRidesRouteImport } from './routes/dashboard.rides'
 import { Route as ClubsNewRouteImport } from './routes/clubs.new'
+import { Route as AccountRecoverRouteImport } from './routes/account.recover'
 
 const WhatsNextRoute = WhatsNextRouteImport.update({
   id: '/whats-next',
@@ -88,6 +89,11 @@ const ClubsNewRoute = ClubsNewRouteImport.update({
   path: '/clubs/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountRecoverRoute = AccountRecoverRouteImport.update({
+  id: '/account/recover',
+  path: '/account/recover',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/design-system': typeof DesignSystemRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/account/recover': typeof AccountRecoverRoute
   '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
   '/dashboard/schedule': typeof DashboardScheduleRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/account/recover': typeof AccountRecoverRoute
   '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
   '/dashboard/schedule': typeof DashboardScheduleRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/design-system': typeof DesignSystemRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
+  '/account/recover': typeof AccountRecoverRoute
   '/clubs/new': typeof ClubsNewRoute
   '/dashboard/rides': typeof DashboardRidesRoute
   '/dashboard/schedule': typeof DashboardScheduleRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/privacy'
     | '/whats-next'
+    | '/account/recover'
     | '/clubs/new'
     | '/dashboard/rides'
     | '/dashboard/schedule'
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/privacy'
     | '/whats-next'
+    | '/account/recover'
     | '/clubs/new'
     | '/dashboard/rides'
     | '/dashboard/schedule'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/privacy'
     | '/whats-next'
+    | '/account/recover'
     | '/clubs/new'
     | '/dashboard/rides'
     | '/dashboard/schedule'
@@ -189,6 +201,7 @@ export interface RootRouteChildren {
   DesignSystemRoute: typeof DesignSystemRoute
   PrivacyRoute: typeof PrivacyRoute
   WhatsNextRoute: typeof WhatsNextRoute
+  AccountRecoverRoute: typeof AccountRecoverRoute
   ClubsNewRoute: typeof ClubsNewRoute
   JoinCodeRoute: typeof JoinCodeRoute
 }
@@ -286,6 +299,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClubsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account/recover': {
+      id: '/account/recover'
+      path: '/account/recover'
+      fullPath: '/account/recover'
+      preLoaderRoute: typeof AccountRecoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -317,6 +337,7 @@ const rootRouteChildren: RootRouteChildren = {
   DesignSystemRoute: DesignSystemRoute,
   PrivacyRoute: PrivacyRoute,
   WhatsNextRoute: WhatsNextRoute,
+  AccountRecoverRoute: AccountRecoverRoute,
   ClubsNewRoute: ClubsNewRoute,
   JoinCodeRoute: JoinCodeRoute,
 }
