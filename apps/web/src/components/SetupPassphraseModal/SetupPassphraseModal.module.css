@@ -1,0 +1,121 @@
+/* apps/web/src/components/SetupPassphraseModal/SetupPassphraseModal.module.css
+ * Cadence Club — Setup passphrase modal · v1 (Sprint 13)
+ * Token-only styling. No hex literals. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--surface-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: var(--space-4);
+}
+
+.modal {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  padding: var(--space-8);
+  max-width: 520px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  line-height: 1.1;
+  letter-spacing: -0.018em;
+  font-weight: 600;
+}
+
+.lede {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.required {
+  color: var(--accent-default);
+  margin-left: 4px;
+}
+
+.input {
+  appearance: none;
+  height: var(--hit-min);
+  padding: 0 var(--space-3);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent-default);
+  outline-offset: 2px;
+}
+
+.recoveryCode {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xl);
+  letter-spacing: 0.08em;
+  color: var(--accent-default);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  text-align: center;
+  user-select: all;
+}
+
+.checkboxLabel {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+}
+
+.error {
+  margin: 0;
+  color: var(--state-danger);
+  font-size: var(--font-size-sm);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .modal {
+    padding: var(--space-6);
+  }
+  .actions {
+    flex-direction: column-reverse;
+  }
+}
