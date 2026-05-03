@@ -124,6 +124,9 @@ describe('Worker Cache-Control contract', () => {
       // Sprint 13 / v11.1.0 — credentials substrate.
       // User-specific; ciphertext per athlete; no-store applies via entry filter.
       '/api/me/credentials',
+      // Sprint 13 / v11.2.0 — My Account profile.
+      // User-specific; profile fields per athlete; no-store applies via entry filter.
+      '/api/me/profile',
     ]);
 
     it('every /api/ GET path is known and accounted for', () => {
