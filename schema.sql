@@ -334,3 +334,22 @@ CREATE TABLE strava_tokens (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
+
+-- v11.1.0 / Migration 0014 — Per-(athlete, provider) encrypted API key substrate.
+-- Stores passphrase-derived AES-GCM ciphertext; Worker has no decrypt path.
+-- Composite PK makes multi-provider future (OpenAI, local Llama, etc.) a row
+-- insert, not a migration. managed=1 is reserved for Pro-tier server-side keys.
+-- See docs/post-demo-sprint/sprint-13/adr-credentials-substrate.md.
+CREATE TABLE user_credentials (
+  athlete_id        INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  provider          TEXT    NOT NULL,
+  managed           INTEGER NOT NULL DEFAULT 0,
+  ciphertext        BLOB,
+  iv                BLOB,
+  kdf_salt          BLOB,
+  kdf_iterations    INTEGER NOT NULL DEFAULT 600000,
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL,
+  PRIMARY KEY (athlete_id, provider)
+);
+CREATE INDEX idx_user_credentials_athlete ON user_credentials(athlete_id);
