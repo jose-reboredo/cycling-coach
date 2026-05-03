@@ -1,0 +1,50 @@
+/* apps/web/src/components/PassphraseUnlockCard/PassphraseUnlockCard.module.css
+ * Cadence Club — PassphraseUnlockCard · v1 (Sprint 13)
+ * Token-only styling. */
+
+.lede {
+  margin: var(--space-2) 0 var(--space-3) 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.input {
+  appearance: none;
+  width: 100%;
+  height: var(--hit-min);
+  padding: 0 var(--space-3);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent-default);
+  outline-offset: 2px;
+}
+
+.error {
+  margin: var(--space-2) 0 0 0;
+  color: var(--state-danger);
+  font-size: var(--font-size-sm);
+}
+
+.actions {
+  margin-top: var(--space-4);
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recoveryLink {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--accent-default);
+  text-decoration: underline;
+}
