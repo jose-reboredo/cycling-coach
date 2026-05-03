@@ -177,46 +177,63 @@ export const SPEC_PAGES = [
 </table>
 
 <h2>3. Architecture diagram</h2>
-<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[
-                       ┌─────────────────────┐
-                       │     Browser (UI)    │
-                       │   React 19 SPA      │
-                       │  cc_tokens in LS    │
-                       └──────────┬──────────┘
-                                  │ HTTPS (single origin)
-                                  ↓
-              ┌───────────────────────────────────────┐
-              │  Cloudflare Worker                    │
-              │  (Workers Static Assets — same origin │
-              │   serves SPA + API)                   │
-              │                                       │
-              │  /authorize  /callback    /refresh    │
-              │  /api/*      /coach       /coach-ride │
-              │  /api/clubs  /webhook     /version    │
-              │  /roadmap    /admin/*                 │
-              └─────┬───────────┬─────────┬───────────┘
-                    │           │         │
-                    ↓           ↓         ↓
-               ┌────────┐  ┌────────┐  ┌──────────┐
-               │ Strava │  │ Claude │  │ GitHub   │
-               │  API   │  │  API   │  │  Issues  │
-               └────────┘  └────────┘  └──────────┘
-                    ↓                       ↑
-               ┌────────┐                   │
-               │   D1   │ ← Strangler-Fig (complete:
-               │(SQLite)│   tokens + activities + clubs)
-               └────────┘                   │
-                                            │
-               ┌──────────────────────┐     │
-               │   KV (DOCS_KV +      │     │
-               │   OAUTH_STATE)       │     │
-               └──────────────────────┘     │
-                                            │
-               ┌──────────────────────┐     │
-               │ Confluence Auto-Doc  │ ←───┘  (every deploy)
-               │  (this Confluence)   │
-               └──────────────────────┘
+<p>The system is a single Cloudflare Worker acting as both the SPA host (Workers Static Assets) and the API. Same origin everywhere — no CORS surface to defend on <code>/api/*</code> reads. Mermaid source below; if your Confluence space has the Mermaid Diagrams marketplace app installed it will render inline, otherwise it falls back to readable code.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">mermaid</ac:parameter><ac:plain-text-body><![CDATA[flowchart LR
+    subgraph Browser
+        SPA["React 19 SPA<br/>TanStack Router + Query<br/>cc_tokens in localStorage"]
+    end
+
+    subgraph Edge["Cloudflare edge"]
+        Worker["Cloudflare Worker<br/>src/worker.js"]
+        Assets["Workers Static Assets<br/>apps/web/dist"]
+        D1[("D1 (SQLite)<br/>cycling_coach_db")]
+        KV1[("KV: DOCS_KV<br/>page-id + content hash")]
+        KV2[("KV: OAUTH_STATE<br/>UUID nonces, 10-min TTL")]
+    end
+
+    subgraph External["External APIs"]
+        Strava["Strava REST v3 + webhook"]
+        Anthropic["Anthropic Claude<br/>(BYOK + system fallback)"]
+        ORS["OpenRouteService"]
+        Nominatim["Nominatim (OSM)"]
+        RWGPS["Ride with GPS"]
+        GitHub["GitHub Issues"]
+        Confluence["Confluence v2"]
+    end
+
+    SPA -->|HTTPS, single origin| Worker
+    SPA -->|geocode direct| Nominatim
+    Worker --> Assets
+    Worker <--> D1
+    Worker <--> KV1
+    Worker <--> KV2
+    Worker <-->|OAuth + activity reads| Strava
+    Worker <-->|/coach, /coach-ride, server regen| Anthropic
+    Worker -->|/api/routes/generate| ORS
+    Worker <-->|/api/routes/rwgps-saved| RWGPS
+    Worker -->|/roadmap| GitHub
+    Worker -->|/admin/document-release| Confluence
+    Strava -->|/webhook/$SECRET| Worker
 ]]></ac:plain-text-body></ac:structured-macro>
+
+<h3>3.1 Component responsibilities</h3>
+<table>
+  <tbody>
+    <tr><th>Box</th><th>Source</th><th>Notes</th></tr>
+    <tr><td><strong>SPA</strong></td><td><code>apps/web/src/</code></td><td>Single bundle. TanStack Router file-based routes; TanStack Query for server cache; CSS Modules + design tokens (<code>tokens.css</code>).</td></tr>
+    <tr><td><strong>Worker</strong></td><td><code>src/worker.js</code> (~4300 lines) + <code>src/routes/*.js</code> shards</td><td>Same Worker handles SPA static asset binding (<code>ASSETS</code>) AND every <code>/api/*</code>, OAuth, AI proxy, webhook, admin route. <code>run_worker_first</code> in <code>wrangler.jsonc</code> declares which paths must hit JS before falling through to assets.</td></tr>
+    <tr><td><strong>D1</strong></td><td><code>schema.sql</code> + <code>migrations/</code></td><td>SQLite at the edge. 17 tables. Multi-source ready; only Strava connected today.</td></tr>
+    <tr><td><strong>DOCS_KV</strong></td><td><code>wrangler.jsonc</code></td><td>Confluence page-id cache + content hash for skip-PUT-if-unchanged + admin rate-limit counters.</td></tr>
+    <tr><td><strong>OAUTH_STATE</strong></td><td><code>wrangler.jsonc</code></td><td>UUID nonces for the OAuth state parameter (10-min TTL, single-use).</td></tr>
+    <tr><td><strong>Strava</strong></td><td>REST v3</td><td>OAuth + activities + saved routes + webhook push (activity create / update / delete).</td></tr>
+    <tr><td><strong>Anthropic</strong></td><td>Claude REST</td><td>BYOK by default; system Anthropic key (<code>SYSTEM_ANTHROPIC_KEY</code>) optional for webhook plan regen + per-club description drafts.</td></tr>
+    <tr><td><strong>OpenRouteService</strong></td><td>REST</td><td>Waypoint loop generation; consumed by <code>/api/routes/generate</code>. KV-cached.</td></tr>
+    <tr><td><strong>Nominatim</strong></td><td>REST</td><td>Forward geocoding for the address-to-route picker. Called direct-from-browser (CSP allowlists it) to save subrequest budget.</td></tr>
+    <tr><td><strong>Ride with GPS</strong></td><td>OAuth + REST</td><td>User-scoped saved routes import (<code>/api/routes/rwgps-saved</code>); tokens live in <code>rwgps_tokens</code>.</td></tr>
+    <tr><td><strong>GitHub Issues</strong></td><td>REST v3</td><td>Mirrored at <code>/roadmap</code> (5-min edge cache); also surfaces shipped releases on the Confluence Roadmap page.</td></tr>
+    <tr><td><strong>Confluence</strong></td><td>v2 REST</td><td>Doc-sync target (this very space). Spec pages PUT only when content hash changed.</td></tr>
+  </tbody>
+</table>
 
 <h2>4. Data flows</h2>
 
@@ -1196,22 +1213,42 @@ npm run deploy
 <ac:structured-macro ac:name="info"><ac:rich-text-body><p>Source of truth = <code>schema.sql</code> + <code>migrations/</code>. Updated on every D1 schema change per the v9.2.0 cumulative-schema policy. See <code>db/README.md</code>. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code>.</p></ac:rich-text-body></ac:structured-macro>
 
 <h2>1. Overview</h2>
-<p>Cadence Club uses 12 D1 (SQLite) tables. The schema is multi-source-ready — Strava is the only connected source today; Garmin and Apple Health connection points are reserved via <code>user_connections.source</code> and the <code>garmin_id</code> / <code>apple_health_uuid</code> deduplication columns on <code>activities</code>. The Strangler-Fig migration from <code>localStorage</code> to D1 is complete for tokens, activities, and clubs. The club layer (tables <code>clubs</code>, <code>club_members</code>, <code>club_goals</code>, <code>club_events</code>) was added in v8.6.0+ and fully shipped in v9.1.3.</p>
+<p>Cadence Club uses 17 D1 (SQLite) tables (as of v10.12.0). The schema is multi-source-ready — Strava is the only fully-connected source today; Garmin and Apple Health connection points are reserved via <code>user_connections.source</code> and the <code>garmin_id</code> / <code>apple_health_uuid</code> deduplication columns on <code>activities</code>. The personal scheduler (<code>planned_sessions</code>) and AI plan persistence (<code>ai_plan_sessions</code>) were added in v9.12.0 and v10.8.0 respectively. <code>strava_tokens</code> (v10.9.0) and <code>rwgps_tokens</code> (v10.6.0) provide server-side OAuth credentials so webhook handlers can call third parties without a Bearer token in the request.</p>
 
-<h2>2. ER summary</h2>
+<h2>2. ER diagram (Mermaid)</h2>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">mermaid</ac:parameter><ac:plain-text-body><![CDATA[erDiagram
+    users ||--o{ user_connections : has
+    users ||--o{ activities : owns
+    users ||--o{ daily_load : "rolled up daily"
+    users ||--o{ ai_reports : generates
+    users ||--|| training_prefs : "has one"
+    users ||--o{ goals : sets
+    users ||--o{ planned_sessions : schedules
+    users ||--o{ ai_plan_sessions : receives
+    users ||--o| rwgps_tokens : "may connect"
+    users ||--o| strava_tokens : "server-side"
+    users ||--o{ clubs : "owns (owner)"
+    users ||--o{ club_members : joins
+    users ||--o{ club_events : creates
+    users ||--o{ event_rsvps : responds
+    activities ||--o| ride_feedback : "verdict"
+    clubs ||--o{ club_members : has
+    clubs ||--o{ club_goals : has
+    clubs ||--o{ club_events : schedules
+    club_events ||--o{ event_rsvps : "collects"
+    ai_reports ||--o{ planned_sessions : spawns
+    ai_plan_sessions ||--o{ planned_sessions : "materialises into"]]></ac:plain-text-body></ac:structured-macro>
+
+<h3>2.1 Foreign-key cascade summary</h3>
 <ul>
-  <li><code>users</code> 1—* <code>user_connections</code> (one row per source per athlete; <code>UNIQUE(athlete_id, source)</code>; ON DELETE CASCADE)</li>
-  <li><code>users</code> 1—* <code>activities</code> (<code>athlete_id</code> FK; ON DELETE CASCADE)</li>
-  <li><code>users</code> 1—* <code>daily_load</code> (<code>athlete_id</code> FK; ON DELETE CASCADE)</li>
-  <li><code>users</code> 1—* <code>ai_reports</code> (<code>athlete_id</code> FK; ON DELETE CASCADE)</li>
-  <li><code>users</code> 1—1 <code>training_prefs</code> (<code>athlete_id</code> PK FK; ON DELETE CASCADE)</li>
-  <li><code>activities</code> 1—1 <code>ride_feedback</code> (<code>activity_id</code> PK FK; ON DELETE CASCADE)</li>
-  <li><code>users</code> 1—* <code>goals</code> (<code>athlete_id</code> FK; ON DELETE CASCADE)</li>
-  <li><code>users</code> 1—* <code>clubs</code> (<code>owner_athlete_id</code> FK; <strong>no cascade</strong> — orphan-handling deferred per audit issue #37 follow-up)</li>
-  <li><code>clubs</code> 1—* <code>club_members</code> M—1 <code>users</code> (ON DELETE CASCADE on both FKs)</li>
-  <li><code>clubs</code> 1—* <code>club_goals</code> (ON DELETE CASCADE)</li>
-  <li><code>clubs</code> 1—* <code>club_events</code> (ON DELETE CASCADE)</li>
-  <li><code>users</code> 1—* <code>club_events</code> (<code>created_by</code> FK; ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>user_connections</code> (UNIQUE(athlete_id, source); ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>activities</code>, <code>daily_load</code>, <code>ai_reports</code>, <code>goals</code>, <code>planned_sessions</code>, <code>ai_plan_sessions</code> (all ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—1 <code>training_prefs</code>, <code>rwgps_tokens</code>, <code>strava_tokens</code> (PK = athlete_id; ON DELETE CASCADE)</li>
+  <li><code>activities</code> 1—1 <code>ride_feedback</code> (PK = activity_id; ON DELETE CASCADE)</li>
+  <li><code>users</code> 1—* <code>clubs</code> via <code>owner_athlete_id</code> (<strong>no cascade</strong> — orphan-handling deferred per audit issue #37 follow-up)</li>
+  <li><code>clubs</code> 1—* <code>club_members</code>, <code>club_goals</code>, <code>club_events</code> (ON DELETE CASCADE)</li>
+  <li><code>club_events</code> 1—* <code>event_rsvps</code> (ON DELETE CASCADE)</li>
+  <li><code>ai_plan_sessions</code> 0—* <code>planned_sessions</code> (FK <code>ai_plan_session_id</code>; <strong>ON DELETE SET NULL</strong> — preserves the scheduled row if the source plan row is regenerated)</li>
 </ul>
 
 <h2>3. Tables</h2>
@@ -1604,18 +1641,122 @@ CREATE INDEX idx_club_events_creator ON club_events(created_by, event_date);]]><
   </tbody>
 </table>
 <p><strong>Indexes:</strong> <code>idx_club_events_club_date</code> (club_id, event_date) — primary read path for <code>GET /api/clubs/:id/events</code> ordered by event_date ASC · <code>idx_club_events_creator</code> (created_by, event_date) — future "events I created" view.</p>
-<p><strong>Read paths:</strong> <code>GET /api/clubs/:id/events</code> (upcoming events, ordered by event_date ASC).</p>
-<p><strong>Write paths:</strong> <code>POST /api/clubs/:id/events</code> (any member may INSERT).</p>
+<p><strong>Note:</strong> <code>club_events</code> has been extended over time. Migration 0006 added <code>event_type</code> (NOT NULL DEFAULT 'ride'); Migration 0007 added <code>distance_km</code>, <code>expected_avg_speed_kmh</code>, <code>surface</code> (CHECK in road/gravel/mixed), <code>start_point</code>, <code>route_strava_id</code>, <code>description_ai_generated</code>, <code>cancelled_at</code> (soft-delete); Migration 0009 added <code>duration_minutes</code> (CHECK 0–600).</p>
+<p><strong>Read paths:</strong> <code>GET /api/clubs/:id/events</code>, <code>GET /api/me/schedule</code>.</p>
+<p><strong>Write paths:</strong> <code>POST /api/clubs/:id/events</code> (any member may INSERT); <code>PATCH /api/clubs/:id/events/:eventId</code> (creator or admin); <code>POST /api/clubs/:id/events/:eventId/cancel</code> (soft-cancel).</p>
+
+<h3>3.13 <code>event_rsvps</code> — per-member RSVP state</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE event_rsvps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES club_events(id) ON DELETE CASCADE,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'going',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (event_id, athlete_id)
+);
+
+CREATE INDEX idx_rsvps_event ON event_rsvps(event_id, status);
+CREATE INDEX idx_rsvps_athlete ON event_rsvps(athlete_id, event_id);]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Shipped:</strong> v9.6.2 (migration 0005). UNIQUE on <code>(event_id, athlete_id)</code> makes <code>UPSERT</code> idempotent — Phase 4 confirmed_count is <code>SELECT COUNT(*) WHERE status='going'</code>. Used by <code>POST /api/clubs/:id/events/:eventId/rsvp</code> + the schedule aggregator's "events I'm going to" filter.</p>
+
+<h3>3.14 <code>planned_sessions</code> — personal scheduler row</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE planned_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  session_date INTEGER NOT NULL,                  -- unix epoch seconds
+  title TEXT NOT NULL,
+  description TEXT,
+  zone INTEGER CHECK (zone IS NULL OR zone BETWEEN 1 AND 7),
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 0 AND 600),
+  target_watts INTEGER CHECK (target_watts IS NULL OR target_watts BETWEEN 0 AND 2000),
+  source TEXT NOT NULL DEFAULT 'manual'
+    CHECK (source IN ('manual', 'ai-coach', 'imported')),
+  ai_report_id INTEGER REFERENCES ai_reports(id) ON DELETE SET NULL,
+  completed_at INTEGER,
+  cancelled_at INTEGER,
+  ai_plan_session_id INTEGER REFERENCES ai_plan_sessions(id) ON DELETE SET NULL,
+  elevation_gained INTEGER,
+  surface TEXT,
+  user_edited_at INTEGER,
+  recurring_group_id TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_planned_sessions_athlete_date ON planned_sessions(athlete_id, session_date);
+CREATE INDEX idx_planned_sessions_ai_report   ON planned_sessions(ai_report_id) WHERE ai_report_id IS NOT NULL;
+CREATE INDEX idx_planned_sessions_recurring_group ON planned_sessions(recurring_group_id) WHERE recurring_group_id IS NOT NULL;]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Shipped:</strong> v9.12.0 (migration 0008). Subsequent extensions: Migration 0011 (v10.8.0) added <code>ai_plan_session_id</code>, <code>elevation_gained</code>, <code>surface</code>, <code>user_edited_at</code>; Migration 0013 (v10.12.0) added <code>recurring_group_id</code>.</p>
+<p><strong>Source semantics:</strong> <code>'manual'</code> = user-created via plan-a-session page. <code>'ai-coach'</code> = scheduled from an AI plan (<code>ai_plan_session_id</code> set). <code>'imported'</code> = bridged from external. <code>user_edited_at</code> being non-NULL locks the row against AI auto-regen on Strava webhook.</p>
+<p><strong>Read paths:</strong> <code>GET /api/me/sessions</code>, <code>GET /api/me/schedule</code>. <strong>Write paths:</strong> <code>POST /api/me/sessions</code> (create); <code>PATCH /api/me/sessions/:id</code> (allowlisted update); <code>POST /api/me/sessions/:id/cancel</code> + <code>/uncancel</code> (idempotent toggles); <code>POST /api/plan/schedule</code> (materialise AI plan rows).</p>
+
+<h3>3.15 <code>ai_plan_sessions</code> — AI-generated weekly plan candidates</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE ai_plan_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
+  week_start_date TEXT NOT NULL,
+  suggested_date TEXT NOT NULL,
+  title TEXT NOT NULL,
+  target_zone TEXT,
+  duration INTEGER,
+  elevation_gained INTEGER,
+  surface TEXT,
+  reasoning TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(athlete_id, suggested_date, title)
+);
+
+CREATE INDEX idx_ai_plan_sessions_athlete_week ON ai_plan_sessions(athlete_id, week_start_date);]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Shipped:</strong> v10.8.0 (migration 0011). Holds the goal-driven plan output from <code>POST /api/plan/generate</code>; <code>POST /api/plan/schedule</code> turns selected rows into <code>planned_sessions</code> entries linked via <code>ai_plan_session_id</code>. UNIQUE on <code>(athlete_id, suggested_date, title)</code> dedupes regenerations.</p>
+
+<h3>3.16 <code>rwgps_tokens</code> — Ride with GPS OAuth credentials</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE rwgps_tokens (
+  athlete_id INTEGER PRIMARY KEY REFERENCES users(athlete_id) ON DELETE CASCADE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  auth_token TEXT NOT NULL,
+  rwgps_user_id INTEGER,
+  expires_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_rwgps_tokens_user ON rwgps_tokens(rwgps_user_id) WHERE rwgps_user_id IS NOT NULL;]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Shipped:</strong> v10.6.0 (migration 0010). One row per connected athlete; PK on <code>athlete_id</code> means <code>UPSERT</code> on the same key replaces the credentials. Used by <code>/authorize-rwgps</code> + <code>/callback-rwgps</code> + <code>/api/routes/rwgps-saved</code>.</p>
+
+<h3>3.17 <code>strava_tokens</code> — server-side Strava OAuth credentials</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[CREATE TABLE strava_tokens (
+  athlete_id INTEGER PRIMARY KEY REFERENCES users(athlete_id) ON DELETE CASCADE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  scope TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Shipped:</strong> v10.9.0 (migration 0012). Mirrors the <code>rwgps_tokens</code> shape so webhook handlers can call Strava + Anthropic on behalf of the athlete <em>without</em> a Bearer token in the request. Server-side regen path (<code>regenerateForAthlete()</code> in <code>src/routes/aiPlan.js</code>) requires this row to exist; users still on browser-only OAuth get <code>reason: 'no_server_token'</code> on webhook events and the regen is a no-op (by design — no AI cost incurred).</p>
 
 <h2>4. Migrations</h2>
 <table>
   <tbody>
     <tr><th>File</th><th>What it added</th><th>Shipped in</th></tr>
-    <tr><td><code>migrations/0001_pmc_and_events.sql</code></td><td>FTP / weight / HR max on <code>users</code>; TSS / NP / IF / duration_s / average_watts / primary_zone on <code>activities</code>; <code>idx_activities_athlete_tss</code> index; <code>daily_load</code> table + <code>idx_daily_load_athlete_date</code>; goal-event extension columns on <code>goals</code> (event_name, event_type, event_distance_km, event_elevation_m, event_location, event_priority)</td><td>v9.0.x</td></tr>
-    <tr><td><code>migrations/0002_club_events.sql</code></td><td><code>club_events</code> table; <code>idx_club_events_club_date</code> index; <code>idx_club_events_creator</code> index</td><td>v9.1.3</td></tr>
+    <tr><td><code>0001_pmc_and_events.sql</code></td><td>FTP / weight / HR max on <code>users</code>; TSS / NP / IF / duration_s / average_watts / primary_zone on <code>activities</code>; <code>daily_load</code> table; goal-event columns on <code>goals</code>.</td><td>v9.0.x</td></tr>
+    <tr><td><code>0002_club_events.sql</code></td><td><code>club_events</code> table + indexes.</td><td>v9.1.3</td></tr>
+    <tr><td><code>0004_training_prefs_route_filters.sql</code></td><td><code>training_prefs.home_region</code>, <code>preferred_distance_km</code>, <code>preferred_difficulty</code>.</td><td>v9.3.0</td></tr>
+    <tr><td><code>0005_clubs_phase2_rsvps_visibility_trend.sql</code></td><td><code>event_rsvps</code> table + indexes; <code>users.ftp_visibility</code> (privacy opt-in); <code>club_members.trend_arrow</code> + <code>trend_updated_at</code>.</td><td>v9.6.2</td></tr>
+    <tr><td><code>0006_schedule_tab_event_type.sql</code></td><td><code>club_events.event_type</code> NOT NULL DEFAULT <code>'ride'</code>.</td><td>v9.7.0</td></tr>
+    <tr><td><code>0007_event_model_expansion.sql</code></td><td><code>club_events</code>: <code>distance_km</code>, <code>expected_avg_speed_kmh</code>, <code>surface</code>, <code>start_point</code>, <code>route_strava_id</code>, <code>description_ai_generated</code>, <code>cancelled_at</code>.</td><td>v9.7.3</td></tr>
+    <tr><td><code>0008_planned_sessions.sql</code></td><td><code>planned_sessions</code> table + indexes — personal scheduler.</td><td>v9.12.0</td></tr>
+    <tr><td><code>0009_club_events_duration.sql</code></td><td><code>club_events.duration_minutes</code> CHECK 0–600.</td><td>v9.12.2</td></tr>
+    <tr><td><code>0010_rwgps_tokens.sql</code></td><td><code>rwgps_tokens</code> table.</td><td>v10.6.0</td></tr>
+    <tr><td><code>0011_ai_plan_sessions.sql</code></td><td><code>ai_plan_sessions</code> table + extensions on <code>planned_sessions</code> (<code>ai_plan_session_id</code>, <code>elevation_gained</code>, <code>surface</code>, <code>user_edited_at</code>).</td><td>v10.8.0</td></tr>
+    <tr><td><code>0012_strava_tokens.sql</code></td><td><code>strava_tokens</code> table — server-side OAuth mirror.</td><td>v10.9.0</td></tr>
+    <tr><td><code>0013_planned_sessions_recurring_group.sql</code></td><td><code>planned_sessions.recurring_group_id</code> + partial index — repeat-aware editing.</td><td>v10.12.0</td></tr>
   </tbody>
 </table>
-<p>Apply order is sequential. For a fresh bootstrap, run <code>schema.sql</code> directly — it is the cumulative state and subsumes both migration files. Migration files are the authoritative change-history record.</p>
+<p>Apply order is strictly numeric. For a fresh bootstrap, run <code>schema.sql</code> directly — it is the cumulative state. Migration files are the authoritative change-history record. (Note: there is no <code>0003</code> file; the number was burned during a planning shuffle and is intentionally skipped.)</p>
 
 <h2>5. Operational notes</h2>
 <ac:structured-macro ac:name="code"><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[# Export (backup) the remote D1 database
@@ -1632,6 +1773,137 @@ npx wrangler d1 execute cycling_coach_db --remote --file schema.sql
 <p><strong>Cumulative-schema policy (v9.2.0):</strong> every migration MUST also update <code>schema.sql</code> in the same commit. PRs that leave the two out of sync are rejected. Reviewers verify by diffing <code>schema.sql</code> against the union of all migration files. See <code>CONTRIBUTING.md</code> for the full rule.</p>
 <p><strong>Naming:</strong> migration files use a zero-padded 4-digit prefix (<code>0001</code>, <code>0002</code>, …) followed by a snake_case description. Run in ascending numeric order only.</p>
 <p><strong>No down-migrations:</strong> all migrations are append-only (ADD COLUMN, CREATE TABLE). Column drops or renames require a new migration.</p>`,
+  },
+  {
+    slug: 'runbook',
+    title: '8. Runbook — Deploy, Rollback, On-call',
+    storage: `<h1>Runbook</h1>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Operational reference for shipping releases and responding to incidents. <strong>Auto-managed</strong> — content lives in <code>src/docs.js</code> and is regenerated on every prod deploy.</p></ac:rich-text-body></ac:structured-macro>
+
+<h2>1. Deploy procedure</h2>
+<p>Deploys are <strong>manual from a developer's shell</strong>. Cloudflare Workers Builds auto-deploy is intentionally not wired (closed issue #9 as superseded in v8.5.1). The chain bundles SPA build, Worker push, and Confluence doc-sync.</p>
+
+<h3>1.1 Pre-flight</h3>
+<ol>
+  <li>Bump <code>WORKER_VERSION</code> + <code>BUILD_DATE</code> in <code>src/worker.js</code>.</li>
+  <li>Top of <code>CHANGELOG.md</code> — write the release entry with breaking-change flags + migration callouts.</li>
+  <li>Sync <code>package.json</code> + <code>apps/web/package.json</code> + <code>apps/web/src/lib/version.ts</code> to the same version.</li>
+  <li>Run <code>npm run typecheck</code> + <code>npm run lint</code> + <code>npm run test:unit -- --run</code> in <code>apps/web/</code>.</li>
+  <li>Reconcile the README's Routes / Components / Schema sections with shipped state (release-time README sweep — CONTRIBUTING.md rule).</li>
+</ol>
+
+<h3>1.2 Deploy</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[# Source the deploy env (gitignored). Required key: ADMIN_SECRET.
+source .deploy.env
+
+# Apply any pending D1 migration first — schema must be on the new state
+# before the new Worker code goes live.
+npx wrangler d1 execute cycling_coach_db --file migrations/00NN_descriptive_name.sql
+
+# Then ship the Worker + SPA + Confluence sync.
+npm run deploy
+#   ↓ chains:
+#   npm run build:web && wrangler deploy && npm run docs:sync]]></ac:plain-text-body></ac:structured-macro>
+
+<h3>1.3 Post-deploy verification</h3>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[# 1. Version stamp lands.
+curl -fsS https://cycling-coach.josem-reboredo.workers.dev/version | jq .
+#    → service: "Cadence Club", version: "vX.Y.Z", build_date: "YYYY-MM-DD"
+
+# 2. Roadmap mirror responsive (GitHub auth + edge cache).
+curl -fsS https://cycling-coach.josem-reboredo.workers.dev/roadmap | jq '.count'
+
+# 3. Admin endpoints reject unauthenticated callers.
+curl -i -X POST https://cycling-coach.josem-reboredo.workers.dev/admin/document-release  # → 401
+
+# 4. Webhook surface is dormant or active per design (404 if PATH_SECRET unset).
+curl -i https://cycling-coach.josem-reboredo.workers.dev/webhook  # → 404 (OWASP — by design)]]></ac:plain-text-body></ac:structured-macro>
+<p>If the release touched auth, scheduler aggregation, or the webhook handler, also run a legacy-parity audit on the affected SPA shells before declaring green (see <code>docs/post-mortems/</code> for the v9.3 series cautionary tales).</p>
+
+<h2>2. Rollback</h2>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[# List recent Worker deployments.
+npx wrangler deployments list
+
+# Revert the Worker to a previous deployment (rolling forward is preferred —
+# this is for clear-cut regressions only).
+npx wrangler rollback <deployment-id>]]></ac:plain-text-body></ac:structured-macro>
+<p>If the bad release shipped a migration that needs reversing, hand-craft and apply the inverse SQL in the same window. D1 has no automatic down-migration. Update <code>WORKER_VERSION</code> to the rolled-back tag and re-run <code>docs:sync</code> so Confluence reflects ground truth.</p>
+<ac:structured-macro ac:name="warning"><ac:rich-text-body><p>Before any destructive git or D1 operation, read <code>git log -20</code> to verify the chain. The Sprint 1 v9.3.0 revert that clobbered v9.3.2 is the cautionary tale this repo runs from.</p></ac:rich-text-body></ac:structured-macro>
+
+<h2>3. Required Worker secrets</h2>
+<table>
+  <tbody>
+    <tr><th>Secret</th><th>Purpose</th><th>Validation</th></tr>
+    <tr><td><code>STRAVA_CLIENT_SECRET</code></td><td>OAuth code exchange.</td><td>Required for OAuth.</td></tr>
+    <tr><td><code>STRAVA_VERIFY_TOKEN</code></td><td>Webhook subscription verification.</td><td>Required for <code>/webhook</code> GET; without it returns 503.</td></tr>
+    <tr><td><code>STRAVA_WEBHOOK_PATH_SECRET</code></td><td>Path-based shared secret on the canonical webhook URL.</td><td>Must match <code>/^[0-9a-f]{32,}$/i</code> (e.g. <code>openssl rand -hex 16</code>); malformed → all <code>/webhook*</code> return 404.</td></tr>
+    <tr><td><code>ADMIN_SECRET</code></td><td>Bearer token for <code>/admin/*</code>.</td><td>Any non-empty string; <code>openssl rand -hex 32</code> recommended.</td></tr>
+    <tr><td><code>GITHUB_TOKEN</code></td><td>Auth for <code>/roadmap</code> + admin GitHub helpers + release page CHANGELOG fetch.</td><td>Classic PAT with <code>public_repo</code>, or fine-grained PAT with <code>Issues: Read and Write</code>.</td></tr>
+    <tr><td><code>CONFLUENCE_API_TOKEN</code> + <code>CONFLUENCE_USER_EMAIL</code></td><td>Doc-sync auth.</td><td>Required pair; without either, <code>/admin/document-release</code> returns 503.</td></tr>
+    <tr><td><code>SYSTEM_ANTHROPIC_KEY</code></td><td>Server-paid Haiku endpoints + webhook plan regen.</td><td>Optional; webhook regen is no-op without it.</td></tr>
+    <tr><td><code>OPENROUTESERVICE_API_KEY</code></td><td>Route generation backend.</td><td>Required for <code>POST /api/routes/generate</code>; without it, returns 503.</td></tr>
+    <tr><td><code>RWGPS_CLIENT_ID</code> + <code>RWGPS_CLIENT_SECRET</code></td><td>Ride with GPS OAuth.</td><td>Required for <code>/authorize-rwgps</code>; without them, RWGPS picker is hidden client-side.</td></tr>
+  </tbody>
+</table>
+
+<h2>4. Common alarms — first responses</h2>
+<table>
+  <tbody>
+    <tr><th>Symptom</th><th>Likely cause</th><th>First check</th></tr>
+    <tr><td><code>/version</code> returns the previous version after deploy</td><td>Wrangler push succeeded but <code>WORKER_VERSION</code> not bumped.</td><td><code>git log src/worker.js</code> + <code>curl /version</code>.</td></tr>
+    <tr><td><code>/admin/document-release</code> returns 503</td><td>Confluence secrets unset.</td><td><code>npx wrangler secret list</code>.</td></tr>
+    <tr><td><code>/admin/document-release</code> returns 429</td><td>Doc-sync rate-limit (5/min/IP) tripped from a CI loop.</td><td>Wait the bucket out (resets at minute boundary).</td></tr>
+    <tr><td><code>/webhook</code> returns 404 always</td><td><code>STRAVA_WEBHOOK_PATH_SECRET</code> missing or malformed.</td><td><code>wrangler tail</code> + grep for <code>[webhook] STRAVA_WEBHOOK_PATH_SECRET set but format invalid</code>.</td></tr>
+    <tr><td><code>/refresh</code> returns 401 for legit users</td><td><code>user_connections</code> row missing.</td><td>D1 query: <code>SELECT * FROM user_connections WHERE athlete_id = ?</code>.</td></tr>
+    <tr><td><code>/coach</code> returns 401 with <code>invalid_key: true</code></td><td>User's BYOK Anthropic key revoked or wrong.</td><td>UI prompts for re-entry on the flag (intentional UX).</td></tr>
+    <tr><td>Webhook plan regen silent on new ride</td><td><code>strava_tokens</code> row missing (browser-only auth).</td><td><code>[plan-regen-webhook] reason: 'no_server_token'</code> in tail logs — by design.</td></tr>
+    <tr><td><code>/api/me/schedule</code> drops events near month boundaries</td><td>Padding logic regressed.</td><td>Worker query bypass test — the range is padded ±7 days; verify in <code>worker.js</code>.</td></tr>
+    <tr><td>Calendar pills appear stale after edit</td><td>Cache-Control regression — must be <code>private, no-store</code> on every <code>/api/*</code>.</td><td><code>curl -I /api/me/schedule?range=2026-05</code> + check <code>withApiCacheDefault()</code> in worker.js entry filter.</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Log tailing recipes</h2>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[# Live tail with pretty formatting.
+npx wrangler tail --format pretty
+
+# Scope to a customer report by athlete id.
+npx wrangler tail --search "athlete_id=12345"
+
+# Scope to webhook activity.
+npx wrangler tail --search "/webhook"
+
+# Confirm no secrets leaked into persistent logs (expected: no matches).
+npx wrangler tail --search "sk-ant-"
+npx wrangler tail --search "api_key="]]></ac:plain-text-body></ac:structured-macro>
+<p>The Worker uses <code>safeLog/Warn/Error</code> wrappers around the most-risky log call sites; <code>redactSensitive()</code> redacts <code>api_key=</code>, <code>sk-ant-*</code>, <code>access_token=</code>, <code>refresh_token=</code> patterns. Status / count logs (e.g. <code>[D1] Persisted N activities</code>) are intentionally raw <code>console.log</code> because they don't interpolate untrusted data.</p>
+
+<h2>6. D1 operational recipes</h2>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[# Backup remote D1 before risky migration.
+npx wrangler d1 export cycling_coach_db --remote --output backup-\`date +%Y%m%d-%H%M\`.sql
+
+# Apply migration locally first (against wrangler dev sandbox).
+npx wrangler d1 execute cycling_coach_db --local  --file migrations/00NN.sql
+
+# Apply to remote.
+npx wrangler d1 execute cycling_coach_db --file migrations/00NN.sql
+
+# Spot-check schema.
+npx wrangler d1 execute cycling_coach_db --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+
+# Per-athlete state for support requests.
+npx wrangler d1 execute cycling_coach_db --command "SELECT athlete_id, firstname, last_seen_at FROM users WHERE athlete_id = 12345"]]></ac:plain-text-body></ac:structured-macro>
+
+<h2>7. Cron / scheduled handler</h2>
+<p>Currently no <code>scheduled</code> handler is wired. Phase 4 of issue #53 (PMC nightly recompute, club trend arrows) was the original Sprint 6 line — at v10.12.0 the equivalent semantics are achieved on-demand client-side and via webhook auto-regen. When a true cron lands, ADRs to lock: failure mode (log-and-skip, no retry — locked 2026-05-01), readiness-dot thresholds (TSB ≥ +5 / -10 to +5 / &lt; -10).</p>
+
+<h2>8. Incident response checklist</h2>
+<ol>
+  <li><strong>Identify scope.</strong> Pull <code>/version</code>, last 5 deployments via <code>wrangler deployments list</code>, check Cloudflare dashboard error rate.</li>
+  <li><strong>Contain.</strong> If a clear regression, roll back via <code>wrangler rollback &lt;id&gt;</code>. If a secret rotation issue, rotate via <code>wrangler secret put</code>.</li>
+  <li><strong>Investigate.</strong> <code>wrangler tail --search</code> for the affected request shape; D1 spot-checks for any user-state divergence.</li>
+  <li><strong>Communicate.</strong> Update the founder (single-maintainer mode); if multi-user, GitHub Security Advisory or status page when those exist.</li>
+  <li><strong>Post-mortem.</strong> Any release that triggers a hotfix or rollback gets a post-mortem in <code>docs/post-mortems/vX.Y.Z-&lt;short-name&gt;.md</code>; aim ≤ 80 lines, time-box 15 min.</li>
+</ol>`,
   },
 ];
 
