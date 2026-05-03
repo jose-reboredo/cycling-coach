@@ -120,6 +120,8 @@ Pure module; no React, no router, no fetch. Easy to unit-test.
 
 ## 5. UX — passphrase setup + recovery flows (v11.1.0)
 
+> **Vocabulary update (added 2026-05-03 post-v11.1.0 ship per founder feedback):** All user-facing copy in v11.2.0 onwards uses "password" instead of "passphrase", "lock"/"unlock" instead of "encrypt"/"decrypt", and "backup code" instead of "recovery code". The substrate naming (component files, DB columns, endpoint paths, internal variables, code comments) stays unchanged — only what users *see* is rewritten. v11.1.0 ships with the original vocabulary; v11.2.0 sweeps it. See AC-1.2.11 in `docs/post-demo-sprint/sprint-13/01-business-requirements.md` for the full before/after table.
+
 ### 5.1 First-time passphrase setup (3-step modal)
 
 **Step 1 — Set passphrase**

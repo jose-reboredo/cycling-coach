@@ -26,9 +26,10 @@ A second strategic gain: this is the **first in-app surface** to consume the v11
 | `/dashboard/you` rebuild — 5-section IA, validation, design-system kit | XD (Sonnet) + Tech Lead (Sonnet) + A11y Consultant (Sonnet) | ~4h | v11.2.0 |
 | Schema migration 0016 — profile fields | Tech Lead (Sonnet) | ~0.5h | v11.2.0 |
 | #5 VolumeChart per-bucket numbers | Tech Lead (Sonnet) | ~2h | v11.2.0 |
+| **Cyclist-friendly copy sweep — "passphrase" → "password" across all v11.1.0 substrate surfaces** | XD (Sonnet) | ~1h | v11.2.0 |
 | Housekeeping — close GH #79 + #80 with shipped-in-vX.Y.Z notes | Tech Lead (Sonnet) | ~0.5h | v11.2.0 |
 
-**Total budget:** ~22h across 2 days. (Within tolerance for the 2-release shape; per memory rule, ≤ 1 risk theme per release keeps scope honest.)
+**Total budget:** ~23h across 2 days. (Within tolerance for the 2-release shape; per memory rule, ≤ 1 risk theme per release keeps scope honest.)
 
 ## Releases planned
 
@@ -61,6 +62,7 @@ A second strategic gain: this is the **first in-app surface** to consume the v11
 | 7 | "Test key" button hits real `/v1/messages` ping | Cost ~$0.0001/test; validates live key + balance + rate limits; no new attack surface |
 | 8 | Consent & Data section ships as **honest placeholder**, not implemented | Per `PRODUCT.md` empty-state voice rule |
 | 9 | Recovery flow nukes ciphertexts (old master key gone with passphrase) | Old ciphertext is unrecoverable garbage under the new master key — clearer to clear |
+| 10 | **User-facing copy uses "password", not "passphrase"** (added 2026-05-03 post-v11.1.0 ship per founder feedback) | Cyclists are the audience, not developers. "Password" is the universal mental model. Internal docs / dev names stay "passphrase" (cryptographically correct). The lock/unlock metaphor extends consistently: encrypt → "lock"; decrypt → "unlock"; recovery code → unchanged (already non-tech). |
 
 ## Memory rules referenced this sprint
 
