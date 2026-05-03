@@ -15,7 +15,7 @@
 -- re-encryption (older rows decrypt at their stored count; new rows
 -- use the new default).
 
-CREATE TABLE user_credentials (
+CREATE TABLE IF NOT EXISTS user_credentials (
   athlete_id        INTEGER NOT NULL REFERENCES users(athlete_id) ON DELETE CASCADE,
   provider          TEXT    NOT NULL,
   managed           INTEGER NOT NULL DEFAULT 0,
@@ -27,5 +27,3 @@ CREATE TABLE user_credentials (
   updated_at        INTEGER NOT NULL,
   PRIMARY KEY (athlete_id, provider)
 );
-
-CREATE INDEX idx_user_credentials_athlete ON user_credentials(athlete_id);

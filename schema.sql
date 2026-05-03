@@ -352,4 +352,3 @@ CREATE TABLE user_credentials (
   updated_at        INTEGER NOT NULL,
   PRIMARY KEY (athlete_id, provider)
 );
-CREATE INDEX idx_user_credentials_athlete ON user_credentials(athlete_id);
