@@ -2,7 +2,7 @@
 
 Performance-training platform for serious cyclists and the clubs they ride with. Cadence Club ingests your Strava history, computes daily form (CTL/ATL/TSB) at the edge, generates AI-coached weekly plans, and gives clubs a shared schedule with RSVP and AI-drafted weekly recaps.
 
-**Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · **Current release:** [v11.1.0](./CHANGELOG.md) · **Security policy:** [SECURITY.md](./SECURITY.md) · **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
+**Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · **Current release:** [v11.2.0](./CHANGELOG.md) · **Security policy:** [SECURITY.md](./SECURITY.md) · **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
 
@@ -324,7 +324,7 @@ Defined in [`apps/web/src/routes/`](./apps/web/src/routes/). All client-side; `n
 | `/dashboard/today` | `dashboard.today.tsx` | Today dossier — PMC, today's session, AI brief link |
 | `/dashboard/train` | `dashboard.train.tsx` | AI plan workspace — generate, browse, schedule sessions |
 | `/dashboard/rides` | `dashboard.rides.tsx` | Strava ride list with detail expansion |
-| `/dashboard/you` | `dashboard.you.tsx` | Profile, FTP, training prefs, RWGPS connection |
+| `/dashboard/you` | `dashboard.you.tsx` | My Account (v11.2.0) — Personal · Performance · AI Coach · Connections · Consent placeholder |
 | `/dashboard/schedule` | `dashboard.schedule.tsx` | Personal scheduler (Month/Week/Day) |
 | `/dashboard/schedule-new` | `dashboard.schedule-new.tsx` | Plan-a-session page (also handles edit via `?id=`) |
 | `/clubs/new` | `clubs.new.tsx` | Create-a-club flow |
@@ -807,6 +807,7 @@ If the deploy includes risky changes (auth, scheduler aggregation, webhook handl
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full history.
 
+- **v11.2.0** — Sprint 13 / My Account UI + #5 + cyclist-friendly copy sweep. `/dashboard/you` rebuilt as a 5-section page (Personal · Performance · AI Coach · Connections · Consent placeholder) consuming the v11.0.0 design system end-to-end — first in-app surface to do so beyond the Marketing landing. Migration 0016 adds 6 nullable profile columns to `users` (name, dob, gender, gender_self, city, country). Worker `GET/PATCH /api/me/profile` endpoints with shared `lib/validation.ts` constants drift-locked by contract test. VolumeChart now renders distance + elevation per bucket as visible labels (closes #5). Cyclist-friendly copy sweep across the v11.1.0 substrate surfaces: passphrase → password, encrypt/decrypt → lock/unlock, recovery code → backup code (component file names + DB columns + endpoint paths unchanged). Closed stale GitHub issues #79 (shipped in v9.12.2) + #80 (shipped in v10.12.0) as housekeeping.
 - **v11.1.0** — Sprint 13 / credentials substrate. Passphrase-derived AES-GCM (PBKDF2-SHA-256, 600k iterations) for the user's Anthropic API key. Per-user 16-byte salt + per-row 12-byte IV + per-call AAD bound to `(athlete_id, provider)` for cross-user replay protection. New `user_credentials` table with composite PK `(athlete_id, provider)` makes multi-provider future a row insert. New `users.recovery_code_hash` + `passphrase_set_at` for recovery flow. 5 new worker endpoints (`/api/me/passphrase/setup|recover` + `/api/me/credentials*`). 6 new client surfaces (`lib/credentials.ts`, `usePassphrase` hook, `SetupPassphraseModal`, `PassphraseUnlockCard`, `MigrationBanner`, `/account/recover` route). 10-test static-scan contract locks the trust boundary (no decrypt in worker, ciphertext never logged, no master-key persistence). Additive opt-in via MigrationBanner — existing localStorage `useApiKey` flow stays valid for users who don't migrate.
 - **v11.0.0** — Sprint 12 brand foundation + extended design system. Three-layer token taxonomy (primitive → semantic → component) added additively to `tokens.css` (flat tokens preserved for backward compat). Source Serif Pro added as editorial display face, paired with Geist sans + Geist Mono. Six core components rebuilt against the new tokens with full 8-state matrices: Button (7 variants), Card (single-depth strategy + interactive), EmptyState, Skeleton, Toast (new). Marketing landing rebuilt end-to-end as the canonical reference page. New `/design-system` showcase route renders every component in every state at desktop + 375px mobile. 24-test design-system contract suite (token taxonomy, hex-literal discipline, touch-target floor, component states, var-resolution scan).
 - **v10.13.0** — Sprint 11 prep release: 5 UPDATE statements scoped by `athlete_id` / `club_id` (defense-in-depth); ORS + Strava saved-routes anchor-distance gates (Zurich → no Path of Gods); 42 → 234 passing tests (authn / authz / migration discipline / pure helpers); README rewrite (167 → 829 lines) + Confluence Architecture/Data Model/Migrations rewrite + Runbook page.

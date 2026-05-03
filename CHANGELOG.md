@@ -4,6 +4,115 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [11.2.0] — 2026-05-03
+
+**Sprint 13 closeout. My Account UI + VolumeChart numbers (#5) + cyclist-friendly copy sweep + housekeeping (close stale GH #79 + #80). Consumes the v11.1.0 credentials substrate; first in-app surface to use the v11.0.0 design system end-to-end beyond the Marketing landing.**
+
+### 1 · `/dashboard/you` rebuilt as 5-section My Account page
+
+`apps/web/src/routes/dashboard.you.tsx` rewritten + new `dashboard.you.module.css` (token-only, no hex literals — locked by the Sprint 12 var-resolution contract). Consumes the v11.0.0 design system kit (`Card`, `Eyebrow`, `Button`, `EmptyState`).
+
+| № | Section | Surface |
+|---|---|---|
+| 01 | **Personal** | name, DOB, gender, self-describe (conditional), city, country — editable form with inline validation |
+| 02 | **Performance** | FTP, weight, HR Max — editable form with live W/kg readout in caption |
+| 03 | **AI Coach (Anthropic)** | Substrate-aware: encrypted-on-this-device (with "Forgot password?" link) / browser-only (with banner reminder) / no-key (with "Get a key →" link to Anthropic console) |
+| 04 | **Connections** | Strava + Ride with GPS as a single card with row layout — clean Connect/Disconnect CTAs per row |
+| 05 | **Consent & Data** (placeholder) | Honest "Coming soon" `EmptyState` — implementation deferred to a focused privacy sprint |
+
+Migration banner from v11.1.0 preserved at the top — opt-in encryption is still the path for users with an existing localStorage key.
+
+### 2 · Schema migration 0016 (additive)
+
+```sql
+ALTER TABLE users ADD COLUMN name        TEXT;
+ALTER TABLE users ADD COLUMN dob         INTEGER;        -- unix epoch seconds, 00:00 UTC
+ALTER TABLE users ADD COLUMN gender      TEXT;           -- enum stored as TEXT (NULL = not stated)
+ALTER TABLE users ADD COLUMN gender_self TEXT;           -- only set when gender = 'self-describe'
+ALTER TABLE users ADD COLUMN city        TEXT;           -- max 64 chars
+ALTER TABLE users ADD COLUMN country     TEXT;           -- ISO 3166-1 alpha-2
+```
+
+All nullable. Existing rows unaffected.
+
+### 3 · Worker endpoints — `GET/PATCH /api/me/profile`
+
+Both gated by the existing `resolveAthleteId()` authn pattern; UPDATE scoped by `WHERE athlete_id = ?` (existing authz pattern). Inlined server-side validation matches the constants in `apps/web/src/lib/validation.ts`; drift between the two locked by `profile-contract.test.ts`.
+
+PATCH supports partial updates: any subset of `{ name, dob, gender, gender_self, city, country, ftp, weight_kg, hr_max }`. Returns 400 with field-level errors `{ error: 'validation', fields: { fieldName: 'invalid', ... } }` on any failure; atomic.
+
+### 4 · Shared validation module — `lib/validation.ts`
+
+```ts
+export const PROFILE_LIMITS = { /* ftp 50..600, weight 30..200, hr 100..230, name max 80, city max 64, country regex */ };
+export const PROFILE_GENDERS = ['prefer-not-to-say', 'woman', 'man', 'non-binary', 'self-describe'] as const;
+export function validateName / Dob / City / Country / Ftp / WeightKg / HrMax / Gender (...): string | null;
+```
+
+Imported by both the client form (`/dashboard/you`) and the server endpoint validator. Predicates return `null` on success or a human-readable error string on failure. 11/11 unit tests; drift between client + server locked by `profile-contract.test.ts`.
+
+### 5 · VolumeChart per-bucket labels (closes #5)
+
+`apps/web/src/components/VolumeChart/VolumeChart.tsx` — each bar's value label now shows `XXkm · YYm` (rounded distance + elevation, mono space). Visible always, not hover-gated. Native HTML `<title>` attribute on `.barCol` exposes the unrounded value for hover (mouse) / focus (keyboard). No JS tooltip lib added.
+
+Mobile: 10px label. Desktop (≥ 768px): 11px.
+
+### 6 · Cyclist-friendly copy sweep (founder feedback)
+
+After v11.1.0 ship, founder flagged: *"users don't know what Passphrase is, every user faced need to be not technical, they are cyclists not developers."* Sprint 13 absorbed this as AC-1.2.11 in `01-business-requirements.md` and Task 7.5 in the v11.2.0 plan.
+
+**Vocabulary rules (locked):**
+- "passphrase" → **"password"** in user-facing copy
+- "encrypt" / "encryption" → **"lock"**
+- "decrypt" → **"unlock"**
+- "recovery code" → **"backup code"**
+
+**15 specific user-facing strings rewritten** across 4 surfaces (`SetupPassphraseModal`, `PassphraseUnlockCard`, `MigrationBanner`, `account.recover.tsx`) plus the `.txt` download filename + body header.
+
+**What stayed unchanged** (dev-facing only, not user-visible — renaming would either be cosmetic churn or break the deployed v11.1.0 worker):
+- Component file names (`SetupPassphraseModal.tsx`, etc.)
+- Internal variable names (`passphrase`, `recoveryCode`, `recoveryHash`)
+- DB column names (`recovery_code_hash`, `passphrase_set_at`)
+- Worker endpoint paths (`/api/me/passphrase/setup`, `/api/me/passphrase/recover`)
+- Code comments + ADR doc + spec body
+
+### 7 · Housekeeping — close GH #79 + #80
+
+Both issues confirmed shipped during Sprint 13 brainstorming:
+- **#79** ("v9.12.2 polish bundle — duration + mandatory `*` + edit/cancel + visual diff + BottomNav 5-slot fix") — all 5 sub-items shipped in v9.12.2; the issue stayed open as housekeeping debt. Closed with shipped-in-vX.Y.Z notes.
+- **#80** ("Schedule calendar — event blocks misaligned + overlapping events render incorrectly") — px-based positioning + overlap-aware columns shipped in v10.12.0 (`// v10.12.0 (GH #80)` comment markers in WeekCalendarGrid.tsx + DayCalendarGrid.tsx). Closed with shipped-in-vX.Y.Z notes.
+
+### 8 · Tests
+
+`profile-contract.test.ts` (new): **5 + 1 conditional pass · ~4ms**
+`validation.test.ts` (new): **11/11 pass · 2ms**
+Full suite: **308 passing / 1 skipped / 0 failures** (was 283 at v11.1.0, +25 net).
+
+Locked by `profile-contract.test.ts` — drift between client + server validation constants fires CI on any future divergence.
+
+### Verified before deploy
+
+```
+npx vitest run                                                  308/309 pass · 1 skipped · 0 failures
+npx vitest run src/lib/__tests__/validation.test.ts             11/11 pass · 2ms
+npx vitest run src/lib/__tests__/profile-contract.test.ts       5+1 conditional pass · 4ms
+npx tsc --noEmit                                                exit 0
+npm run build                                                   green; bundle flat
+curl /api/me/profile (no auth)                                  401 unauthorized (GET + PATCH)
+```
+
+Phase 5 parity audit at [`docs/post-demo-sprint/sprint-13/04-phase-5-parity-audit.md`](./docs/post-demo-sprint/sprint-13/04-phase-5-parity-audit.md): no in-app surface regressions confirmed; v11.1.0 substrate behaviors all preserved.
+
+### Not in this release
+
+- **PassphraseUnlockCard daily-use wiring** still deferred — the AI Coach card on `/dashboard/you` shows substrate state but doesn't yet host the unlock flow inline. The component is wired through the migration path; daily-use unlock lands when the AI Coach card on Today / Train surfaces refresh against the substrate (Sprint 14+ candidate).
+- **`managed: 1` Pro-tier server-side managed-key plumbing** — substrate ships ready (`managed` column + Pro-tier branch in GET response). Billing relay + Stripe webhook are a future feature.
+- **Multi-provider UI** — schema PK supports it; surface for adding OpenAI / Llama is a future-sprint feature.
+- **Argon2id rotation** — `kdf_iterations` column allows future rotation cleanly.
+- **In-app surface migration to Layer 2 tokens (Today / Train / Schedule / Drawer)** — Sprint 14+ charge.
+
+---
+
 ## [11.1.0] — 2026-05-03
 
 **Sprint 13 release. Credentials substrate — passphrase-derived AES-GCM encryption for the user's Anthropic API key. No user-visible UI changes beyond the opt-in migration banner; this release ships the substrate that v11.2.0's My Account page rebuild will consume. Pure additive: existing localStorage `useApiKey` flow stays valid for users who don't migrate.**
