@@ -32,6 +32,7 @@ import {
   validateWeightKg,
   validateHrMax,
 } from '../lib/validation';
+import { COUNTRIES } from '../lib/countries';
 import styles from './dashboard.you.module.css';
 
 export const Route = createFileRoute('/dashboard/you')({
@@ -292,6 +293,17 @@ function YouTab() {
 
 // ============ SECTION 01 — PERSONAL ============
 
+// Sprint 14 / v11.3.0 — display labels for the gender enum.
+// Stored values stay kebab-case ('prefer-not-to-say', 'non-binary');
+// labels render capitalized for cyclists (founder feedback).
+const GENDER_LABELS: Record<string, string> = {
+  'prefer-not-to-say': 'Prefer not to say',
+  'woman': 'Woman',
+  'man': 'Man',
+  'non-binary': 'Non-binary',
+  'self-describe': 'Self-describe',
+};
+
 function PersonalSection({
   profile,
   loaded,
@@ -309,6 +321,8 @@ function PersonalSection({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // Sprint 14 / v11.3.0 — surface PATCH failures (silent fail was a tester bug).
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loaded) return;
@@ -338,6 +352,7 @@ function PersonalSection({
     if (Object.keys(next).length) return;
 
     setBusy(true);
+    setSaveError(null);
     try {
       const body = {
         name: draft.name.trim() || null,
@@ -355,7 +370,17 @@ function PersonalSection({
       if (r.ok) {
         setSavedAt(Date.now());
         onSaved();
+      } else {
+        // Sprint 14 / v11.3.0 — was failing silently. Surface the error.
+        const err = await r.json().catch(() => ({}));
+        setSaveError(
+          err.error === 'validation'
+            ? `Some fields didn't validate: ${Object.keys(err.fields ?? {}).join(', ')}`
+            : `Save failed (HTTP ${r.status}). Try again.`,
+        );
       }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed.');
     } finally {
       setBusy(false);
     }
@@ -399,7 +424,7 @@ function PersonalSection({
               disabled={readOnly}
             >
               {PROFILE_GENDERS.map((g) => (
-                <option key={g} value={g}>{g.replace(/-/g, ' ')}</option>
+                <option key={g} value={g}>{GENDER_LABELS[g] ?? g}</option>
               ))}
             </select>
           </Field>
@@ -425,19 +450,28 @@ function PersonalSection({
             {errors.city && <FieldError>{errors.city}</FieldError>}
           </Field>
           <Field label="Country">
-            <input
+            {/* Sprint 14 / v11.3.0 — country picker shows the country
+             *  NAME (cyclist-friendly) but stores the ISO 3166-1 alpha-2
+             *  code that the worker validates. Founder feedback: 'users
+             *  don't know the country ISO code, they know their country
+             *  name.' */}
+            <select
               className={styles.input}
               value={draft.country}
-              placeholder="CH"
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, country: e.target.value.toUpperCase() })}
-              maxLength={2}
+              onChange={(e: ChangeEvent<HTMLSelectElement>) => setDraft({ ...draft, country: e.target.value })}
               disabled={readOnly}
-            />
+            >
+              <option value="">Select a country…</option>
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
             {errors.country && <FieldError>{errors.country}</FieldError>}
           </Field>
         </div>
         <div className={styles.actions}>
-          {savedAt && <span className={styles.statusLine}>Saved.</span>}
+          {savedAt && !saveError && <span className={styles.statusLine}>Saved.</span>}
+          {saveError && <span className={styles.fieldError}>{saveError}</span>}
           <Button variant="primary" loading={busy} onClick={handleSave} disabled={readOnly}>Save</Button>
         </div>
       </Card>
@@ -462,6 +496,7 @@ function PerformanceSection({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loaded) return;
@@ -485,8 +520,9 @@ function PerformanceSection({
     if (Object.keys(next).length) return;
 
     setBusy(true);
+    setSaveError(null);
     try {
-      await fetch('/api/me/profile', {
+      const r = await fetch('/api/me/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -495,8 +531,19 @@ function PerformanceSection({
           hr_max: draft.hr_max ? hrN : null,
         }),
       });
-      setSavedAt(Date.now());
-      onSaved();
+      if (r.ok) {
+        setSavedAt(Date.now());
+        onSaved();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        setSaveError(
+          err.error === 'validation'
+            ? `Some fields didn't validate: ${Object.keys(err.fields ?? {}).join(', ')}`
+            : `Save failed (HTTP ${r.status}). Try again.`,
+        );
+      }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed.');
     } finally {
       setBusy(false);
     }
@@ -553,7 +600,8 @@ function PerformanceSection({
           </Field>
         </div>
         <div className={styles.actions}>
-          {savedAt && <span className={styles.statusLine}>Saved.</span>}
+          {savedAt && !saveError && <span className={styles.statusLine}>Saved.</span>}
+          {saveError && <span className={styles.fieldError}>{saveError}</span>}
           <Button variant="primary" loading={busy} onClick={handleSave} disabled={readOnly}>Save</Button>
         </div>
       </Card>
