@@ -19,7 +19,7 @@ The opposite hypothesis (that surface-level cosmetic upgrades would suffice) is 
 | 2 | Existing-system inventory (tokens, components, hex-literal scan, AI-aesthetic-tells audit) | 1 | ~2h (BA agent) |
 | 3 | Architect: extend-vs-greenfield decision; migration risk; 234-test parity gate strategy | 2 | ~1h |
 | 4 | Tech Lead: implementation plan + sequencing | 2 | ~1h |
-| 5 | Brand Designer: fill `references/brand-foundation-template.md` → `docs/design/PRODUCT.md` + `docs/design/DESIGN.md` | 3 | ~6h |
+| 5 | Brand Designer: fill `references/brand-foundation-template.md` → `PRODUCT.md` + `DESIGN.md` | 3 | ~6h |
 | 6 | DSA: refactor `tokens.css` to three layers (primitive → semantic → component); 4-pt grid spacing scale; full color ramps; type scale | 3 | ~6h |
 | 7 | DSA: type loading — Inter + Source Serif Pro via `apps/web/public/fonts/` self-hosted; preload tags in `index.html` | 3 | ~2h |
 | 8 | DSA: icon system swap to Phosphor (`@phosphor-icons/react` MIT); replace existing icons in `apps/web/src/design/icons/`; eliminate emoji as section icons | 3 | ~3h |

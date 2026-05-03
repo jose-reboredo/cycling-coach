@@ -71,7 +71,7 @@ A senior designer reviewed the product 2026-05-03 and the look-and-feel reads as
 | Artefact | Location | Owner |
 |---|---|---|
 | Existing-system inventory (tokens / components / hex-literal scan / AI-aesthetic-tells audit) | `docs/design/01-existing-system-inventory.md` | BA (Discovery agent) |
-| Brand foundation | `docs/design/PRODUCT.md` + `docs/design/DESIGN.md` | Brand Designer |
+| Brand foundation | `PRODUCT.md` + `DESIGN.md` | Brand Designer |
 | Token source-of-truth | `apps/web/src/design/tokens.css` | DSA |
 | IA + flows for Marketing landing | `docs/design/landing-ux.md` | XD |
 | Component library entries | `apps/web/src/components/` (per-component CHANGELOG) | DSA + Tech Lead |

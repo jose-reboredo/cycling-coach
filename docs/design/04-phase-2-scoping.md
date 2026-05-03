@@ -46,8 +46,8 @@ Track A produces the kit; Track B integrates it into the canonical reference pag
 
 | # | Step | Owner | Effort | Output |
 |---|---|---|---|---|
-| 1 | `PRODUCT.md` — positioning, brand essence, three adjectives, three anti-adjectives, three reference brands, three anti-brands, audience 60-second context | Brand Designer | ~3h | `docs/design/PRODUCT.md` |
-| 2 | `DESIGN.md` — color system (≤7 roles + alpha ramps), typography pairing, spacing rhythm, motion principles, voice & tone do/don't | Brand Designer | ~3h | `docs/design/DESIGN.md` |
+| 1 | `PRODUCT.md` — positioning, brand essence, three adjectives, three anti-adjectives, three reference brands, three anti-brands, audience 60-second context | Brand Designer | ~3h | `PRODUCT.md` |
+| 2 | `DESIGN.md` — color system (≤7 roles + alpha ramps), typography pairing, spacing rhythm, motion principles, voice & tone do/don't | Brand Designer | ~3h | `DESIGN.md` |
 | 3 | Token refactor — `tokens.ts` source-of-truth + generated `tokens.css`; OKLCH ramps; Source Serif Pro added; named-spring tokens; safe-area semantic tokens | Design System Architect | ~6h | `apps/web/src/design/tokens.ts`, `apps/web/src/design/tokens.css` |
 | 4 | Source Serif Pro loading via `index.html` Google Fonts link (Phase 3); self-host migration (Phase 4) | DSA | ~1h | `apps/web/index.html` |
 | 5 | Component rebuild — Button (variants + states; `withArrow` defaults to `false`) | DSA + Tech Lead | ~3h | `apps/web/src/components/Button/Button.tsx` |
