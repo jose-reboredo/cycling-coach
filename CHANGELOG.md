@@ -4,6 +4,99 @@ All notable releases. Format: [Keep a Changelog](https://keepachangelog.com/en/1
 
 ---
 
+## [11.1.0] — 2026-05-03
+
+**Sprint 13 release. Credentials substrate — passphrase-derived AES-GCM encryption for the user's Anthropic API key. No user-visible UI changes beyond the opt-in migration banner; this release ships the substrate that v11.2.0's My Account page rebuild will consume. Pure additive: existing localStorage `useApiKey` flow stays valid for users who don't migrate.**
+
+### 1 · Three-role architectural decision (Architect / Security / Strategy)
+
+Sprint 13 opened with a brainstorm consultation across three roles on Opus to decide the architecture:
+- **Architect** recommended **B** (hybrid encrypted-in-D1 with Workers Secret as master cipher key) — canonical CF pattern, ~1ms decrypt, but Worker compromise = all keys leaked.
+- **Security Engineer** recommended **A** (keep browser-only) — strongest privacy posture, but UX cliff on second device.
+- **Strategy Consultant** recommended **C** (passphrase-derived AES-GCM) — cross-device sync without compromising BYOK ethos, multi-provider future is a row insert, clean Pro-tier substrate via `managed:1` flag.
+
+**Founder picked C.** ADR at [`docs/post-demo-sprint/sprint-13/adr-credentials-substrate.md`](./docs/post-demo-sprint/sprint-13/adr-credentials-substrate.md).
+
+### 2 · Schema migrations (additive)
+
+- **Migration 0014** — `user_credentials` table. Composite PK `(athlete_id, provider)`. Columns: `managed` (Pro-tier substrate flag), `ciphertext`/`iv`/`kdf_salt` BLOBs, `kdf_iterations` (per-row, allows future Argon2id rotation), timestamps. Foreign-key cascade on `users` delete.
+- **Migration 0015** — `users.recovery_code_hash TEXT` + `users.passphrase_set_at INTEGER` (both nullable; account-level recovery, not provider-level).
+
+Both migrations are additive — no existing rows touched, no other tables modified.
+
+### 3 · Encryption primitives
+
+`apps/web/src/lib/credentials.ts` — pure WebCrypto module (no third-party deps; works identically in browser + Worker isolate):
+
+- `deriveMasterKey(passphrase, salt, iterations)` — PBKDF2-SHA-256 → 256-bit AES-GCM key. NIST SP 800-132 (2023) at 600k iterations. ~250ms wall-time on a modern device.
+- `buildAAD(athleteId, provider)` — `utf8("athlete:" + athleteId + "|provider:" + provider)`. Bound per call so User A's ciphertext can't be replayed against User B's row, even under master-key reuse.
+- `encryptKey(masterKey, plaintext, aad)` / `decryptKey(masterKey, ciphertext, iv, aad)` — AES-GCM with random 12-byte IV per call.
+- `generateRecoveryCode()` — 24-char dashed (`XXXX-XXXX-XXXX-XXXX-XXXX-XXXX`); alphabet `ABCDEFGHJKMNPQRSTUVWXYZ23456789` excludes visually ambiguous chars (0/O/1/I/L).
+- `hashRecoveryCode(code)` — SHA-256 hex; server stores only the hash.
+
+8-test unit suite + 10-test static-scan contract.
+
+### 4 · Trust boundary
+
+The Cloudflare Worker has **no decrypt path**. It stores ciphertext + IV + salt + iterations as BLOBs and returns them on GET. All decryption happens in the browser; the master key never crosses the network boundary, never persists to `localStorage` / `sessionStorage` / `IndexedDB`, and never appears in a request body or response.
+
+The architectural property option C buys: a Worker compromise (RCE / supply-chain / careless admin endpoint) leaks **ciphertexts only** — not master keys. Plaintext API keys would require the user's passphrase, which the Worker never sees.
+
+### 5 · Worker endpoints
+
+5 new endpoints, all gated by the existing `resolveAthleteId()` authn pattern, all scoped by `WHERE athlete_id = ?` (or composite PK ON CONFLICT). All locked by static-scan contract test:
+
+| Method | Path | Effect |
+|---|---|---|
+| `POST` | `/api/me/passphrase/setup` | Persist `recovery_code_hash` + `passphrase_set_at` on `users` |
+| `POST` | `/api/me/passphrase/recover` | Match recovery hash; on match, clear hash + nuke all `user_credentials.ciphertext` rows |
+| `GET` | `/api/me/credentials` | List per-(athlete, provider) ciphertexts; `managed=1` rows return `ciphertext: null` |
+| `PATCH` | `/api/me/credentials` | Upsert one provider's ciphertext (INSERT ON CONFLICT) |
+| `DELETE` | `/api/me/credentials/:provider` | Remove one provider's ciphertext |
+
+### 6 · Client surfaces
+
+- **`usePassphrase` hook** — module-scoped master-key state; `unlock(passphrase, salt, iterations)` / `lock()` / `encrypt(plaintext, athleteId, provider)` / `decrypt(...)`. Master key never persisted — page reload re-locks the session.
+- **`SetupPassphraseModal`** — 3-step modal triggered from the AI Coach card. Step 1: passphrase + Anthropic key. Step 2: recovery code download (.txt) + checkbox-gated encryption. Step 3: confirmation.
+- **`PassphraseUnlockCard`** — inline session-unlock surface (component shipped; daily-use wiring lands in v11.2.0's My Account rebuild).
+- **`MigrationBanner`** — one-time card on `/dashboard/you` that prompts users with an existing localStorage key to move it to encrypted storage. Additive: dismissable; existing `useApiKey` flow stays valid.
+- **`/account/recover`** — recovery flow page. Two stages: enter code → server matches + nukes ciphertexts → user re-enters Anthropic key on the AI Coach card.
+
+### 7 · Static-scan contract — 10 invariants locked
+
+`apps/web/src/lib/__tests__/credentials-contract.test.ts` (~7ms):
+
+- Schema discipline (4): `user_credentials` declared in migration + cumulative `schema.sql`; `users.recovery_code_hash` + `passphrase_set_at` declared; composite PK preserved; `kdf_iterations` defaults to 600000.
+- Module exports (2): 6 documented public-API exports; `encrypt`/`decrypt` carry `aad` parameter (ciphertext-replay protection).
+- Worker trust boundary (3): every `/api/me/credentials*` + `/api/me/passphrase/*` handler invokes `resolveAthleteId()` before any `db.prepare()`; every `user_credentials` SQL statement scopes by `athlete_id`; no `console.*` line leaks `ciphertext` / `passphrase` / `master_key` / `api_key`.
+- Module discipline (1): `lib/credentials.ts` contains zero `localStorage.set` / `sessionStorage.set` / `indexedDB` writes (master-key non-persistence invariant).
+
+### Verified before deploy
+
+```
+npx vitest run                                                    283/284 pass · 1 skipped · 0 failures
+npx vitest run src/lib/__tests__/credentials.test.ts              8/8 pass · 357ms
+npx vitest run src/lib/__tests__/credentials-contract.test.ts     10/10 pass · 7ms
+npx tsc --noEmit                                                   exit 0
+npm run build                                                      green; bundle flat
+curl /api/me/credentials (no auth)                                 401 unauthorized
+```
+
+Test count progression: 258 → 268 → 283 (+25: 8 unit + 10 contract + 7 worker-cache-contract inventory + housekeeping).
+
+Phase 5 parity audit at [`docs/post-demo-sprint/sprint-13/04-phase-5-parity-audit.md`](./docs/post-demo-sprint/sprint-13/04-phase-5-parity-audit.md): no in-app surface regressions confirmed; trust-boundary invariants verified.
+
+### Not in this release
+
+- **No PassphraseUnlockCard wiring on the AI Coach card.** The component ships; v11.2.0's My Account page rebuild integrates it into the daily-use unlock state machine.
+- **No `/api/me/profile` endpoint** + **no `lib/validation.ts` shared module** — those are v11.2.0 charge.
+- **No Migration 0016** (profile fields) — v11.2.0.
+- **No `managed:1` Pro-tier server-side managed-key plumbing** — substrate ships ready (`managed` column + Pro-tier handling in GET response); billing relay + Stripe webhook are a future feature.
+- **No multi-provider UI** — schema PK supports it; surface for adding OpenAI / Llama is a future-sprint feature.
+- **No Argon2id rotation** — `kdf_iterations` column allows future rotation cleanly; current default 600000 is NIST 2023 PBKDF2 guidance.
+
+---
+
 ## [11.0.0] — 2026-05-03
 
 **Sprint 12 release. Brand foundation + extended design system. MAJOR version because the design system change touches every surface — though the runtime tokens are strictly additive and existing in-app surfaces render unchanged. No schema changes, no behaviour changes, no API changes.**

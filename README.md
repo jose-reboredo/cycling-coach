@@ -2,7 +2,7 @@
 
 Performance-training platform for serious cyclists and the clubs they ride with. Cadence Club ingests your Strava history, computes daily form (CTL/ATL/TSB) at the edge, generates AI-coached weekly plans, and gives clubs a shared schedule with RSVP and AI-drafted weekly recaps.
 
-**Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · **Current release:** [v11.0.0](./CHANGELOG.md) · **Security policy:** [SECURITY.md](./SECURITY.md) · **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
+**Live:** [cycling-coach.josem-reboredo.workers.dev](https://cycling-coach.josem-reboredo.workers.dev) · **Current release:** [v11.1.0](./CHANGELOG.md) · **Security policy:** [SECURITY.md](./SECURITY.md) · **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
 
@@ -332,6 +332,7 @@ Defined in [`apps/web/src/routes/`](./apps/web/src/routes/). All client-side; `n
 | `/privacy` | `privacy.tsx` | Privacy / data handling |
 | `/whats-next` | `whats-next.tsx` | Roadmap (live mirror of `/roadmap`) |
 | `/design-system` | `design-system.tsx` | Design system showcase (v11.0.0; dev-reachable, unlinked) — every rebuilt component in every state |
+| `/account/recover` | `account.recover.tsx` | Recovery flow (v11.1.0) — enter recovery code, server clears encrypted credentials, user re-enters Anthropic key |
 
 ---
 
@@ -422,6 +423,15 @@ Source-of-truth: [`apps/web/src/components/`](./apps/web/src/components/) (one d
 | `OnboardingModal` | First-run | FTP / weight / HR max capture with W/kg readout |
 | `GoalEventCard` | You | Goal event editor (name, type, date, distance, elevation, A/B/C priority) |
 | `WhatsNew` | Top-right slot | Per-release callout (gated by version-seen check) |
+
+### AI credentials (v11.1.0)
+
+| Component | Used by | Purpose |
+|---|---|---|
+| `SetupPassphraseModal` | You · MigrationBanner | 3-step modal — passphrase + Anthropic key → recovery code download → encrypted to D1 via `/api/me/credentials` |
+| `PassphraseUnlockCard` | (v11.2.0 wiring) | Per-session unlock surface — derives master key from passphrase + stored salt, holds in `usePassphrase()` for the session |
+| `MigrationBanner` | You | Opt-in prompt for users who already have an Anthropic key in localStorage to move it to encrypted storage |
+| `usePassphrase` (hook) | AI surfaces | Module-scoped master-key state; never persisted; provides encrypt/decrypt against AAD = `athlete:N|provider:X` |
 
 ### Pages
 
@@ -797,6 +807,7 @@ If the deploy includes risky changes (auth, scheduler aggregation, webhook handl
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full history.
 
+- **v11.1.0** — Sprint 13 / credentials substrate. Passphrase-derived AES-GCM (PBKDF2-SHA-256, 600k iterations) for the user's Anthropic API key. Per-user 16-byte salt + per-row 12-byte IV + per-call AAD bound to `(athlete_id, provider)` for cross-user replay protection. New `user_credentials` table with composite PK `(athlete_id, provider)` makes multi-provider future a row insert. New `users.recovery_code_hash` + `passphrase_set_at` for recovery flow. 5 new worker endpoints (`/api/me/passphrase/setup|recover` + `/api/me/credentials*`). 6 new client surfaces (`lib/credentials.ts`, `usePassphrase` hook, `SetupPassphraseModal`, `PassphraseUnlockCard`, `MigrationBanner`, `/account/recover` route). 10-test static-scan contract locks the trust boundary (no decrypt in worker, ciphertext never logged, no master-key persistence). Additive opt-in via MigrationBanner — existing localStorage `useApiKey` flow stays valid for users who don't migrate.
 - **v11.0.0** — Sprint 12 brand foundation + extended design system. Three-layer token taxonomy (primitive → semantic → component) added additively to `tokens.css` (flat tokens preserved for backward compat). Source Serif Pro added as editorial display face, paired with Geist sans + Geist Mono. Six core components rebuilt against the new tokens with full 8-state matrices: Button (7 variants), Card (single-depth strategy + interactive), EmptyState, Skeleton, Toast (new). Marketing landing rebuilt end-to-end as the canonical reference page. New `/design-system` showcase route renders every component in every state at desktop + 375px mobile. 24-test design-system contract suite (token taxonomy, hex-literal discipline, touch-target floor, component states, var-resolution scan).
 - **v10.13.0** — Sprint 11 prep release: 5 UPDATE statements scoped by `athlete_id` / `club_id` (defense-in-depth); ORS + Strava saved-routes anchor-distance gates (Zurich → no Path of Gods); 42 → 234 passing tests (authn / authz / migration discipline / pure helpers); README rewrite (167 → 829 lines) + Confluence Architecture/Data Model/Migrations rewrite + Runbook page.
 - **v10.12.0** — Repeat-aware drawer + cascade edit (Migration 0013 adds `recurring_group_id`); calendar event-block alignment + side-by-side overlap rendering (#80) — px-based positioning replaces the % math that drifted off the gridlines; RWGPS disconnect surface in Settings.
