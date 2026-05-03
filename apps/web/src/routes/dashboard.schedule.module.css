@@ -200,8 +200,17 @@
 }
 
 /* v10.10.0 — Week / Day summary footer. Sits below the calendar grid,
- * shows totals (hours / TSS / ride count) for the visible window. */
+ * shows totals (hours / TSS / ride count) for the visible window.
+ *
+ * Sprint 14 / v11.3.0 — explicit position + z-index to prevent any
+ * stacking-context ambiguity on mobile viewports. The bar is in normal
+ * flow but defensive z-index keeps it from sliding under any sibling
+ * with implicit z-index. Founder reported the bar appearing 'over the
+ * calendar' on mobile; making the layering explicit eliminates the
+ * class of regression even if the exact visual cause was theming. */
 .summary {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-5);
@@ -213,6 +222,16 @@
   border-radius: 4px;
   font: 500 0.875rem/1.4 var(--font-sans);
   color: var(--c-text-muted);
+}
+
+@media (max-width: 599px) {
+  .summary {
+    /* Mobile stacking — flex-column for legibility; ensure the bar
+     * never overflows the calendar's bottom edge. */
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: var(--s-3);
+  }
 }
 .summaryStat strong {
   font: 600 1rem/1 var(--font-mono);

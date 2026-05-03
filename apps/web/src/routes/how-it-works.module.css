@@ -1,0 +1,89 @@
+/* apps/web/src/routes/how-it-works.module.css
+ * Cadence Club — How it works · v1 (Sprint 14 / v11.3.0)
+ * Token-only styling. */
+
+.head {
+  padding: var(--space-12) 0 var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.022em;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lede {
+  margin: 0;
+  max-width: 60ch;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-lg);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.h2 {
+  margin: var(--space-2) 0 var(--space-3) 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  line-height: 1.1;
+  letter-spacing: -0.018em;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.formula {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  background: var(--surface-card);
+  border-left: 3px solid var(--accent-default);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-3) 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+  overflow-x: auto;
+}
+
+.subtle {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: var(--space-3) 0 0 0;
+  padding: var(--space-3);
+  background: var(--surface-pressed);
+  border-radius: var(--radius-sm);
+}
+
+.bullets {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-5);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.bullets li {
+  margin-bottom: var(--space-1);
+}
+
+.footnote {
+  margin: var(--space-12) 0 var(--space-16);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.footnote a {
+  color: var(--accent-default);
+  text-decoration: underline;
+}

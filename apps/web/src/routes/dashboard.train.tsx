@@ -191,57 +191,100 @@ function TrainTab() {
           )}
         </motion.section>
 
-        {/* v10.8.0 — Goal-driven AI plan card. System-paid Haiku generation;
-            reads goal + recent rides + user prefs from D1; persists to
-            ai_plan_sessions. Schedule a session → opens existing prefill
-            modal → POST /api/plan/schedule → row in planned_sessions. */}
-        <motion.section
-          className={styles.section}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.05 }}
-        >
-          <AiPlanCard />
-        </motion.section>
+        {/* Sprint 14 / v11.3.0 — section order is API-key-aware.
+         *
+         *  - No API key set → AI Coach card (key entry) renders FIRST
+         *    so users see the call-to-action before the goal-driven plan
+         *    they can't yet use. Founder feedback.
+         *  - Has API key → Goal-driven plan FIRST (the primary surface),
+         *    then AI Coach card (legacy weekly-plan). */}
 
-        {/* AI COACH / WEEKLY PLAN */}
-        <motion.section
-          className={styles.section}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
-        >
-          {!apiKey && !aiReport.report ? (
-            <div className={styles.emptyState}>
-              <p>
-                Add your Anthropic API key below to generate a personalised weekly training plan.
-                Each plan costs ≈ $0.02.
-              </p>
-            </div>
-          ) : null}
-          <AiCoachCard
-            apiKey={apiKey}
-            report={aiReport.report}
-            loading={aiReport.loading}
-            error={aiReport.error}
-            invalidKey={aiReport.invalidKey}
-            sessionsPerWeek={prefs.sessions_per_week}
-            onSetSessions={(n) => updatePrefs({ sessions_per_week: n })}
-            onSetApiKey={saveApiKey}
-            onClearApiKey={clearApiKey}
-            onGenerate={() => {
-              resetDayStates();
-              return handleGenerate();
-            }}
-            onClearReport={() => {
-              resetDayStates();
-              aiReport.clear();
-            }}
-            onScheduleDay={handleScheduleDay}
-            scheduleDayStates={dayStates}
-            scheduleDayError={scheduleDayError}
-          />
-        </motion.section>
+        {!apiKey ? (
+          <>
+            <motion.section
+              className={styles.section}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.05 }}
+            >
+              <AiCoachCard
+                apiKey={apiKey}
+                report={aiReport.report}
+                loading={aiReport.loading}
+                error={aiReport.error}
+                invalidKey={aiReport.invalidKey}
+                sessionsPerWeek={prefs.sessions_per_week}
+                onSetSessions={(n) => updatePrefs({ sessions_per_week: n })}
+                onSetApiKey={saveApiKey}
+                onClearApiKey={clearApiKey}
+                onGenerate={() => {
+                  resetDayStates();
+                  return handleGenerate();
+                }}
+                onClearReport={() => {
+                  resetDayStates();
+                  aiReport.clear();
+                }}
+                onScheduleDay={handleScheduleDay}
+                scheduleDayStates={dayStates}
+                scheduleDayError={scheduleDayError}
+              />
+            </motion.section>
+
+            <motion.section
+              className={styles.section}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
+            >
+              <AiPlanCard />
+            </motion.section>
+          </>
+        ) : (
+          <>
+            {/* v10.8.0 — Goal-driven AI plan card. System-paid Haiku generation;
+                reads goal + recent rides + user prefs from D1; persists to
+                ai_plan_sessions. */}
+            <motion.section
+              className={styles.section}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.05 }}
+            >
+              <AiPlanCard />
+            </motion.section>
+
+            <motion.section
+              className={styles.section}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
+            >
+              <AiCoachCard
+                apiKey={apiKey}
+                report={aiReport.report}
+                loading={aiReport.loading}
+                error={aiReport.error}
+                invalidKey={aiReport.invalidKey}
+                sessionsPerWeek={prefs.sessions_per_week}
+                onSetSessions={(n) => updatePrefs({ sessions_per_week: n })}
+                onSetApiKey={saveApiKey}
+                onClearApiKey={clearApiKey}
+                onGenerate={() => {
+                  resetDayStates();
+                  return handleGenerate();
+                }}
+                onClearReport={() => {
+                  resetDayStates();
+                  aiReport.clear();
+                }}
+                onScheduleDay={handleScheduleDay}
+                scheduleDayStates={dayStates}
+                scheduleDayError={scheduleDayError}
+              />
+            </motion.section>
+          </>
+        )}
       </Container>
 
       {/* v10.2.0 — review-and-confirm modal opened by per-day "+ Schedule".

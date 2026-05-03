@@ -27,7 +27,8 @@ export function AppFooter() {
               { href: '/#what', label: 'What you get' },
               { href: '/whats-next', label: "What's next" },
             ]} />
-            <FootCol title="Trust" links={[
+            <FootCol title="Reference" links={[
+              { href: '/how-it-works', label: 'How the numbers work' },
               { href: '/privacy', label: 'Privacy' },
             ]} />
             <FootCol title="Powered by" links={[

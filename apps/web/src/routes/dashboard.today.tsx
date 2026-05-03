@@ -5,7 +5,9 @@ import { Container } from '../components/Container/Container';
 import { Eyebrow } from '../components/Eyebrow/Eyebrow';
 import { StatTile } from '../components/StatTile/StatTile';
 import { Card } from '../components/Card/Card';
-import { ProgressRing } from '../components/ProgressRing/ProgressRing';
+// ProgressRing import removed — Sprint 14 / v11.3.0 dropped the static
+// 8000 km goal display; the new forecast surface is text-only. The
+// component stays in the design system for future re-use.
 import { PmcStrip } from '../components/PmcStrip/PmcStrip';
 import { TodayDossier } from '../components/TodayDossier/TodayDossier';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
@@ -13,7 +15,7 @@ import { useRides } from '../hooks/useStravaData';
 import { computePmcDelta } from '../lib/pmc';
 import { daysBetween } from '../lib/format';
 import { readTokens } from '../lib/auth';
-import { MARCO, MOCK_ACTIVITIES, MOCK_GOAL } from '../lib/mockMarco';
+import { MARCO, MOCK_ACTIVITIES } from '../lib/mockMarco';
 import styles from './TabShared.module.css';
 
 export const Route = createFileRoute('/dashboard/today')({
@@ -61,7 +63,6 @@ function TodayTab() {
   }, [activities]);
 
   const wPerKg = ftp && weight ? (ftp / weight).toFixed(2) : '—';
-  const yearGoalKm = MOCK_GOAL.goalKm;
 
   return (
     <div className={styles.tabRoot}>
@@ -142,7 +143,17 @@ function TodayTab() {
           <TodayDossier />
         </motion.section>
 
-        {/* YEAR FORECAST BAR (static 8000 km — AI forecast in #49, Sprint 2) */}
+        {/* Sprint 14 / v11.3.0 — Year-to-date forecast.
+         *
+         *  The static '8000 km' goal was removed (founder feedback: 'this
+         *  is not needed as the plan will project the total based on
+         *  history and performance'). Replaced with a forward-looking
+         *  forecast: YTD km + projected year-end km at current pace.
+         *
+         *  The AI-refined forecast (#49) is a future feature; for v11.3.0
+         *  the linear projection (YTD ÷ days-elapsed × 365) is the math.
+         *  Footer link points to /how-it-works for the calculation
+         *  explainer (KPI page added in this release). */}
         <motion.section
           className={styles.section}
           initial={{ opacity: 0, y: 20 }}
@@ -152,21 +163,12 @@ function TodayTab() {
           <Card tone="elev" pad="md" className={styles.goalCard}>
             <Eyebrow>Year-to-date · {new Date().getFullYear()}</Eyebrow>
             <div className={styles.goalRow}>
-              <ProgressRing
-                value={Math.min(yearKm / yearGoalKm, 1)}
-                size={120}
-                thickness={10}
-                eyebrow="km"
-                label={`of ${yearGoalKm.toLocaleString()}`}
-              >
+              <div className={styles.goalRing}>
                 <span className={styles.goalNum}>{Math.round(yearKm).toLocaleString()}</span>
-              </ProgressRing>
+                <span className={styles.goalUnit}>km so far</span>
+              </div>
               <div className={styles.goalNotes}>
                 <p>
-                  <strong>{Math.round((yearKm / yearGoalKm) * 100)}%</strong> of yearly target.
-                </p>
-                <p className={styles.goalSub}>
-                  Projected year-end:&nbsp;
                   <strong>
                     {Math.round(
                       (yearKm /
@@ -174,8 +176,15 @@ function TodayTab() {
                         365,
                     ).toLocaleString()}{' '}
                     km
-                  </strong>
-                  &nbsp;at current pace.
+                  </strong>{' '}
+                  projected by 31 Dec at your current pace.
+                </p>
+                <p className={styles.goalSub}>
+                  Linear projection from YTD distance. The AI-refined forecast
+                  arrives in a later release.{' '}
+                  <a href="/how-it-works" className={styles.goalLink}>
+                    How is this calculated? →
+                  </a>
                 </p>
               </div>
             </div>

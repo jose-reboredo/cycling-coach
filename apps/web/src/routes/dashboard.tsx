@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
+import { useEffect, useMemo } from 'react';
+import { Outlet, createFileRoute, redirect, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dashboard } from '../pages/Dashboard';
 import { BottomNav } from '../components/BottomNav/BottomNav';
@@ -98,7 +98,26 @@ function DashboardRoute() {
   return <TabsLayout />;
 }
 
+/**
+ * Sprint 14 / v11.3.0 — scroll-to-top on every dashboard sub-route change.
+ *
+ * `scrollRestoration: true` in main.tsx handles back/forward navigation
+ * (POP) correctly, but in-app tab clicks (PUSH) within the SPA shell
+ * don't reset scroll because the document is unchanged. Founder feedback:
+ * 'every time the user clicks on any option as overview, metrics, today,
+ *  etc., the user is redirected to the top of the page (expected behaviour).'
+ */
+function useScrollToTopOnRouteChange(): void {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    }
+  }, [pathname]);
+}
+
 function TabsLayout() {
+  useScrollToTopOnRouteChange();
   const queryClient = useQueryClient();
   const tokens = readTokens();
   const isDemo = useMemo(

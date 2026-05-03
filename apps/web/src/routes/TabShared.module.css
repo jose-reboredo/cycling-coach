@@ -106,10 +106,32 @@
 }
 
 .goalNum {
-  font: 700 22px/1 var(--font-mono);
+  font: 700 32px/1 var(--font-mono);
   letter-spacing: -0.04em;
   color: var(--c-text);
   font-variant-numeric: tabular-nums;
+}
+
+/* Sprint 14 / v11.3.0 — goal display replaced ProgressRing with text. */
+.goalRing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
+  min-width: 120px;
+}
+
+.goalUnit {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.goalLink {
+  color: var(--c-accent);
+  text-decoration: underline;
+  font-style: normal;
 }
 
 .goalNotes {

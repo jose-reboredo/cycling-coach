@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WhatsNextRouteImport } from './routes/whats-next'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
@@ -32,6 +33,11 @@ const WhatsNextRoute = WhatsNextRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HowItWorksRoute = HowItWorksRouteImport.update({
+  id: '/how-it-works',
+  path: '/how-it-works',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DesignSystemRoute = DesignSystemRouteImport.update({
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/how-it-works': typeof HowItWorksRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
   '/account/recover': typeof AccountRecoverRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/how-it-works': typeof HowItWorksRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
   '/account/recover': typeof AccountRecoverRoute
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/how-it-works': typeof HowItWorksRoute
   '/privacy': typeof PrivacyRoute
   '/whats-next': typeof WhatsNextRoute
   '/account/recover': typeof AccountRecoverRoute
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/design-system'
+    | '/how-it-works'
     | '/privacy'
     | '/whats-next'
     | '/account/recover'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/design-system'
+    | '/how-it-works'
     | '/privacy'
     | '/whats-next'
     | '/account/recover'
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/design-system'
+    | '/how-it-works'
     | '/privacy'
     | '/whats-next'
     | '/account/recover'
@@ -199,6 +211,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   DesignSystemRoute: typeof DesignSystemRoute
+  HowItWorksRoute: typeof HowItWorksRoute
   PrivacyRoute: typeof PrivacyRoute
   WhatsNextRoute: typeof WhatsNextRoute
   AccountRecoverRoute: typeof AccountRecoverRoute
@@ -220,6 +233,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/how-it-works': {
+      id: '/how-it-works'
+      path: '/how-it-works'
+      fullPath: '/how-it-works'
+      preLoaderRoute: typeof HowItWorksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/design-system': {
@@ -335,6 +355,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
   DesignSystemRoute: DesignSystemRoute,
+  HowItWorksRoute: HowItWorksRoute,
   PrivacyRoute: PrivacyRoute,
   WhatsNextRoute: WhatsNextRoute,
   AccountRecoverRoute: AccountRecoverRoute,
