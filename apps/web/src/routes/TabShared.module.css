@@ -6,8 +6,17 @@
 }
 
 .tabHeading {
-  font: 700 clamp(28px, 6vw, 48px) / 0.95 var(--font-sans);
-  letter-spacing: -0.03em;
+  /* Sprint 14 / v11.3.0 — aligned to the v11.2.0 design-system display
+   * font (Source Serif Pro via --font-display). Founder feedback:
+   * 'review sizes and fonts of titles it looks misaligned with the rest
+   * of the experience.' This matches the /dashboard/you h1 pattern from
+   * v11.2.0 so all tab-level page titles feel like one app.
+   */
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.022em;
+  font-weight: 600;
   color: var(--c-text);
   margin: var(--s-6) 0 var(--s-5);
   padding-top: var(--s-4);

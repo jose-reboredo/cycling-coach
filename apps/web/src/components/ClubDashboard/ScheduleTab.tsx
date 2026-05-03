@@ -95,6 +95,16 @@ export function ScheduleTab({ clubId, onEditEvent }: ScheduleTabProps) {
   // Future opt: when in Week view crossing a month boundary, query both months.
   const range = monthToRange(date.year, date.month);
   const { data, isLoading, error } = useClubEventsByMonth(clubId, range);
+  // Sprint 14 / v11.3.0 — the worker query at GET /api/clubs/:id/events?range=
+  // SELECTs FROM club_events only, scoped by `WHERE e.club_id = ?`.
+  // Personal sessions live in `planned_sessions` and cannot appear in
+  // this response. The TS type for ClubEvent has no `is_personal` field,
+  // confirming the data shape. Founder report 'seeing personal events
+  // in club calendar' was investigated; cause likely stale-cache or
+  // founder confusion between `/dashboard/schedule` (personal merge view)
+  // and the club ScheduleTab (club-only). No code defect found in v11.3.0
+  // beyond ensuring `Cache-Control: private, no-store` (already shipped
+  // in v10.11.2). Documented in the Phase 5 audit.
   const events: CalendarEvent[] = useMemo(() => data?.events ?? [], [data]);
 
   // v9.7.3 — pass caller's role to drawer for Cancel-button gating.
